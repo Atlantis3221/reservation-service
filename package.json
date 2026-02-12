@@ -1,0 +1,19 @@
+{
+  "name": "reservation-service",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:back": "npm run dev --workspace=backend",
+    "dev:front": "npm run dev --workspace=frontend",
+    "build:front": "npm run build --workspace=frontend",
+    "start": "npm run start --workspace=backend",
+    "docker:up": "docker-compose up -d --build",
+    "docker:down": "docker-compose down",
+    "deploy:backend": "bash scripts/deploy-backend.sh",
+    "deploy:frontend": "bash scripts/deploy-frontend.sh"
+  }
+}

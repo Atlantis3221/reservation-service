@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: reservation-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
