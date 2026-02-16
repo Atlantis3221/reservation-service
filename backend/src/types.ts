@@ -24,6 +24,8 @@ export type SlotStatus = 'available' | 'booked' | 'blocked';
 export interface TimeSlot {
   /** ISO datetime строка (2026-03-15T14:00:00.000Z) */
   datetime: string;
+  /** Длительность в часах (по умолчанию 1) */
+  duration: number;
   status: SlotStatus;
   /** Кем/чем занято (если booked/blocked) */
   note?: string;

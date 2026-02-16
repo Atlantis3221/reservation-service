@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import type { Reservation, CreateReservationBody } from '../types';
-import { getAvailableSlots, setSlotStatus } from '../services/schedule';
+import { getAvailableDateKeys, getSlotsForDateFull, bookRange, setSlotStatus } from '../services/schedule';
 
 export const apiRouter = Router();
 
@@ -9,12 +9,10 @@ let nextId = 1;
 
 // ---- Бронирования ----
 
-// Получить все бронирования
 apiRouter.get('/reservations', (_req: Request, res: Response) => {
   res.json(reservations);
 });
 
-// Создать бронирование
 apiRouter.post('/reservations', (req: Request<{}, {}, CreateReservationBody>, res: Response) => {
   const { name, date, guests, comment } = req.body;
 
@@ -33,14 +31,12 @@ apiRouter.post('/reservations', (req: Request<{}, {}, CreateReservationBody>, re
     createdAt: new Date().toISOString(),
   };
 
-  // Помечаем слот как забронированный
   setSlotStatus(date, 'booked', name);
 
   reservations.push(reservation);
   res.status(201).json(reservation);
 });
 
-// Получить бронирование по id
 apiRouter.get('/reservations/:id', (req: Request, res: Response) => {
   const item = reservations.find((r) => r.id === Number(req.params.id));
   if (!item) {
@@ -50,7 +46,6 @@ apiRouter.get('/reservations/:id', (req: Request, res: Response) => {
   res.json(item);
 });
 
-// Отменить бронирование
 apiRouter.delete('/reservations/:id', (req: Request, res: Response) => {
   const idx = reservations.findIndex((r) => r.id === Number(req.params.id));
   if (idx === -1) {
@@ -59,17 +54,23 @@ apiRouter.delete('/reservations/:id', (req: Request, res: Response) => {
   }
 
   reservations[idx].status = 'cancelled';
-
-  // Освобождаем слот
   setSlotStatus(reservations[idx].date, 'available');
-
   res.json(reservations[idx]);
 });
 
-// ---- Расписание (читает фронтенд) ----
+// ---- Расписание ----
 
-// Получить свободные слоты
-apiRouter.get('/available-slots', (_req: Request, res: Response) => {
-  const slots = getAvailableSlots();
-  res.json({ slots });
+// Даты, на которых есть свободные слоты (для месячной сетки)
+apiRouter.get('/available-dates', (_req: Request, res: Response) => {
+  res.json({ dates: getAvailableDateKeys() });
+});
+
+// Все слоты на конкретную дату (для таймлайна дня)
+apiRouter.get('/day-slots', (req: Request, res: Response) => {
+  const date = req.query.date as string;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: 'Параметр date обязателен (YYYY-MM-DD)' });
+    return;
+  }
+  res.json({ slots: getSlotsForDateFull(date) });
 });

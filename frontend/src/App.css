@@ -140,6 +140,22 @@
   line-height: 1.4;
 }
 
+.booking-duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: #5f6368;
+}
+
+.booking-duration select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #dadce0;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+
 .booking-bar-actions {
   display: flex;
   flex-direction: column;

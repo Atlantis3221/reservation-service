@@ -212,72 +212,106 @@
   display: none;
 }
 
-/* ---- Time slots panel ---- */
+/* ---- Day Timeline ---- */
 
-.gcal-times {
+.gcal-timeline {
+  display: grid;
+  grid-template-columns: 50px 1fr;
   border-top: 1px solid #dadce0;
-  padding: 16px 20px 20px;
-  animation: gcal-slide-in 0.2s ease-out;
+  overflow-y: auto;
+  max-height: 600px;
 }
 
-@keyframes gcal-slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.gcal-times-header {
+.gcal-tl-hours {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 14px;
+  flex-direction: column;
+  padding: 8px 0;
+  border-right: 1px solid #dadce0;
 }
 
-.gcal-times-date {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #3c4043;
-  text-transform: capitalize;
-}
-
-.gcal-times-count {
-  font-size: 0.8125rem;
+.gcal-tl-hour {
+  height: 60px;
+  padding-right: 12px;
+  text-align: right;
+  font-size: 0.75rem;
   color: #70757a;
+  line-height: 60px;
 }
 
-.gcal-times-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.gcal-tl-cells-wrap {
+  position: relative;
+  padding: 0;
 }
 
-.gcal-time-chip {
-  padding: 8px 20px;
-  border: 1px solid #dadce0;
-  border-radius: 20px;
-  background: #fff;
-  color: #1a73e8;
-  font-size: 0.875rem;
-  font-weight: 500;
-  font-family: inherit;
+.gcal-tl-cell {
+  height: 60px;
+  border-bottom: 1px solid #e8eaed;
+  position: relative;
+  transition: background 0.1s;
+}
+
+.gcal-tl-cell--available {
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
-.gcal-time-chip:hover {
+.gcal-tl-cell--available:hover {
+  background: #f1f3f4;
+}
+
+.gcal-tl-cell--selected {
   background: #e8f0fe;
-  border-color: #d2e3fc;
-}
-
-.gcal-time-chip--active {
-  background: #1a73e8;
   border-color: #1a73e8;
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.4);
 }
 
-.gcal-time-chip--active:hover {
-  background: #1765cc;
-  border-color: #1765cc;
+.gcal-tl-cell--selected::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #1a73e8;
+}
+
+.gcal-tl-cell--booked {
+  background: #fce8e6;
+}
+
+.gcal-tl-cell--blocked {
+  background: #f1f3f4;
+  opacity: 0.6;
+}
+
+.gcal-tl-cell--past {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gcal-tl-block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: #fce8e6;
+  border-left: 3px solid #d93025;
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  color: #c5221f;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.gcal-tl-cell--blocked .gcal-tl-block {
+  background: #f1f3f4;
+  border-left-color: #5f6368;
+  color: #5f6368;
+}
+
+.gcal-tl-block-note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Responsive ---- */
@@ -309,8 +343,20 @@
     height: 4px;
   }
 
-  .gcal-time-chip {
-    padding: 6px 16px;
-    font-size: 0.8125rem;
+  .gcal-timeline {
+    max-height: 400px;
+  }
+
+  .gcal-tl-hour {
+    font-size: 0.6875rem;
+  }
+
+  .gcal-tl-cell {
+    height: 50px;
+  }
+
+  .gcal-tl-hour {
+    height: 50px;
+    line-height: 50px;
   }
 }

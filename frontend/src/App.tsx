@@ -15,6 +15,7 @@ export default function App() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number>(1);
   const [copied, setCopied] = useState(false);
 
   async function fetchReservations(): Promise<void> {
@@ -57,7 +58,8 @@ export default function App() {
       hour: '2-digit',
       minute: '2-digit',
     });
-    return `Здравствуйте! Хочу забронировать баню на ${dateStr} в ${timeStr}.`;
+    const hoursPart = duration === 1 ? 'на 1 час' : `на ${duration} часа`;
+    return `Здравствуйте! Хочу забронировать баню на ${dateStr} с ${timeStr} ${hoursPart}.`;
   }
 
   function handleBook(): void {
@@ -116,6 +118,18 @@ export default function App() {
                 <span>{formatSelectedSlot()}</span>
               </div>
               <div className="booking-bar-message">{buildMessage()}</div>
+              <div className="booking-duration">
+                <span>Длительность:</span>
+                <select
+                  value={duration}
+                  onChange={(e) => setDuration(Number(e.target.value))}
+                >
+                  <option value={1}>1 час</option>
+                  <option value={2}>2 часа</option>
+                  <option value={3}>3 часа</option>
+                  <option value={4}>4 часа</option>
+                </select>
+              </div>
             </div>
             <div className="booking-bar-actions">
               <button className="booking-bar-btn" onClick={handleBook}>

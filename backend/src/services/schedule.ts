@@ -28,20 +28,37 @@ export function getSlotsForDate(dateKey: string): TimeSlot[] {
   return schedule.get(dateKey) || [];
 }
 
-/** Получить все свободные слоты (для фронтенда) */
-export function getAvailableSlots(): string[] {
+/** Получить все свободные даты (dateKey[]) для месячной сетки */
+export function getAvailableDateKeys(): string[] {
   const now = new Date();
-  const result: string[] = [];
+  const result = new Set<string>();
 
-  for (const [, slots] of schedule) {
+  for (const [dateKey, slots] of schedule) {
     for (const slot of slots) {
       if (slot.status === 'available' && new Date(slot.datetime) > now) {
-        result.push(slot.datetime);
+        result.add(dateKey);
+        break;
       }
     }
   }
 
-  return result.sort();
+  return [...result].sort();
+}
+
+/** Получить все слоты на дату (для фронтенда — включая booked/blocked) */
+export function getSlotsForDateFull(dateKey: string): Array<{
+  datetime: string;
+  duration: number;
+  status: SlotStatus;
+  note?: string;
+}> {
+  const slots = schedule.get(dateKey) || [];
+  return slots.map((s) => ({
+    datetime: s.datetime,
+    duration: s.duration,
+    status: s.status,
+    note: s.note,
+  }));
 }
 
 /** Получить все слоты всех дат (для админки) */
@@ -55,20 +72,25 @@ export function getAllSlots(): Array<{ dateKey: string; slots: TimeSlot[] }> {
   return result.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
-/** Добавить слот */
-export function addSlot(datetime: string, status: SlotStatus = 'available', note?: string): TimeSlot {
+/** Добавить один слот */
+export function addSlot(
+  datetime: string,
+  duration: number = 1,
+  status: SlotStatus = 'available',
+  note?: string
+): TimeSlot {
   const dateKey = toDateKeyFromISO(datetime);
   const slots = schedule.get(dateKey) || [];
 
-  // Проверяем дубликат
   const existing = slots.find((s) => s.datetime === datetime);
   if (existing) {
     existing.status = status;
+    existing.duration = duration;
     if (note !== undefined) existing.note = note;
     return existing;
   }
 
-  const slot: TimeSlot = { datetime, status, note };
+  const slot: TimeSlot = { datetime, duration, status, note };
   slots.push(slot);
   slots.sort((a, b) => a.datetime.localeCompare(b.datetime));
   schedule.set(dateKey, slots);
@@ -103,14 +125,26 @@ export function setSlotStatus(datetime: string, status: SlotStatus, note?: strin
   return slot;
 }
 
-/** Массово добавить слоты на дату (часы) */
-export function addDaySlots(dateKey: string, hours: number[]): TimeSlot[] {
+/** Массово добавить часовые слоты на дату (с startHour до endHour) */
+export function addDaySlots(dateKey: string, startHour: number, endHour: number): TimeSlot[] {
   const added: TimeSlot[] = [];
-  for (const hour of hours) {
-    const dt = `${dateKey}T${String(hour).padStart(2, '0')}:00:00.000Z`;
-    added.push(addSlot(dt));
+  for (let h = startHour; h < endHour; h++) {
+    // Локальное время (без Z), чтобы часы совпадали с регионом сервера/браузера
+    const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
+    added.push(addSlot(dt, 1));
   }
   return added;
+}
+
+/** Забронировать диапазон часов (пометить как booked) */
+export function bookRange(dateKey: string, startHour: number, hours: number, note?: string): number {
+  let count = 0;
+  for (let h = startHour; h < startHour + hours; h++) {
+    const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
+    const slot = setSlotStatus(dt, 'booked', note);
+    if (slot) count++;
+  }
+  return count;
 }
 
 /** Удалить все слоты на дату */
