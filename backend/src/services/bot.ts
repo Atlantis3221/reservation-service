@@ -201,14 +201,14 @@ function parseBookingCommand(text: string): { dayName: string; hour: number; min
 }
 
 function parseBookingRange(text: string): { dayName: string; startHour: number; endHour: number } | null {
-  const match = text.match(/(?:(?:в|на)\s+)?(\S+)\s+бронь\s+[сc]\s+(\d{1,2}):(\d{2})\s+до\s+(\d{1,2}):(\d{2})/i);
+  const match = text.match(/(?:(?:в|на)\s+)?(\S+)\s+бронь\s+[сc]\s+(\d{1,2})(?::(\d{2}))?\s+(?:до|по)\s+(\d{1,2})(?::(\d{2}))?/i);
   if (!match) return null;
 
   const dayName = match[1];
   const startHour = Number(match[2]);
-  const startMin = Number(match[3]);
+  const startMin = Number(match[3] || '0');
   const endHour = Number(match[4]);
-  const endMin = Number(match[5]);
+  const endMin = Number(match[5] || '0');
 
   if (startMin !== 0 || endMin !== 0) return null;
   if (startHour < 0 || startHour >= 24 || endHour < 0 || endHour > 24) return null;
@@ -262,6 +262,14 @@ export function initBot(): void {
       return ctx.reply('⛔ У вас нет доступа.');
     }
     handleInfo(ctx);
+  });
+
+  bot.command('schedule', (ctx) => {
+    if (!isAdmin(ctx.chat.id)) {
+      return ctx.reply('⛔ У вас нет доступа.');
+    }
+    const arg = ctx.message.text.replace(/^\/schedule\s*/i, '').trim();
+    handleDaySchedule(ctx, arg || 'сегодня');
   });
 
   bot.action('edit_slots', (ctx) => {
@@ -522,6 +530,11 @@ export function initBot(): void {
 
     ctx.reply(text, { parse_mode: 'Markdown' });
   }
+
+  bot.telegram.setMyCommands([
+    { command: 'info', description: 'Возможности бота' },
+    { command: 'schedule', description: 'Показать расписание' },
+  ]);
 
   bot.launch()
     .then(() => console.log('[bot] Telegram bot started'))
