@@ -98,6 +98,45 @@ function getNextWeekday(dayName: string): Date | null {
   return targetDate;
 }
 
+function resolveDay(dayName: string): Date | null {
+  const lower = dayName.toLowerCase();
+
+  if (lower === 'сегодня') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  if (lower === 'завтра') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  const dayMap: Record<string, number> = {
+    'понедельник': 1, 'понедельника': 1, 'понедельнику': 1, 'понедельником': 1,
+    'вторник': 2, 'вторника': 2, 'вторнику': 2, 'вторником': 2,
+    'среда': 3, 'среды': 3, 'среде': 3, 'средой': 3, 'среду': 3,
+    'четверг': 4, 'четверга': 4, 'четвергу': 4, 'четвергом': 4,
+    'пятница': 5, 'пятницы': 5, 'пятнице': 5, 'пятницей': 5, 'пятницу': 5,
+    'суббота': 6, 'субботы': 6, 'субботе': 6, 'субботой': 6, 'субботу': 6,
+    'воскресенье': 0, 'воскресенья': 0, 'воскресенью': 0, 'воскресеньем': 0,
+  };
+
+  const dayIndex = dayMap[lower];
+  if (dayIndex === undefined) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentDay = today.getDay();
+  let daysUntil = dayIndex - currentDay;
+  if (daysUntil < 0) daysUntil += 7;
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + daysUntil);
+  return targetDate;
+}
+
 // ---- Парсеры ----
 
 interface DayTimeRange {
@@ -124,7 +163,7 @@ function parseFlexibleSchedule(text: string): FlexibleScheduleCommand | null {
     return null;
   }
 
-  const rangeRegex = /с\s+(пн|вт|ср|чт|пт|сб|вс)\s+по\s+(пн|вт|ср|чт|пт|сб|вс)\s+с\s+(\d{1,2})(?::00)?\s+до\s+(\d{1,2})(?::00)?/g;
+  const rangeRegex = /(?:с\s+)?(пн|вт|ср|чт|пт|сб|вс)\s*(?:[-–]\s*|\s+по\s+)(пн|вт|ср|чт|пт|сб|вс)\s+[сc]\s+(\d{1,2})(?::00)?\s+до\s+(\d{1,2})(?::00)?/g;
 
   const ranges: DayTimeRange[] = [];
   let match;
@@ -161,6 +200,23 @@ function parseBookingCommand(text: string): { dayName: string; hour: number; min
   return { dayName, hour, minutes, duration };
 }
 
+function parseBookingRange(text: string): { dayName: string; startHour: number; endHour: number } | null {
+  const match = text.match(/(?:(?:в|на)\s+)?(\S+)\s+бронь\s+[сc]\s+(\d{1,2}):(\d{2})\s+до\s+(\d{1,2}):(\d{2})/i);
+  if (!match) return null;
+
+  const dayName = match[1];
+  const startHour = Number(match[2]);
+  const startMin = Number(match[3]);
+  const endHour = Number(match[4]);
+  const endMin = Number(match[5]);
+
+  if (startMin !== 0 || endMin !== 0) return null;
+  if (startHour < 0 || startHour >= 24 || endHour < 0 || endHour > 24) return null;
+  if (startHour >= endHour) return null;
+
+  return { dayName, startHour, endHour };
+}
+
 // ---- Bot init ----
 
 export function initBot(): void {
@@ -173,30 +229,39 @@ export function initBot(): void {
 
   bot = new Telegraf(token);
 
+  function handleInfo(ctx: any): void {
+    const frontendUrl = getFrontendUrl();
+    let text =
+      `Привет! Я бот для управления расписанием.\n\n` +
+      `📌 <b>Возможности:</b>\n\n` +
+      `<b>Время работы</b>\n` +
+      `Например: на этой неделе ПН-ПТ c 10 до 23, ПТ-СБ c 12 до 03\n\n` +
+      `<b>Расписание</b>\n` +
+      `Например:\n` +
+      `- в пятницу бронь на 15:00 на 3 часа\n` +
+      `- сегодня бронь с 14:00 до 18:00\n` +
+      `- расписание на сегодня\n` +
+      `- расписание на пятницу`;
+
+    if (frontendUrl) {
+      text += `\n\n🔗 Расписание для гостей находится по этому адресу: ${frontendUrl}`;
+    }
+
+    ctx.reply(text, { parse_mode: 'HTML' });
+  }
+
   bot.start((ctx) => {
     if (!isAdmin(ctx.chat.id)) {
       return ctx.reply('⛔ Этот бот только для администратора.');
     }
+    handleInfo(ctx);
+  });
 
-    const text =
-      `Привет! Я бот управления расписанием.\n\n` +
-      `Примеры команд:\n\n` +
-      `📅 Расписание:\n` +
-      `"на этой неделе с пн по пт с 12 до 23, с пт по вс с 12 до 03"\n\n` +
-      `🔴 Бронь:\n` +
-      `"в пятницу бронь на 15:00 на 3 часа"\n\n` +
-      `📋 Показать:\n` +
-      `"покажи расписание"`;
-
-    return ctx.reply(text, {
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('✏️ Редактировать слоты', 'edit_slots')],
-        [
-          Markup.button.callback('🔴 Пример брони', 'example_booking'),
-          Markup.button.callback('📋 Показать расписание', 'example_show'),
-        ],
-      ]),
-    });
+  bot.command('info', (ctx) => {
+    if (!isAdmin(ctx.chat.id)) {
+      return ctx.reply('⛔ У вас нет доступа.');
+    }
+    handleInfo(ctx);
   });
 
   bot.action('edit_slots', (ctx) => {
@@ -222,6 +287,11 @@ export function initBot(): void {
     const text = ctx.message.text.trim();
     const textLower = text.toLowerCase();
 
+    const scheduleMatch = textLower.match(/расписание\s+на\s+(\S+)/);
+    if (scheduleMatch) {
+      return handleDaySchedule(ctx, scheduleMatch[1]);
+    }
+
     if (textLower.includes('покажи') && textLower.includes('расписание')) {
       return handleShowSchedule(ctx);
     }
@@ -231,17 +301,17 @@ export function initBot(): void {
       return handleFlexibleSchedule(ctx, flexCmd);
     }
 
+    const bookingRangeCmd = parseBookingRange(textLower);
+    if (bookingRangeCmd) {
+      return handleBookingRangeCommand(ctx, bookingRangeCmd);
+    }
+
     const bookingCmd = parseBookingCommand(textLower);
     if (bookingCmd) {
       return handleBookingCommand(ctx, bookingCmd);
     }
 
-    ctx.reply(
-      'Не понял команду. Используйте:\n' +
-      '• "на этой неделе с пн по пт с 12 до 23, с пт по вс с 12 до 03"\n' +
-      '• "в пятницу бронь на 15:00 на 3 часа"\n' +
-      '• "покажи расписание"'
-    );
+    ctx.reply('Не понял команду. Отправьте /info для списка возможностей.');
   });
 
   // ---- Обработчики ----
@@ -358,6 +428,67 @@ export function initBot(): void {
       `✅ Бронь создана!\n\n` +
       `Дата: ${fmtDate(dateKey)}\n` +
       `Время: ${cmd.hour}:00 – ${cmd.hour + cmd.duration}:00`;
+
+    const frontendUrl = getFrontendUrl();
+    if (frontendUrl) {
+      replyText += `\n\n🔗 ${frontendUrl}?date=${dateKey}`;
+    }
+
+    ctx.reply(replyText);
+  }
+
+  function handleDaySchedule(ctx: any, dayName: string): void {
+    const targetDate = resolveDay(dayName);
+    if (!targetDate) {
+      return ctx.reply(`Не понял день: "${dayName}". Отправьте /info для списка возможностей.`);
+    }
+
+    const dateKey = toDateKey(targetDate);
+    const slots = getSlotsForDate(dateKey);
+
+    if (slots.length === 0) {
+      return ctx.reply(`На ${fmtDate(dateKey)} расписание не задано.`);
+    }
+
+    let text = `📅 Расписание на ${fmtDate(dateKey)}:\n\n`;
+
+    for (const slot of slots) {
+      const hour = slot.datetime.split('T')[1].split(':')[0];
+      const emoji = slot.status === 'available' ? '🟢' : slot.status === 'booked' ? '🔴' : '⛔';
+      const note = slot.note ? ` — ${slot.note}` : '';
+      text += `${emoji} ${hour}:00${note}\n`;
+    }
+
+    ctx.reply(text);
+  }
+
+  function handleBookingRangeCommand(
+    ctx: any,
+    cmd: { dayName: string; startHour: number; endHour: number }
+  ): void {
+    const targetDate = resolveDay(cmd.dayName);
+    if (!targetDate) {
+      return ctx.reply(`Не понял день: "${cmd.dayName}"`);
+    }
+
+    const dateKey = toDateKey(targetDate);
+    const duration = cmd.endHour - cmd.startHour;
+
+    const existingSlots = getSlotsForDate(dateKey);
+    if (existingSlots.length === 0) {
+      addDaySlots(dateKey, 10, 22);
+    }
+
+    const count = bookRange(dateKey, cmd.startHour, duration, 'Бронь');
+
+    if (count === 0) {
+      return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
+    }
+
+    let replyText =
+      `✅ Бронь создана!\n\n` +
+      `Дата: ${fmtDate(dateKey)}\n` +
+      `Время: ${cmd.startHour}:00 – ${cmd.endHour}:00`;
 
     const frontendUrl = getFrontendUrl();
     if (frontendUrl) {
