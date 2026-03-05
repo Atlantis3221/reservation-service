@@ -266,10 +266,18 @@ export function initBot(): void {
     }
 
     const dateKey = toDateKey(targetDate);
+
+    const existingSlots = getSlotsForDate(dateKey);
+    if (existingSlots.length === 0) {
+      const DEFAULT_START = 10;
+      const DEFAULT_END = 22;
+      addDaySlots(dateKey, DEFAULT_START, DEFAULT_END);
+    }
+
     const count = bookRange(dateKey, cmd.hour, cmd.duration, 'Бронь');
 
     if (count === 0) {
-      return ctx.reply(`Не удалось забронировать. Убедитесь, что слоты на ${fmtDate(dateKey)} созданы.`);
+      return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
     }
 
     ctx.reply(
