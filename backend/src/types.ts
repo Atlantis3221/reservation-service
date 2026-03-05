@@ -29,6 +29,8 @@ export interface TimeSlot {
   status: SlotStatus;
   /** Кем/чем занято (если booked/blocked) */
   note?: string;
+  /** Имя клиента (не показывается на фронтенде) */
+  clientName?: string;
 }
 
 /**
