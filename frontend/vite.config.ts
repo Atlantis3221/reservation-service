@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/reservation-service/',
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/api': 'http://localhost:3000',
