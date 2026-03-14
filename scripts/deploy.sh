@@ -44,7 +44,7 @@ rsync -avz --delete \
 
 # 4. Rebuild and restart containers
 echo "==> Restarting containers..."
-ssh "${USER}@${HOST}" "cd ${REMOTE_PATH} && docker compose up -d --build"
+ssh "${USER}@${HOST}" "cd ${REMOTE_PATH} && docker-compose up -d --build"
 
 echo ""
 echo "==> Deploy complete!"

@@ -33,7 +33,7 @@ jobs:
       - name: Prepare server
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "apt-get update && apt-get install -y rsync docker-compose-plugin"
+            "apt-get update && apt-get install -y rsync python3-distutils 2>/dev/null || true"
 
       - name: Sync project to server
         run: |
@@ -57,7 +57,7 @@ jobs:
       - name: Restart containers
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && docker compose up -d --build"
+            "cd ${{ secrets.DEPLOY_PATH }} && docker-compose up -d --build"
 
       - name: Health check
         run: |
