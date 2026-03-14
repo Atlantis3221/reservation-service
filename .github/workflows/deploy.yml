@@ -30,10 +30,10 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Install rsync on server
+      - name: Prepare server
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "which rsync || (apt-get update && apt-get install -y rsync)"
+            "apt-get update && apt-get install -y rsync docker-compose-plugin"
 
       - name: Sync project to server
         run: |
@@ -57,7 +57,7 @@ jobs:
       - name: Restart containers
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && docker-compose up -d --build"
+            "cd ${{ secrets.DEPLOY_PATH }} && docker compose up -d --build"
 
       - name: Health check
         run: |

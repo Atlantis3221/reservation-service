@@ -30,7 +30,7 @@ rsync -avz --delete \
 scp docker-compose.yml "${USER}@${HOST}:${REMOTE_PATH}/docker-compose.yml"
 
 # 3. Пересобираем и перезапускаем контейнер
-ssh "${USER}@${HOST}" "cd ${REMOTE_PATH} && docker-compose up -d --build"
+ssh "${USER}@${HOST}" "cd ${REMOTE_PATH} && docker compose up -d --build"
 
 echo "==> Backend deployed successfully!"
 echo "==> Health check: http://${HOST}:3000/health"

@@ -97,11 +97,11 @@ npm run dev:front
 ## Docker
 
 ```bash
-# Поднять бэкенд в контейнере
-docker-compose up -d --build
+# Поднять в контейнере
+docker compose up -d --build
 
 # Остановить
-docker-compose down
+docker compose down
 ```
 
 ## База данных

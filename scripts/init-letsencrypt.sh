@@ -14,7 +14,7 @@ DOMAIN="slotik.tech"
 EMAIL="admin@slotik.tech"
 STAGING=${STAGING:-0}  # Set STAGING=1 to test without rate limits
 
-COMPOSE="docker-compose"
+COMPOSE="docker compose"
 
 echo "==> Starting SSL initialization for ${DOMAIN}"
 
