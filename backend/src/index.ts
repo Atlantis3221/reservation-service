@@ -36,6 +36,7 @@ app.get('/health', (_req, res) => {
     memory: info.memoryMb,
     businesses: info.businesses,
     slots: info.slots,
+    dbSizeMb: info.dbSizeMb,
   });
 });
 

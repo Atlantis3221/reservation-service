@@ -1,4 +1,7 @@
 import { Telegraf } from 'telegraf';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { getDb } from './db';
 
 const MONITOR_BOT_TOKEN = process.env.MONITOR_BOT_TOKEN;
@@ -54,11 +57,61 @@ export function notifyError(error: unknown, context?: string): void {
   sendTelegram(text);
 }
 
+interface DockerContainer {
+  name: string;
+  state: string;
+  status: string;
+}
+
+function getDockerContainers(): Promise<DockerContainer[]> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { socketPath: '/var/run/docker.sock', path: '/containers/json?all=true', method: 'GET' },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const containers = JSON.parse(data) as any[];
+            resolve(
+              containers.map((c) => ({
+                name: (c.Names?.[0] || '').replace(/^\//, ''),
+                state: c.State,
+                status: c.Status,
+              }))
+            );
+          } catch {
+            resolve([]);
+          }
+        });
+      }
+    );
+    req.on('error', () => resolve([]));
+    req.setTimeout(3000, () => { req.destroy(); resolve([]); });
+    req.end();
+  });
+}
+
+function getDbSizeMb(): number {
+  try {
+    const dbDir = process.env.DB_DIR || path.join(process.cwd(), 'data');
+    const dbPath = path.join(dbDir, 'reservations.db');
+    let totalBytes = 0;
+    for (const file of [dbPath, dbPath + '-wal', dbPath + '-shm']) {
+      try { totalBytes += fs.statSync(file).size; } catch {}
+    }
+    return Math.round(totalBytes / 1024 / 1024 * 100) / 100;
+  } catch {
+    return 0;
+  }
+}
+
 export function getHealthInfo(): {
   uptime: string;
   memoryMb: { rss: number; heapUsed: number; heapTotal: number };
   businesses: number;
   slots: number;
+  dbSizeMb: number;
 } {
   const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
   const hours = Math.floor(uptimeSec / 3600);
@@ -90,16 +143,30 @@ export function getHealthInfo(): {
     },
     businesses,
     slots,
+    dbSizeMb: getDbSizeMb(),
   };
 }
 
-function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
+function formatContainers(containers: DockerContainer[]): string {
+  if (containers.length === 0) return '\n🐳 Docker: unavailable';
+  let text = '\n🐳 <b>Docker:</b>\n';
+  for (const c of containers) {
+    const icon = c.state === 'running' ? '🟢' : '🔴';
+    text += `${icon} ${c.name} — ${c.status}\n`;
+  }
+  return text;
+}
+
+async function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): Promise<string> {
+  const containers = await getDockerContainers();
   return (
     `📊 <b>Server Health</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
     `🏢 Businesses: ${info.businesses}\n` +
-    `📅 Slots: ${info.slots}`
+    `📅 Slots: ${info.slots}\n` +
+    `🗄 DB: ${info.dbSizeMb} MB` +
+    formatContainers(containers)
   );
 }
 
@@ -121,9 +188,10 @@ function getBookingsLast24h(): number {
   }
 }
 
-function sendDailyDigest(): void {
+async function sendDailyDigest(): Promise<void> {
   const info = getHealthInfo();
   const bookings24h = getBookingsLast24h();
+  const containers = await getDockerContainers();
 
   const text =
     `📋 <b>Daily Digest</b>\n\n` +
@@ -131,7 +199,9 @@ function sendDailyDigest(): void {
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
     `🏢 Businesses: ${info.businesses}\n` +
     `📅 Slots: ${info.slots}\n` +
-    `🔴 Bookings (24h): ${bookings24h}`;
+    `🗄 DB: ${info.dbSizeMb} MB\n` +
+    `🔴 Bookings (24h): ${bookings24h}` +
+    formatContainers(containers);
 
   sendTelegram(text);
 }
@@ -169,9 +239,10 @@ export function initMonitor(): void {
 
   monitorBot = new Telegraf(MONITOR_BOT_TOKEN);
 
-  monitorBot.command('health', (ctx) => {
+  monitorBot.command('health', async (ctx) => {
     const info = getHealthInfo();
-    ctx.reply(formatHealthMessage(info), { parse_mode: 'HTML' });
+    const text = await formatHealthMessage(info);
+    ctx.reply(text, { parse_mode: 'HTML' });
   });
 
   monitorBot.command('start', (ctx) => {
