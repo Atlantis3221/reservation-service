@@ -1,10 +1,21 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { networkInterfaces } from 'os';
 import { initDb } from './services/db';
 import { initBot } from './services/bot';
 import { apiRouter } from './routes/api';
+import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
+
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] Uncaught exception:', err);
+  notifyError(err, 'uncaughtException');
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] Unhandled rejection:', reason);
+  notifyError(reason, 'unhandledRejection');
+});
 
 initDb();
 
@@ -17,7 +28,20 @@ app.use(express.json());
 app.use('/api', apiRouter);
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const info = getHealthInfo();
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: info.uptime,
+    memory: info.memoryMb,
+    businesses: info.businesses,
+    slots: info.slots,
+  });
+});
+
+app.use((err: Error, req: Request, _res: Response, next: NextFunction) => {
+  notifyError(err, `${req.method} ${req.originalUrl}`);
+  next(err);
 });
 
 function getLocalNetworkIP(): string | null {
@@ -38,4 +62,5 @@ app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`[server] Network:  http://${localIP}:${PORT}`);
   }
   initBot();
+  initMonitor();
 });

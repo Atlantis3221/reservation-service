@@ -23,6 +23,7 @@ reservation-service/
 │   │       ├── bot.ts         # Telegram-бот (онбординг, команды)
 │   │       ├── business.ts    # CRUD бизнесов, транслитерация, slug
 │   │       ├── db.ts          # SQLite инициализация и миграции
+│   │       ├── monitor.ts     # мониторинг: алерты, /health, ежедневный дайджест
 │   │       └── schedule.ts    # логика расписания и слотов
 │   ├── data/
 │   │   └── reservations.db    # файл БД (создаётся автоматически)
@@ -80,6 +81,7 @@ npm run dev:front
 | `FRONTEND_URL`          | URL фронтенда (для ссылок в боте)       | `http://192.168.0.23:5173`      |
 | `PORT`                  | Порт сервера                            | `3000`                          |
 | `DB_DIR`                | Путь к папке с БД (по умолчанию `./data`) | `/app/data`                   |
+| `MONITOR_BOT_TOKEN`     | Токен отдельного Telegram-бота для мониторинга (алерты, `/health`, дайджест). Если не задан — мониторинг не активируется | `123456:ABC-DEF...` |
 
 ### Frontend (`frontend/.env`)
 
@@ -160,6 +162,34 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 | `GET`    | `/health`                         | Health check                          |
 | `GET`    | `/api/available-dates`            | Даты со свободными слотами            |
 | `GET`    | `/api/day-slots?date=YYYY-MM-DD`  | Все слоты на конкретную дату          |
+
+## Мониторинг
+
+При установленном `MONITOR_BOT_TOKEN` запускается отдельный Telegram-бот для мониторинга.
+
+### Настройка
+
+1. Создать бота через @BotFather (например `slotik_monitor_bot`)
+2. Добавить `MONITOR_BOT_TOKEN=<токен>` в `backend/.env`
+3. Написать боту `/start` — он запомнит chat ID и начнёт отправлять алерты
+
+### Алерты об ошибках
+
+Автоматически отправляются при:
+- `uncaughtException` / `unhandledRejection`
+- Ошибках Express (500)
+
+Rate limiting: не более 1 алерта в 60 секунд. Стектрейс обрезается до 1000 символов.
+
+### Команда `/health`
+
+Возвращает: uptime, RAM (rss/heap), количество бизнесов и слотов.
+
+### Ежедневный дайджест
+
+Каждый день в 09:00 MSK отправляется отчёт: uptime, RAM, количество бизнесов, слотов, бронирований за 24 часа.
+
+Если `MONITOR_BOT_TOKEN` не задан — мониторинг не активируется, сервис работает как раньше.
 
 ## Production
 

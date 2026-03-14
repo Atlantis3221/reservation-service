@@ -2,7 +2,7 @@
 
 **Ветка:** `08-telegram-monitoring`
 **Создана:** 2026-03-14
-**Статус:** черновик
+**Статус:** реализовано
 
 ## Контекст
 
@@ -73,25 +73,25 @@
 
 ## Критерии приёмки
 
-- [ ] Новая env-переменная `MONITOR_CHAT_ID`
-- [ ] При `uncaughtException` и `unhandledRejection` — алерт в Telegram
-- [ ] Express error middleware — алерт при 500
-- [ ] Rate limiting: не более 1 алерта в 60 секунд
-- [ ] Команда `/health` — uptime, RAM, количество бизнесов и слотов
-- [ ] Ежедневный дайджест в заданное время
-- [ ] Без `MONITOR_CHAT_ID` — всё работает как раньше, ничего не ломается
-- [ ] Ошибки отправки в Telegram не роняют процесс
-- [ ] Стектрейс обрезается до 1000 символов
-- [ ] README обновлён: новая env-переменная, описание мониторинга
+- [x] Новая env-переменная `MONITOR_CHAT_ID`
+- [x] При `uncaughtException` и `unhandledRejection` — алерт в Telegram
+- [x] Express error middleware — алерт при 500
+- [x] Rate limiting: не более 1 алерта в 60 секунд
+- [x] Команда `/health` — uptime, RAM, количество бизнесов и слотов
+- [x] Ежедневный дайджест в заданное время
+- [x] Без `MONITOR_CHAT_ID` — всё работает как раньше, ничего не ломается
+- [x] Ошибки отправки в Telegram не роняют процесс
+- [x] Стектрейс обрезается до 1000 символов
+- [x] README обновлён: новая env-переменная, описание мониторинга
 
 ## Задачи
 
-- [ ] Создать `backend/src/services/monitor.ts` — функции `notifyError()`, `notifyHealth()`, `startDailyDigest()`
-- [ ] Добавить `MONITOR_CHAT_ID` в env, `.env.example`
-- [ ] В `index.ts`: подключить `process.on('uncaughtException')` и `process.on('unhandledRejection')` до инициализации бота
-- [ ] В `index.ts`: добавить Express error middleware после роутов
-- [ ] Реализовать rate limiter в `monitor.ts`
-- [ ] Расширить `/health` эндпоинт: uptime, memory, db stats
-- [ ] Добавить команду `/health` в бота
-- [ ] Реализовать ежедневный дайджест с таймером
-- [ ] Обновить README: `MONITOR_CHAT_ID`, описание мониторинга
+- [x] Создать `backend/src/services/monitor.ts` — функции `notifyError()`, `notifyHealth()`, `startDailyDigest()`
+- [x] Добавить `MONITOR_CHAT_ID` в env, `.env.example`
+- [x] В `index.ts`: подключить `process.on('uncaughtException')` и `process.on('unhandledRejection')` до инициализации бота
+- [x] В `index.ts`: добавить Express error middleware после роутов
+- [x] Реализовать rate limiter в `monitor.ts`
+- [x] Расширить `/health` эндпоинт: uptime, memory, db stats
+- [x] Добавить команду `/health` в бота
+- [x] Реализовать ежедневный дайджест с таймером
+- [x] Обновить README: `MONITOR_CHAT_ID`, описание мониторинга
