@@ -1,7 +1,7 @@
 # Фича: Персистентное хранилище (SQLite)
 
 **Ветка:** `01-sqlite-storage`
-**Статус:** не начат
+**Статус:** реализован
 
 ## Контекст
 
@@ -46,21 +46,21 @@ API и бот работают так же, как раньше — клиент
 
 ## Критерии приёмки
 
-- [ ] `better-sqlite3` добавлен в зависимости бэкенда
-- [ ] Создан модуль `db.ts` с инициализацией БД и миграциями
-- [ ] Таблица `slots` создаётся автоматически при первом запуске
-- [ ] Все функции `schedule.ts` читают/пишут в SQLite вместо Map
-- [ ] Volume `./data:/app/data` добавлен в docker-compose
-- [ ] Бот и API работают идентично прежнему поведению
-- [ ] Данные сохраняются после `docker-compose restart`
-- [ ] Удалён мёртвый код: `Reservation`, `CreateReservationBody` из `types.ts`
+- [x] `better-sqlite3` добавлен в зависимости бэкенда
+- [x] Создан модуль `db.ts` с инициализацией БД и миграциями
+- [x] Таблица `slots` создаётся автоматически при первом запуске
+- [x] Все функции `schedule.ts` читают/пишут в SQLite вместо Map
+- [x] Volume `./data:/app/data` добавлен в docker-compose
+- [x] Бот и API работают идентично прежнему поведению
+- [x] Данные сохраняются после `docker-compose restart`
+- [x] Удалён мёртвый код: `Reservation`, `CreateReservationBody` из `types.ts`
 
 ## Задачи
 
-- [ ] Добавить `better-sqlite3` и `@types/better-sqlite3` в зависимости бэкенда
-- [ ] Создать `backend/src/services/db.ts` — инициализация БД, миграции
-- [ ] Схема: таблица `slots` (date_key, hour, status, note, client_name, client_phone)
-- [ ] Переписать `schedule.ts` — все функции читают/пишут в SQLite вместо Map
-- [ ] Добавить volume `./data:/app/data` в docker-compose для сохранения файла БД
-- [ ] Убедиться что бот и API работают как раньше
-- [ ] Удалить интерфейсы `Reservation`, `CreateReservationBody` из `types.ts`
+- [x] Добавить `better-sqlite3` и `@types/better-sqlite3` в зависимости бэкенда
+- [x] Создать `backend/src/services/db.ts` — инициализация БД, миграции
+- [x] Схема: таблица `slots` (date_key, hour, status, note, client_name, client_phone)
+- [x] Переписать `schedule.ts` — все функции читают/пишут в SQLite вместо Map
+- [x] Добавить volume `./data:/app/data` в docker-compose для сохранения файла БД
+- [x] Убедиться что бот и API работают как раньше
+- [x] Удалить интерфейсы `Reservation`, `CreateReservationBody` из `types.ts`

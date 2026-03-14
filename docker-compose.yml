@@ -11,3 +11,5 @@ services:
       - ./backend/.env
     environment:
       - NODE_ENV=production
+    volumes:
+      - ./data:/app/data

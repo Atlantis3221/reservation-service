@@ -146,7 +146,6 @@ export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) 
   }
 
   function handleDayClick(dateKey: string): void {
-    if (!availableDates.includes(dateKey)) return;
     setSelectedDate(dateKey);
     onSelectSlot('');
   }
@@ -316,13 +315,13 @@ export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) 
               if (!isCurrent) cls += ' gcal-day--other';
               if (isPast && !isToday) cls += ' gcal-day--past';
               if (isToday) cls += ' gcal-day--today';
-              if (hasSlots && !isPast) cls += ' gcal-day--available';
+              if (!isPast || isToday) cls += ' gcal-day--clickable';
 
               return (
                 <button
                   key={dateKey}
                   className={cls}
-                  disabled={!hasSlots || isPast}
+                  disabled={isPast && !isToday}
                   onClick={() => handleDayClick(dateKey)}
                 >
                   <span className="gcal-day-number">{day}</span>

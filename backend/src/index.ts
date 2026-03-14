@@ -2,8 +2,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { networkInterfaces } from 'os';
+import { initDb } from './services/db';
 import { initBot } from './services/bot';
 import { apiRouter } from './routes/api';
+
+initDb();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

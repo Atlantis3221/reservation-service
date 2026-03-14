@@ -147,11 +147,11 @@
   transition: background 0.1s;
 }
 
-.gcal-day--available {
+.gcal-day--clickable {
   cursor: pointer;
 }
 
-.gcal-day--available:hover {
+.gcal-day--clickable:hover {
   background: #f1f3f4;
   border-radius: 8px;
 }
