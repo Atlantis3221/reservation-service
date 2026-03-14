@@ -23,15 +23,17 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace=frontend
 
-      - name: Install rsync
-        run: sudo apt-get install -y rsync
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Install rsync on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "which rsync || (apt-get update && apt-get install -y rsync)"
 
       - name: Sync project to server
         run: |
