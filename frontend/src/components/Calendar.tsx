@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import './Calendar.css';
 
 interface CalendarProps {
+  apiBase: string;
   onSelectSlot: (dateTime: string) => void;
   selectedSlot: string | null;
 }
@@ -12,10 +13,6 @@ interface DaySlot {
   status: 'available' | 'booked' | 'blocked';
   note?: string;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
-  ? 'https://your-finnish-server.example.com/api'
-  : '/api');
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MONTHS = [
@@ -37,7 +34,7 @@ function formatTime(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
 
-export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) {
+export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -78,7 +75,7 @@ export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) 
   async function fetchAvailableDates(): Promise<void> {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/available-dates`);
+      const res = await fetch(`${apiBase}/available-dates`);
       const data = await res.json();
       setAvailableDates(data.dates || []);
     } catch (err) {
@@ -91,7 +88,7 @@ export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) 
   async function fetchDaySlots(dateKey: string): Promise<void> {
     setLoadingDay(true);
     try {
-      const res = await fetch(`${API_URL}/day-slots?date=${dateKey}`);
+      const res = await fetch(`${apiBase}/day-slots?date=${dateKey}`);
       const data = await res.json();
       setDaySlots(data.slots || []);
     } catch (err) {

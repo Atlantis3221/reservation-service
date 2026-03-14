@@ -1,7 +1,7 @@
 # Фича: Мультитенант на фронтенде
 
 **Ветка:** `03-frontend-multitenant`
-**Статус:** не начат
+**Статус:** реализован
 
 ## Контекст
 
@@ -59,27 +59,27 @@
 
 ## Критерии приёмки
 
-- [ ] Удалены `ReservationForm`, `ReservationList` и секция «Бронирования» из `App.tsx`
-- [ ] Удалены API роуты `/api/reservations`
-- [ ] Удалён тип `Reservation` из фронтенда
-- [ ] Роутинг: `/:slug` — страница бани
-- [ ] API `GET /api/business/:slug` возвращает { name, telegram_username }
-- [ ] API `GET /api/business/:slug/available-dates` возвращает массив дат
-- [ ] API `GET /api/business/:slug/day-slots` возвращает слоты дня
-- [ ] Фронтенд подставляет название бани и telegram_username из API
-- [ ] Корневая `/` показывает заглушку с инструкцией
-- [ ] Несуществующий slug показывает «Баня не найдена»
+- [x] Удалены `ReservationForm`, `ReservationList` и секция «Бронирования» из `App.tsx`
+- [x] Удалены API роуты `/api/reservations`
+- [x] Удалён тип `Reservation` из фронтенда
+- [x] Роутинг: `/:slug` — страница бани
+- [x] API `GET /api/business/:slug` возвращает { name, telegram_username }
+- [x] API `GET /api/business/:slug/available-dates` возвращает массив дат
+- [x] API `GET /api/business/:slug/day-slots` возвращает слоты дня
+- [x] Фронтенд подставляет название бани и telegram_username из API
+- [x] Корневая `/` показывает заглушку с инструкцией
+- [x] Несуществующий slug показывает «Баня не найдена»
 
 ## Задачи
 
-- [ ] Удалить компоненты `ReservationForm`, `ReservationList`
-- [ ] Удалить секцию «Бронирования» из `App.tsx`
-- [ ] Удалить API роуты `/api/reservations` (CRUD)
-- [ ] Удалить тип `Reservation` из фронтенда
-- [ ] Добавить роутинг: `/:slug` → страница бани, `/` → заглушка
-- [ ] Реализовать API: `GET /api/business/:slug`
-- [ ] Реализовать API: `GET /api/business/:slug/available-dates`
-- [ ] Реализовать API: `GET /api/business/:slug/day-slots?date=YYYY-MM-DD`
-- [ ] Фронтенд: подставлять название бани и telegram_username из API
-- [ ] Корневая страница `/` — заглушка
-- [ ] Обработка несуществующего slug — страница ошибки
+- [x] Удалить компоненты `ReservationForm`, `ReservationList`
+- [x] Удалить секцию «Бронирования» из `App.tsx`
+- [x] Удалить API роуты `/api/reservations` (CRUD)
+- [x] Удалить тип `Reservation` из фронтенда
+- [x] Добавить роутинг: `/:slug` → страница бани, `/` → заглушка
+- [x] Реализовать API: `GET /api/business/:slug`
+- [x] Реализовать API: `GET /api/business/:slug/available-dates`
+- [x] Реализовать API: `GET /api/business/:slug/day-slots?date=YYYY-MM-DD`
+- [x] Фронтенд: подставлять название бани и telegram_username из API
+- [x] Корневая страница `/` — заглушка
+- [x] Обработка несуществующего slug — страница ошибки
