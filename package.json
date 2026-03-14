@@ -13,6 +13,8 @@
     "start": "npm run start --workspace=backend",
     "docker:up": "docker-compose up -d --build",
     "docker:down": "docker-compose down",
+    "deploy": "bash scripts/deploy.sh",
+    "build:landing": "bash scripts/build-landing.sh",
     "deploy:backend": "bash scripts/deploy-backend.sh",
     "deploy:frontend": "bash scripts/deploy-frontend.sh"
   }

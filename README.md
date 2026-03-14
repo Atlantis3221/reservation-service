@@ -34,11 +34,19 @@ reservation-service/
 │   │   └── components/
 │   ├── vite.config.ts
 │   └── package.json
+├── landing/          # Статический лендинг (SEO)
+│   ├── index.html           # исходник с {{BOT_URL}} плейсхолдером
+│   └── dist/index.html      # собранный файл (после build:landing)
+├── nginx/            # Nginx конфиги
+│   ├── nginx.conf         # основной конфиг (HTTPS + проксирование)
+│   └── nginx-init.conf    # временный конфиг (HTTP, для получения SSL)
 ├── scripts/
-│   ├── deploy-backend.sh     # деплой на финский сервер
-│   └── deploy-frontend.sh    # деплой на GitHub Pages
-├── docker-compose.yml
-└── package.json              # npm workspaces root
+│   ├── deploy.sh              # единый деплой (backend + frontend + nginx)
+│   ├── init-letsencrypt.sh    # первичное получение SSL-сертификата
+│   ├── deploy-backend.sh     # (legacy) деплой бэкенда
+│   └── deploy-frontend.sh    # (legacy) деплой фронтенда на GitHub Pages
+├── docker-compose.yml         # backend + nginx + certbot
+└── package.json               # npm workspaces root
 ```
 
 ## Быстрый старт
@@ -84,7 +92,7 @@ npm run dev:front
 
 - **Dev-режим без `VITE_API_URL`:** запросы идут на `/api`, Vite проксирует их на `http://localhost:3000` (настроено в `vite.config.ts`). Работает, если фронт и бэк на одной машине.
 - **Dev-режим с `VITE_API_URL`:** запросы идут напрямую на указанный URL. Нужно, если тестируешь с телефона или другого устройства в локальной сети — задай `VITE_API_URL=http://<IP-бэкенда>:3000/api`.
-- **Production:** если `VITE_API_URL` не задан, используется захардкоженный URL из кода.
+- **Production:** фронтенд отдаётся nginx, запросы к `/api` проксируются на бэкенд. `VITE_API_URL` не нужен.
 
 ## Docker
 
@@ -153,16 +161,56 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 | `GET`    | `/api/available-dates`            | Даты со свободными слотами            |
 | `GET`    | `/api/day-slots?date=YYYY-MM-DD`  | Все слоты на конкретную дату          |
 
+## Production
+
+| | |
+|---|---|
+| **Домен** | `slotik.tech` |
+| **IP сервера** | `185.255.132.151` |
+| **URL** | `https://slotik.tech` |
+| **API** | `https://slotik.tech/api/*` |
+
+## Лендинг
+
+Статический HTML-лендинг для SEO. Раздаётся nginx на `/`, React SPA — на `/:slug`.
+
+```bash
+# Сборка (подставляет ссылку на бота из backend/.env или переменной TELEGRAM_BOT_USERNAME)
+npm run build:landing
+
+# Или с явным указанием бота
+TELEGRAM_BOT_USERNAME=my_bot npm run build:landing
+```
+
+Результат — `landing/dist/index.html`. При деплое nginx раздаёт этот файл на корневой URL.
+
 ## Деплой
 
-### Backend → финский сервер
+Деплой автоматический через **GitHub Actions** — push в `main` запускает сборку и деплой на сервер.
+
+### GitHub Secrets
+
+Настраиваются в репозитории: **Settings → Secrets and variables → Actions → Repository secrets**.
+
+| Secret | Описание | Пример |
+|---|---|---|
+| `SSH_PRIVATE_KEY` | Приватный SSH-ключ для подключения к серверу. GitHub Actions использует его для rsync и ssh-команд. Генерируется через `ssh-keygen`, публичная часть должна быть в `~/.ssh/authorized_keys` на сервере | содержимое файла `~/.ssh/deploy_key` |
+| `DEPLOY_HOST` | IP-адрес сервера, на который деплоится проект | `185.255.132.151` |
+| `DEPLOY_USER` | SSH-пользователь на сервере | `root` |
+| `DEPLOY_PATH` | Абсолютный путь на сервере, куда кладётся проект | `/opt/reservation-service` |
+
+### Ручной деплой (если нужно)
+
 ```bash
-DEPLOY_HOST=1.2.3.4 DEPLOY_USER=deploy npm run deploy:backend
+DEPLOY_HOST=185.255.132.151 DEPLOY_USER=root npm run deploy
 ```
 
-### Frontend → GitHub Pages
-```bash
-npm run deploy:frontend
-```
+### Первый деплой (инициализация SSL)
 
-> Не забудь поправить `base` в `frontend/vite.config.js` на имя своего репозитория.
+```bash
+# 1. Задеплоить проект (push в main или вручную)
+# 2. На сервере: получить SSL-сертификат
+ssh root@185.255.132.151
+cd /opt/reservation-service
+bash scripts/init-letsencrypt.sh
+```

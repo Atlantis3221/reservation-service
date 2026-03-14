@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Calendar from './components/Calendar';
 import './App.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
-  ? 'https://your-finnish-server.example.com/api'
-  : '/api');
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const TELEGRAM_BOT = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '';
 
