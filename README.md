@@ -199,18 +199,43 @@ TELEGRAM_BOT_USERNAME=my_bot npm run build:landing
 | `DEPLOY_USER` | SSH-пользователь на сервере | `root` |
 | `DEPLOY_PATH` | Абсолютный путь на сервере, куда кладётся проект | `/opt/reservation-service` |
 
-### Ручной деплой (если нужно)
+### Подготовка сервера (один раз)
 
 ```bash
-DEPLOY_HOST=185.255.132.151 DEPLOY_USER=root npm run deploy
+ssh root@185.255.132.151
+
+# 1. Docker и docker-compose
+apt-get update && apt-get install -y docker.io rsync
+curl -SL -o /usr/local/bin/docker-compose \
+  https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+chmod +x /usr/local/bin/docker-compose
+docker-compose version  # проверить
+
+# 2. Создать директорию проекта
+mkdir -p /opt/reservation-service
+
+# 3. Создать backend/.env с секретами (не попадает в git)
+mkdir -p /opt/reservation-service/backend
+cat > /opt/reservation-service/backend/.env <<'EOF'
+BOT_TOKEN=<токен бота>
+PORT=3000
+NODE_ENV=production
+FRONTEND_URL=https://slotik.tech
+EOF
 ```
 
 ### Первый деплой (инициализация SSL)
 
 ```bash
-# 1. Задеплоить проект (push в main или вручную)
+# 1. Push в master → GitHub Actions задеплоит проект
 # 2. На сервере: получить SSL-сертификат
 ssh root@185.255.132.151
 cd /opt/reservation-service
 bash scripts/init-letsencrypt.sh
+```
+
+### Ручной деплой (если нужно)
+
+```bash
+DEPLOY_HOST=185.255.132.151 DEPLOY_USER=root npm run deploy
 ```
