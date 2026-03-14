@@ -47,18 +47,60 @@ export function initDb(): void {
 
 function migrate(): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS slots (
-      date_key     TEXT    NOT NULL,
-      hour         INTEGER NOT NULL,
-      status       TEXT    NOT NULL DEFAULT 'available',
-      note         TEXT,
-      client_name  TEXT,
-      client_phone TEXT,
-      PRIMARY KEY (date_key, hour)
+    CREATE TABLE IF NOT EXISTS businesses (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug              TEXT    NOT NULL UNIQUE,
+      name              TEXT    NOT NULL,
+      owner_chat_id     TEXT    NOT NULL,
+      telegram_username TEXT,
+      created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `);
 
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_slots_date_key ON slots(date_key)
-  `);
+  const cols = db.prepare("PRAGMA table_info(slots)").all() as any[];
+  const hasBusinessId = cols.some((c: any) => c.name === 'business_id');
+
+  if (cols.length > 0 && !hasBusinessId) {
+    console.log('[db] Migrating slots table: adding business_id...');
+
+    db.exec(`
+      CREATE TABLE slots_new (
+        business_id  INTEGER NOT NULL DEFAULT 1,
+        date_key     TEXT    NOT NULL,
+        hour         INTEGER NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'available',
+        note         TEXT,
+        client_name  TEXT,
+        client_phone TEXT,
+        PRIMARY KEY (business_id, date_key, hour),
+        FOREIGN KEY (business_id) REFERENCES businesses(id)
+      )
+    `);
+
+    db.exec(`
+      INSERT OR IGNORE INTO slots_new (business_id, date_key, hour, status, note, client_name, client_phone)
+      SELECT 1, date_key, hour, status, note, client_name, client_phone FROM slots
+    `);
+
+    db.exec('DROP TABLE slots');
+    db.exec('ALTER TABLE slots_new RENAME TO slots');
+
+    console.log('[db] Migration complete: slots now have business_id');
+  } else if (cols.length === 0) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS slots (
+        business_id  INTEGER NOT NULL,
+        date_key     TEXT    NOT NULL,
+        hour         INTEGER NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'available',
+        note         TEXT,
+        client_name  TEXT,
+        client_phone TEXT,
+        PRIMARY KEY (business_id, date_key, hour),
+        FOREIGN KEY (business_id) REFERENCES businesses(id)
+      )
+    `);
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_slots_business_date ON slots(business_id, date_key)');
 }

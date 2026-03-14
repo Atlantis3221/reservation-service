@@ -30,35 +30,36 @@ function toDateKey(d: Date): string {
 
 // ---- Public API ----
 
-export function getSlotsForDate(dateKey: string): TimeSlot[] {
+export function getSlotsForDate(businessId: number, dateKey: string): TimeSlot[] {
   const rows = getDb()
-    .prepare('SELECT * FROM slots WHERE date_key = ? ORDER BY hour')
-    .all(dateKey);
+    .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY hour')
+    .all(businessId, dateKey);
   return rows.map(rowToSlot);
 }
 
-export function getAvailableDateKeys(): string[] {
+export function getAvailableDateKeys(businessId: number): string[] {
   const now = new Date().toISOString();
   const rows = getDb()
     .prepare(
       `SELECT DISTINCT date_key FROM slots
-       WHERE status = 'available'
+       WHERE business_id = ?
+         AND status = 'available'
          AND (date_key || 'T' || printf('%02d', hour) || ':00:00') > ?
        ORDER BY date_key`
     )
-    .all(now) as { date_key: string }[];
+    .all(businessId, now) as { date_key: string }[];
   return rows.map((r) => r.date_key);
 }
 
-export function getSlotsForDateFull(dateKey: string): Array<{
+export function getSlotsForDateFull(businessId: number, dateKey: string): Array<{
   datetime: string;
   duration: number;
   status: SlotStatus;
   note?: string;
 }> {
   const rows = getDb()
-    .prepare('SELECT * FROM slots WHERE date_key = ? ORDER BY hour')
-    .all(dateKey);
+    .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY hour')
+    .all(businessId, dateKey);
   return rows.map((row: any) => ({
     datetime: `${row.date_key}T${String(row.hour).padStart(2, '0')}:00:00`,
     duration: 1,
@@ -67,10 +68,10 @@ export function getSlotsForDateFull(dateKey: string): Array<{
   }));
 }
 
-export function getAllSlots(): Array<{ dateKey: string; slots: TimeSlot[] }> {
+export function getAllSlots(businessId: number): Array<{ dateKey: string; slots: TimeSlot[] }> {
   const rows = getDb()
-    .prepare('SELECT * FROM slots ORDER BY date_key, hour')
-    .all();
+    .prepare('SELECT * FROM slots WHERE business_id = ? ORDER BY date_key, hour')
+    .all(businessId);
 
   const grouped = new Map<string, TimeSlot[]>();
   for (const row of rows) {
@@ -86,6 +87,7 @@ export function getAllSlots(): Array<{ dateKey: string; slots: TimeSlot[] }> {
 }
 
 export function addSlot(
+  businessId: number,
   datetime: string,
   duration: number = 1,
   status: SlotStatus = 'available',
@@ -96,29 +98,30 @@ export function addSlot(
 
   getDb()
     .prepare(
-      `INSERT INTO slots (date_key, hour, status, note)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(date_key, hour) DO UPDATE SET
+      `INSERT INTO slots (business_id, date_key, hour, status, note)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(business_id, date_key, hour) DO UPDATE SET
          status = excluded.status,
          note = excluded.note`
     )
-    .run(dateKey, hour, status, note ?? null);
+    .run(businessId, dateKey, hour, status, note ?? null);
 
   return { datetime, duration: 1, status, note };
 }
 
-export function removeSlot(datetime: string): boolean {
+export function removeSlot(businessId: number, datetime: string): boolean {
   const dateKey = toDateKeyFromISO(datetime);
   const hour = extractHour(datetime);
 
   const result = getDb()
-    .prepare('DELETE FROM slots WHERE date_key = ? AND hour = ?')
-    .run(dateKey, hour);
+    .prepare('DELETE FROM slots WHERE business_id = ? AND date_key = ? AND hour = ?')
+    .run(businessId, dateKey, hour);
 
   return result.changes > 0;
 }
 
 export function setSlotStatus(
+  businessId: number,
   datetime: string,
   status: SlotStatus,
   note?: string,
@@ -139,32 +142,32 @@ export function setSlotStatus(
     params.push(clientName);
   }
 
-  params.push(dateKey, hour);
+  params.push(businessId, dateKey, hour);
 
   const result = getDb()
-    .prepare(`UPDATE slots SET ${setClauses.join(', ')} WHERE date_key = ? AND hour = ?`)
+    .prepare(`UPDATE slots SET ${setClauses.join(', ')} WHERE business_id = ? AND date_key = ? AND hour = ?`)
     .run(...params);
 
   if (result.changes === 0) return null;
 
   const row = getDb()
-    .prepare('SELECT * FROM slots WHERE date_key = ? AND hour = ?')
-    .get(dateKey, hour);
+    .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? AND hour = ?')
+    .get(businessId, dateKey, hour);
 
   return row ? rowToSlot(row) : null;
 }
 
-export function addDaySlots(dateKey: string, startHour: number, endHour: number): TimeSlot[] {
+export function addDaySlots(businessId: number, dateKey: string, startHour: number, endHour: number): TimeSlot[] {
   const added: TimeSlot[] = [];
   const insert = getDb().prepare(
-    `INSERT INTO slots (date_key, hour, status)
-     VALUES (?, ?, 'available')
-     ON CONFLICT(date_key, hour) DO NOTHING`
+    `INSERT INTO slots (business_id, date_key, hour, status)
+     VALUES (?, ?, ?, 'available')
+     ON CONFLICT(business_id, date_key, hour) DO NOTHING`
   );
 
   const tx = getDb().transaction(() => {
     for (let h = startHour; h < endHour; h++) {
-      insert.run(dateKey, h);
+      insert.run(businessId, dateKey, h);
       const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
       added.push({ datetime: dt, duration: 1, status: 'available' });
     }
@@ -175,6 +178,7 @@ export function addDaySlots(dateKey: string, startHour: number, endHour: number)
 }
 
 export function bookRange(
+  businessId: number,
   dateKey: string,
   startHour: number,
   hours: number,
@@ -185,7 +189,7 @@ export function bookRange(
   const tx = getDb().transaction(() => {
     for (let h = startHour; h < startHour + hours; h++) {
       const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
-      const slot = setSlotStatus(dt, 'booked', note, clientName);
+      const slot = setSlotStatus(businessId, dt, 'booked', note, clientName);
       if (slot) count++;
     }
   });
@@ -193,35 +197,36 @@ export function bookRange(
   return count;
 }
 
-export function clearDay(dateKey: string): number {
+export function clearDay(businessId: number, dateKey: string): number {
   const result = getDb()
-    .prepare('DELETE FROM slots WHERE date_key = ?')
-    .run(dateKey);
+    .prepare('DELETE FROM slots WHERE business_id = ? AND date_key = ?')
+    .run(businessId, dateKey);
   return result.changes;
 }
 
-export function getScheduledDays(limit = 14): string[] {
+export function getScheduledDays(businessId: number, limit = 14): string[] {
   const today = toDateKey(new Date());
   const rows = getDb()
     .prepare(
       `SELECT DISTINCT date_key FROM slots
-       WHERE date_key >= ?
+       WHERE business_id = ? AND date_key >= ?
        ORDER BY date_key
        LIMIT ?`
     )
-    .all(today, limit) as { date_key: string }[];
+    .all(businessId, today, limit) as { date_key: string }[];
   return rows.map((r) => r.date_key);
 }
 
-export function getStats(): { total: number; available: number; booked: number; blocked: number } {
+export function getStats(businessId: number): { total: number; available: number; booked: number; blocked: number } {
   const now = new Date().toISOString();
   const rows = getDb()
     .prepare(
       `SELECT status, COUNT(*) as cnt FROM slots
-       WHERE (date_key || 'T' || printf('%02d', hour) || ':00:00') > ?
+       WHERE business_id = ?
+         AND (date_key || 'T' || printf('%02d', hour) || ':00:00') > ?
        GROUP BY status`
     )
-    .all(now) as { status: string; cnt: number }[];
+    .all(businessId, now) as { status: string; cnt: number }[];
 
   let total = 0, available = 0, booked = 0, blocked = 0;
   for (const row of rows) {

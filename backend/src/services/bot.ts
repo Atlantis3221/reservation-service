@@ -7,23 +7,39 @@ import {
   getStats,
   bookRange,
 } from './schedule';
-import type { SlotStatus } from '../types';
+import {
+  getBusinessByOwner,
+  createBusiness,
+  generateSlug,
+  isValidSlug,
+  isSlugTaken,
+  updateBusinessName,
+  updateBusinessSlug,
+  updateTelegramUsername,
+} from './business';
+import type { Business } from '../types';
 
 let bot: Telegraf | null = null;
 
-function getAdminId(): number | null {
-  const raw = process.env.ADMIN_CHAT_ID;
-  return raw ? Number(raw) : null;
+type ConversationStep =
+  | 'awaiting_name'
+  | 'awaiting_slug_confirm'
+  | 'awaiting_settings_name'
+  | 'awaiting_settings_slug';
+
+interface ConversationState {
+  step: ConversationStep;
+  data: { name?: string; slug?: string };
 }
 
-function isAdmin(chatId: number): boolean {
-  const adminId = getAdminId();
-  if (!adminId) return true;
-  return chatId === adminId;
-}
+const conversations = new Map<number, ConversationState>();
 
-function getFrontendUrl(): string {
-  return process.env.FRONTEND_URL || '';
+function getFrontendUrl(slug?: string): string {
+  const base = process.env.FRONTEND_URL || '';
+  if (!base) return '';
+  if (!slug) return base;
+  const clean = base.replace(/\/+$/, '');
+  return `${clean}/${slug}`;
 }
 
 // ---- Форматирование ----
@@ -140,10 +156,10 @@ function resolveDay(dayName: string): Date | null {
 // ---- Парсеры ----
 
 interface DayTimeRange {
-  startDay: number; // 1=пн ... 7=вс
+  startDay: number;
   endDay: number;
   startHour: number;
-  endHour: number; // может быть < startHour (ночной диапазон, например 12-03)
+  endHour: number;
 }
 
 interface FlexibleScheduleCommand {
@@ -221,6 +237,27 @@ function parseBookingRange(text: string): { dayName: string; startHour: number; 
   return { dayName, startHour, endHour, clientName };
 }
 
+// ---- Telegram username sync ----
+
+function syncUsername(ctx: any): void {
+  const username = ctx.from?.username;
+  if (username) {
+    updateTelegramUsername(ctx.chat.id, username);
+  }
+}
+
+// ---- Require business ----
+
+function requireBusiness(ctx: any): Business | null {
+  const biz = getBusinessByOwner(ctx.chat.id);
+  if (!biz) {
+    ctx.reply('Сначала зарегистрируйте баню. Отправьте /start');
+    return null;
+  }
+  syncUsername(ctx);
+  return biz;
+}
+
 // ---- Bot init ----
 
 export function initBot(): void {
@@ -233,10 +270,228 @@ export function initBot(): void {
 
   bot = new Telegraf(token);
 
-  function handleInfo(ctx: any): void {
-    const frontendUrl = getFrontendUrl();
+  // ---- /start — онбординг или инфо ----
+
+  bot.start((ctx) => {
+    const existing = getBusinessByOwner(ctx.chat.id);
+
+    if (existing) {
+      syncUsername(ctx);
+      handleInfo(ctx, existing);
+      return;
+    }
+
+    conversations.set(ctx.chat.id, { step: 'awaiting_name', data: {} });
+    ctx.reply(
+      'Привет! Давайте зарегистрируем вашу баню.\n\n' +
+      'Как называется ваша баня?'
+    );
+  });
+
+  // ---- /info ----
+
+  bot.command('info', (ctx) => {
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    handleInfo(ctx, biz);
+  });
+
+  // ---- /schedule ----
+
+  bot.command('schedule', (ctx) => {
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    const arg = ctx.message.text.replace(/^\/schedule\s*/i, '').trim();
+    handleDaySchedule(ctx, biz, arg || 'сегодня');
+  });
+
+  // ---- /settings ----
+
+  bot.command('settings', (ctx) => {
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    handleSettings(ctx, biz);
+  });
+
+  // ---- Callback actions ----
+
+  bot.action('edit_slots', (ctx) => {
+    ctx.answerCbQuery();
+    const biz = getBusinessByOwner(ctx.chat!.id);
+    if (!biz) return;
+    handleEditSlots(ctx, biz);
+  });
+
+  bot.action('example_show', (ctx) => {
+    ctx.answerCbQuery();
+    const biz = getBusinessByOwner(ctx.chat!.id);
+    if (!biz) return;
+    handleShowSchedule(ctx, biz);
+  });
+
+  bot.action('settings_name', (ctx) => {
+    ctx.answerCbQuery();
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_name', data: {} });
+    ctx.reply('Введите новое название бани:');
+  });
+
+  bot.action('settings_slug', (ctx) => {
+    ctx.answerCbQuery();
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: {} });
+    ctx.reply('Введите новый slug (латиница, цифры, дефис, минимум 3 символа):');
+  });
+
+  // ---- Текстовые сообщения ----
+
+  bot.on('text', (ctx) => {
+    const chatId = ctx.chat.id;
+    const text = ctx.message.text.trim();
+
+    const conv = conversations.get(chatId);
+    if (conv) {
+      handleConversation(ctx, conv, text);
+      return;
+    }
+
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+
+    const textLower = text.toLowerCase();
+
+    const scheduleMatch = textLower.match(/расписание\s+на\s+(\S+)/);
+    if (scheduleMatch) {
+      return handleDaySchedule(ctx, biz, scheduleMatch[1]);
+    }
+
+    if (textLower.includes('покажи') && textLower.includes('расписание')) {
+      return handleShowSchedule(ctx, biz);
+    }
+
+    const flexCmd = parseFlexibleSchedule(textLower);
+    if (flexCmd) {
+      return handleFlexibleSchedule(ctx, biz, flexCmd);
+    }
+
+    const bookingRangeCmd = parseBookingRange(textLower);
+    if (bookingRangeCmd) {
+      return handleBookingRangeCommand(ctx, biz, bookingRangeCmd);
+    }
+
+    const bookingCmd = parseBookingCommand(textLower);
+    if (bookingCmd) {
+      return handleBookingCommand(ctx, biz, bookingCmd);
+    }
+
+    ctx.reply('Не понял команду. Отправьте /info для списка возможностей.');
+  });
+
+  // ---- Conversation handlers ----
+
+  function handleConversation(ctx: any, conv: ConversationState, text: string): void {
+    const chatId = ctx.chat.id;
+
+    switch (conv.step) {
+      case 'awaiting_name': {
+        const name = text;
+        const slug = generateSlug(name);
+        conversations.set(chatId, {
+          step: 'awaiting_slug_confirm',
+          data: { name, slug },
+        });
+        ctx.reply(
+          `Отлично! Ваша баня: <b>${name}</b>\n` +
+          `Ссылка для клиентов: <b>${slug}</b>\n\n` +
+          `Отправьте «да» чтобы подтвердить, или введите свой slug:`,
+          { parse_mode: 'HTML' }
+        );
+        break;
+      }
+
+      case 'awaiting_slug_confirm': {
+        const lower = text.toLowerCase();
+        if (lower === 'да' || lower === 'ok' || lower === 'ок') {
+          const biz = createBusiness(
+            conv.data.slug!,
+            conv.data.name!,
+            String(chatId),
+            ctx.from?.username
+          );
+          conversations.delete(chatId);
+          const url = getFrontendUrl(biz.slug);
+          let reply = `✅ Баня «${biz.name}» зарегистрирована!\n\nSlug: ${biz.slug}`;
+          if (url) reply += `\n🔗 ${url}`;
+          reply += '\n\nТеперь вы можете управлять расписанием. Отправьте /info для списка возможностей.';
+          ctx.reply(reply);
+        } else {
+          const customSlug = text.toLowerCase().replace(/[^a-z0-9-]/g, '');
+          if (!isValidSlug(customSlug)) {
+            ctx.reply('Slug должен содержать только латиницу, цифры и дефис (минимум 3 символа). Попробуйте ещё раз:');
+            return;
+          }
+          if (isSlugTaken(customSlug)) {
+            ctx.reply(`Slug «${customSlug}» уже занят. Попробуйте другой:`);
+            return;
+          }
+          const biz = createBusiness(
+            customSlug,
+            conv.data.name!,
+            String(chatId),
+            ctx.from?.username
+          );
+          conversations.delete(chatId);
+          const url = getFrontendUrl(biz.slug);
+          let reply = `✅ Баня «${biz.name}» зарегистрирована!\n\nSlug: ${biz.slug}`;
+          if (url) reply += `\n🔗 ${url}`;
+          reply += '\n\nТеперь вы можете управлять расписанием. Отправьте /info для списка возможностей.';
+          ctx.reply(reply);
+        }
+        break;
+      }
+
+      case 'awaiting_settings_name': {
+        const biz = getBusinessByOwner(chatId);
+        if (!biz) {
+          conversations.delete(chatId);
+          return;
+        }
+        updateBusinessName(biz.id, text);
+        conversations.delete(chatId);
+        ctx.reply(`✅ Название изменено на «${text}»`);
+        break;
+      }
+
+      case 'awaiting_settings_slug': {
+        const biz = getBusinessByOwner(chatId);
+        if (!biz) {
+          conversations.delete(chatId);
+          return;
+        }
+        const newSlug = text.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (!isValidSlug(newSlug)) {
+          ctx.reply('Slug должен содержать только латиницу, цифры и дефис (минимум 3 символа). Попробуйте ещё раз:');
+          return;
+        }
+        if (isSlugTaken(newSlug) && newSlug !== biz.slug) {
+          ctx.reply(`Slug «${newSlug}» уже занят. Попробуйте другой:`);
+          return;
+        }
+        updateBusinessSlug(biz.id, newSlug);
+        conversations.delete(chatId);
+        const url = getFrontendUrl(newSlug);
+        let reply = `✅ Slug изменён на «${newSlug}»`;
+        if (url) reply += `\n🔗 Новая ссылка: ${url}`;
+        ctx.reply(reply);
+        break;
+      }
+    }
+  }
+
+  // ---- Обработчики ----
+
+  function handleInfo(ctx: any, biz: Business): void {
+    const frontendUrl = getFrontendUrl(biz.slug);
     let text =
-      `Привет! Я бот для управления расписанием.\n\n` +
+      `🏢 <b>${biz.name}</b>\n\n` +
       `📌 <b>Возможности:</b>\n\n` +
       `<b>Время работы</b>\n` +
       `Например: на этой неделе ПН-ПТ c 10 до 23, ПТ-СБ c 12 до 03\n\n` +
@@ -247,96 +502,42 @@ export function initBot(): void {
       `- сегодня бронь с 14:00 до 18:00\n` +
       `- сегодня бронь с 14:00 до 18:00 Петров\n` +
       `- расписание на сегодня\n` +
-      `- расписание на пятницу`;
+      `- расписание на пятницу\n\n` +
+      `<b>Настройки</b>\n` +
+      `/settings — изменить название или slug`;
 
     if (frontendUrl) {
-      text += `\n\n🔗 Расписание для гостей находится по этому адресу: ${frontendUrl}`;
+      text += `\n\n🔗 Расписание для гостей: ${frontendUrl}`;
     }
 
     ctx.reply(text, { parse_mode: 'HTML' });
   }
 
-  bot.start((ctx) => {
-    if (!isAdmin(ctx.chat.id)) {
-      return ctx.reply('⛔ Этот бот только для администратора.');
-    }
-    handleInfo(ctx);
-  });
+  function handleSettings(ctx: any, biz: Business): void {
+    const url = getFrontendUrl(biz.slug);
+    let text =
+      `⚙️ <b>Настройки</b>\n\n` +
+      `Название: <b>${biz.name}</b>\n` +
+      `Slug: <b>${biz.slug}</b>`;
 
-  bot.command('info', (ctx) => {
-    if (!isAdmin(ctx.chat.id)) {
-      return ctx.reply('⛔ У вас нет доступа.');
-    }
-    handleInfo(ctx);
-  });
+    if (url) text += `\n🔗 ${url}`;
 
-  bot.command('schedule', (ctx) => {
-    if (!isAdmin(ctx.chat.id)) {
-      return ctx.reply('⛔ У вас нет доступа.');
-    }
-    const arg = ctx.message.text.replace(/^\/schedule\s*/i, '').trim();
-    handleDaySchedule(ctx, arg || 'сегодня');
-  });
+    ctx.reply(text, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✏️ Изменить название', 'settings_name')],
+        [Markup.button.callback('🔗 Изменить slug', 'settings_slug')],
+      ]),
+    });
+  }
 
-  bot.action('edit_slots', (ctx) => {
-    ctx.answerCbQuery();
-    handleEditSlots(ctx);
-  });
-
-  bot.action('example_booking', (ctx) => {
-    ctx.answerCbQuery();
-    ctx.reply('Отправьте: в пятницу бронь на 15:00 на 3 часа');
-  });
-
-  bot.action('example_show', (ctx) => {
-    ctx.answerCbQuery();
-    handleShowSchedule(ctx);
-  });
-
-  bot.on('text', (ctx) => {
-    if (!isAdmin(ctx.chat.id)) {
-      return ctx.reply('⛔ У вас нет доступа.');
-    }
-
-    const text = ctx.message.text.trim();
-    const textLower = text.toLowerCase();
-
-    const scheduleMatch = textLower.match(/расписание\s+на\s+(\S+)/);
-    if (scheduleMatch) {
-      return handleDaySchedule(ctx, scheduleMatch[1]);
-    }
-
-    if (textLower.includes('покажи') && textLower.includes('расписание')) {
-      return handleShowSchedule(ctx);
-    }
-
-    const flexCmd = parseFlexibleSchedule(textLower);
-    if (flexCmd) {
-      return handleFlexibleSchedule(ctx, flexCmd);
-    }
-
-    const bookingRangeCmd = parseBookingRange(textLower);
-    if (bookingRangeCmd) {
-      return handleBookingRangeCommand(ctx, bookingRangeCmd);
-    }
-
-    const bookingCmd = parseBookingCommand(textLower);
-    if (bookingCmd) {
-      return handleBookingCommand(ctx, bookingCmd);
-    }
-
-    ctx.reply('Не понял команду. Отправьте /info для списка возможностей.');
-  });
-
-  // ---- Обработчики ----
-
-  function handleFlexibleSchedule(ctx: any, cmd: FlexibleScheduleCommand): void {
+  function handleFlexibleSchedule(ctx: any, biz: Business, cmd: FlexibleScheduleCommand): void {
     const monday = getMondayOfWeek(cmd.week);
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      clearDay(toDateKey(d));
+      clearDay(biz.id, toDateKey(d));
     }
 
     const daysInfo = new Map<string, string>();
@@ -349,13 +550,13 @@ export function initBot(): void {
         const dateKey = toDateKey(date);
 
         if (range.endHour > range.startHour) {
-          addDaySlots(dateKey, range.startHour, range.endHour);
+          addDaySlots(biz.id, dateKey, range.startHour, range.endHour);
           daysInfo.set(dateKey, `${range.startHour}:00–${range.endHour}:00`);
         } else {
-          addDaySlots(dateKey, range.startHour, 24);
+          addDaySlots(biz.id, dateKey, range.startHour, 24);
           const nextDate = new Date(date);
           nextDate.setDate(date.getDate() + 1);
-          addDaySlots(toDateKey(nextDate), 0, range.endHour);
+          addDaySlots(biz.id, toDateKey(nextDate), 0, range.endHour);
           daysInfo.set(dateKey, `${range.startHour}:00–${String(range.endHour).padStart(2, '0')}:00`);
         }
 
@@ -379,7 +580,7 @@ export function initBot(): void {
     });
   }
 
-  function handleEditSlots(ctx: any): void {
+  function handleEditSlots(ctx: any, biz: Business): void {
     const monday = getMondayOfWeek('this');
 
     let text = '📅 Слоты на текущую неделю:\n\n';
@@ -389,7 +590,7 @@ export function initBot(): void {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       const dateKey = toDateKey(d);
-      const slots = getSlotsForDate(dateKey);
+      const slots = getSlotsForDate(biz.id, dateKey);
 
       if (slots.length > 0) {
         hasSlots = true;
@@ -416,6 +617,7 @@ export function initBot(): void {
 
   function handleBookingCommand(
     ctx: any,
+    biz: Business,
     cmd: { dayName: string; hour: number; minutes: number; duration: number; clientName?: string }
   ): void {
     const targetDate = getNextWeekday(cmd.dayName);
@@ -425,14 +627,12 @@ export function initBot(): void {
 
     const dateKey = toDateKey(targetDate);
 
-    const existingSlots = getSlotsForDate(dateKey);
+    const existingSlots = getSlotsForDate(biz.id, dateKey);
     if (existingSlots.length === 0) {
-      const DEFAULT_START = 10;
-      const DEFAULT_END = 22;
-      addDaySlots(dateKey, DEFAULT_START, DEFAULT_END);
+      addDaySlots(biz.id, dateKey, 10, 22);
     }
 
-    const count = bookRange(dateKey, cmd.hour, cmd.duration, 'Бронь', cmd.clientName);
+    const count = bookRange(biz.id, dateKey, cmd.hour, cmd.duration, 'Бронь', cmd.clientName);
 
     if (count === 0) {
       return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
@@ -447,7 +647,7 @@ export function initBot(): void {
       replyText += `\nКлиент: ${cmd.clientName}`;
     }
 
-    const frontendUrl = getFrontendUrl();
+    const frontendUrl = getFrontendUrl(biz.slug);
     if (frontendUrl) {
       replyText += `\n\n🔗 ${frontendUrl}?date=${dateKey}`;
     }
@@ -455,14 +655,14 @@ export function initBot(): void {
     ctx.reply(replyText);
   }
 
-  function handleDaySchedule(ctx: any, dayName: string): void {
+  function handleDaySchedule(ctx: any, biz: Business, dayName: string): void {
     const targetDate = resolveDay(dayName);
     if (!targetDate) {
       return ctx.reply(`Не понял день: "${dayName}". Отправьте /info для списка возможностей.`);
     }
 
     const dateKey = toDateKey(targetDate);
-    const slots = getSlotsForDate(dateKey);
+    const slots = getSlotsForDate(biz.id, dateKey);
 
     if (slots.length === 0) {
       return ctx.reply(`На ${fmtDate(dateKey)} расписание не задано.`);
@@ -478,7 +678,7 @@ export function initBot(): void {
       text += `${emoji} ${hour}:00${note}${client}\n`;
     }
 
-    const frontendUrl = getFrontendUrl();
+    const frontendUrl = getFrontendUrl(biz.slug);
     if (frontendUrl) {
       text += `\n🔗 ${frontendUrl}?date=${dateKey}`;
     }
@@ -488,6 +688,7 @@ export function initBot(): void {
 
   function handleBookingRangeCommand(
     ctx: any,
+    biz: Business,
     cmd: { dayName: string; startHour: number; endHour: number; clientName?: string }
   ): void {
     const targetDate = resolveDay(cmd.dayName);
@@ -498,12 +699,12 @@ export function initBot(): void {
     const dateKey = toDateKey(targetDate);
     const duration = cmd.endHour - cmd.startHour;
 
-    const existingSlots = getSlotsForDate(dateKey);
+    const existingSlots = getSlotsForDate(biz.id, dateKey);
     if (existingSlots.length === 0) {
-      addDaySlots(dateKey, 10, 22);
+      addDaySlots(biz.id, dateKey, 10, 22);
     }
 
-    const count = bookRange(dateKey, cmd.startHour, duration, 'Бронь', cmd.clientName);
+    const count = bookRange(biz.id, dateKey, cmd.startHour, duration, 'Бронь', cmd.clientName);
 
     if (count === 0) {
       return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
@@ -518,7 +719,7 @@ export function initBot(): void {
       replyText += `\nКлиент: ${cmd.clientName}`;
     }
 
-    const frontendUrl = getFrontendUrl();
+    const frontendUrl = getFrontendUrl(biz.slug);
     if (frontendUrl) {
       replyText += `\n\n🔗 ${frontendUrl}?date=${dateKey}`;
     }
@@ -526,9 +727,9 @@ export function initBot(): void {
     ctx.reply(replyText);
   }
 
-  function handleShowSchedule(ctx: any): void {
-    const stats = getStats();
-    const days = getScheduledDays(7);
+  function handleShowSchedule(ctx: any, biz: Business): void {
+    const stats = getStats(biz.id);
+    const days = getScheduledDays(biz.id, 7);
 
     let text = `📊 *Статистика:*\n\n`;
     text += `• Всего слотов: ${stats.total}\n`;
@@ -541,7 +742,7 @@ export function initBot(): void {
     } else {
       text += `📅 *Ближайшие дни:*\n\n`;
       for (const dateKey of days) {
-        const slots = getSlotsForDate(dateKey);
+        const slots = getSlotsForDate(biz.id, dateKey);
         const avail = slots.filter((s) => s.status === 'available').length;
         const booked = slots.filter((s) => s.status === 'booked').length;
         text += `${fmtDate(dateKey)} — 🟢 ${avail} / 🔴 ${booked}\n`;
@@ -552,8 +753,10 @@ export function initBot(): void {
   }
 
   bot.telegram.setMyCommands([
+    { command: 'start', description: 'Регистрация / главное меню' },
     { command: 'info', description: 'Возможности бота' },
     { command: 'schedule', description: 'Показать расписание' },
+    { command: 'settings', description: 'Настройки бани' },
   ]);
 
   bot.launch()

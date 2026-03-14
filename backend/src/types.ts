@@ -1,4 +1,15 @@
-// ---- Расписание (управляется администратором) ----
+// ---- Бизнесы (мультитенант) ----
+
+export interface Business {
+  id: number;
+  slug: string;
+  name: string;
+  ownerChatId: string;
+  telegramUsername: string | null;
+  createdAt: string;
+}
+
+// ---- Расписание (управляется владельцем бани) ----
 
 export type SlotStatus = 'available' | 'booked' | 'blocked';
 
