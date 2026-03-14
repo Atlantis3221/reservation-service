@@ -45,7 +45,7 @@ export function getAvailableDateKeys(): string[] {
   return [...result].sort();
 }
 
-/** Получить все слоты на дату (для фронтенда — включая booked/blocked) */
+/** Получить все слоты на дату (для фронтенда — включая booked/blocked, без clientName) */
 export function getSlotsForDateFull(dateKey: string): Array<{
   datetime: string;
   duration: number;
@@ -112,7 +112,7 @@ export function removeSlot(datetime: string): boolean {
 }
 
 /** Изменить статус слота */
-export function setSlotStatus(datetime: string, status: SlotStatus, note?: string): TimeSlot | null {
+export function setSlotStatus(datetime: string, status: SlotStatus, note?: string, clientName?: string): TimeSlot | null {
   const dateKey = toDateKeyFromISO(datetime);
   const slots = schedule.get(dateKey);
   if (!slots) return null;
@@ -122,6 +122,7 @@ export function setSlotStatus(datetime: string, status: SlotStatus, note?: strin
 
   slot.status = status;
   if (note !== undefined) slot.note = note;
+  if (clientName !== undefined) slot.clientName = clientName;
   return slot;
 }
 
@@ -137,11 +138,11 @@ export function addDaySlots(dateKey: string, startHour: number, endHour: number)
 }
 
 /** Забронировать диапазон часов (пометить как booked) */
-export function bookRange(dateKey: string, startHour: number, hours: number, note?: string): number {
+export function bookRange(dateKey: string, startHour: number, hours: number, note?: string, clientName?: string): number {
   let count = 0;
   for (let h = startHour; h < startHour + hours; h++) {
     const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
-    const slot = setSlotStatus(dt, 'booked', note);
+    const slot = setSlotStatus(dt, 'booked', note, clientName);
     if (slot) count++;
   }
   return count;

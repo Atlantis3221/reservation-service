@@ -41,10 +41,19 @@ export default function Calendar({ onSelectSlot, selectedSlot }: CalendarProps) 
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam) {
+      const d = new Date(dateParam + 'T00:00:00');
+      return new Date(d.getFullYear(), d.getMonth(), 1);
+    }
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('date') || null;
+  });
   const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
   const [loadingDay, setLoadingDay] = useState(false);
 

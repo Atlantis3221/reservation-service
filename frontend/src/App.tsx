@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD
   : '/api');
 
 // Telegram username (без @)
-const TELEGRAM_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'stepa2tugarev';
+const TELEGRAM_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'ndrwbv';
 
 export default function App() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
