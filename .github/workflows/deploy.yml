@@ -30,11 +30,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Prepare server
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "apt-get update && apt-get install -y rsync python3-distutils 2>/dev/null || true"
-
       - name: Sync project to server
         run: |
           rsync -avz --delete \
