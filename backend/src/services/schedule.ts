@@ -197,6 +197,43 @@ export function bookRange(
   return count;
 }
 
+export function cancelBooking(businessId: number, dateKey: string, startHour: number): { cancelled: number; clientName?: string } {
+  const rows = getDb()
+    .prepare(
+      `SELECT hour, client_name FROM slots
+       WHERE business_id = ? AND date_key = ? AND status = 'booked' AND hour >= ?
+       ORDER BY hour`
+    )
+    .all(businessId, dateKey, startHour) as { hour: number; client_name: string | null }[];
+
+  if (rows.length === 0) return { cancelled: 0 };
+
+  const clientName = rows[0].client_name ?? undefined;
+  const contiguousHours: number[] = [];
+
+  for (const row of rows) {
+    if (contiguousHours.length === 0 || row.hour === contiguousHours[contiguousHours.length - 1] + 1) {
+      if (contiguousHours.length === 0 || row.client_name === (clientName ?? null)) {
+        contiguousHours.push(row.hour);
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  const tx = getDb().transaction(() => {
+    for (const h of contiguousHours) {
+      const dt = `${dateKey}T${String(h).padStart(2, '0')}:00:00`;
+      setSlotStatus(businessId, dt, 'available', null as any, null as any);
+    }
+  });
+  tx();
+
+  return { cancelled: contiguousHours.length, clientName };
+}
+
 export function clearDay(businessId: number, dateKey: string): number {
   const result = getDb()
     .prepare('DELETE FROM slots WHERE business_id = ? AND date_key = ?')

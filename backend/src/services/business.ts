@@ -86,11 +86,16 @@ export function createBusiness(
   };
 }
 
+export function getBusinessesByOwner(chatId: string | number): Business[] {
+  const rows = getDb()
+    .prepare('SELECT * FROM businesses WHERE owner_chat_id = ? ORDER BY id')
+    .all(String(chatId));
+  return rows.map(rowToBusiness);
+}
+
 export function getBusinessByOwner(chatId: string | number): Business | null {
-  const row = getDb()
-    .prepare('SELECT * FROM businesses WHERE owner_chat_id = ? LIMIT 1')
-    .get(String(chatId));
-  return row ? rowToBusiness(row) : null;
+  const rows = getBusinessesByOwner(chatId);
+  return rows.length > 0 ? rows[0] : null;
 }
 
 export function getBusinessBySlug(slug: string): Business | null {
@@ -123,4 +128,17 @@ export function updateTelegramUsername(chatId: string | number, username: string
   getDb()
     .prepare('UPDATE businesses SET telegram_username = ? WHERE owner_chat_id = ?')
     .run(username, String(chatId));
+}
+
+export function deleteBusiness(id: number): void {
+  const db = getDb();
+  db.prepare('DELETE FROM slots WHERE business_id = ?').run(id);
+  db.prepare('DELETE FROM businesses WHERE id = ?').run(id);
+}
+
+export function getBusinessByOwnerAndSlug(chatId: string | number, slug: string): Business | null {
+  const row = getDb()
+    .prepare('SELECT * FROM businesses WHERE owner_chat_id = ? AND slug = ?')
+    .get(String(chatId), slug);
+  return row ? rowToBusiness(row) : null;
 }

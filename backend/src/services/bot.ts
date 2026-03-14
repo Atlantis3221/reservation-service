@@ -1,6 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
 import {
   addDaySlots,
+  cancelBooking,
   clearDay,
   getScheduledDays,
   getSlotsForDate,
@@ -8,8 +9,12 @@ import {
   bookRange,
 } from './schedule';
 import {
+  getBusinessesByOwner,
   getBusinessByOwner,
+  getBusinessById,
+  getBusinessByOwnerAndSlug,
   createBusiness,
+  deleteBusiness,
   generateSlug,
   isValidSlug,
   isSlugTaken,
@@ -29,10 +34,17 @@ type ConversationStep =
 
 interface ConversationState {
   step: ConversationStep;
-  data: { name?: string; slug?: string };
+  data: { name?: string; slug?: string; businessId?: number };
 }
 
 const conversations = new Map<number, ConversationState>();
+
+interface PendingCommand {
+  text: string;
+  messageId: number;
+}
+
+const pendingCommands = new Map<number, PendingCommand>();
 
 function getFrontendUrl(slug?: string): string {
   const base = process.env.FRONTEND_URL || '';
@@ -237,6 +249,12 @@ function parseBookingRange(text: string): { dayName: string; startHour: number; 
   return { dayName, startHour, endHour, clientName };
 }
 
+function parseCancelCommand(text: string): { dayName: string; hour: number } | null {
+  const match = text.match(/отмени\s+бронь\s+(?:на\s+)?(\S+)\s+(\d{1,2})(?::00)?/i);
+  if (!match) return null;
+  return { dayName: match[1], hour: Number(match[2]) };
+}
+
 // ---- Telegram username sync ----
 
 function syncUsername(ctx: any): void {
@@ -249,13 +267,37 @@ function syncUsername(ctx: any): void {
 // ---- Require business ----
 
 function requireBusiness(ctx: any): Business | null {
-  const biz = getBusinessByOwner(ctx.chat.id);
-  if (!biz) {
-    ctx.reply('Сначала зарегистрируйте баню. Отправьте /start');
+  const businesses = getBusinessesByOwner(ctx.chat.id);
+  if (businesses.length === 0) {
+    ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
     return null;
   }
   syncUsername(ctx);
-  return biz;
+  if (businesses.length === 1) {
+    return businesses[0];
+  }
+  return null;
+}
+
+function requireBusinessOrAsk(ctx: any, text: string): Business | null {
+  const businesses = getBusinessesByOwner(ctx.chat.id);
+  if (businesses.length === 0) {
+    ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
+    return null;
+  }
+  syncUsername(ctx);
+  if (businesses.length === 1) {
+    return businesses[0];
+  }
+
+  pendingCommands.set(ctx.chat.id, { text, messageId: ctx.message?.message_id });
+
+  const buttons = businesses.map((b) =>
+    [Markup.button.callback(b.name, `pick_biz:${b.id}`)]
+  );
+
+  ctx.reply('Для какого заведения?', Markup.inlineKeyboard(buttons));
+  return null;
 }
 
 // ---- Bot init ----
@@ -270,74 +312,240 @@ export function initBot(): void {
 
   bot = new Telegraf(token);
 
+  bot.use((ctx, next) => {
+    const update = ctx.update as any;
+    if (update.message) {
+      const m = update.message;
+      console.log(`[bot] << message from=${m.from?.username || m.from?.id} chat=${m.chat?.id} text="${m.text}"`);
+    } else if (update.callback_query) {
+      const cb = update.callback_query;
+      console.log(`[bot] << callback from=${cb.from?.username || cb.from?.id} data="${cb.data}"`);
+    }
+
+    const origReply = ctx.reply?.bind(ctx);
+    if (origReply) {
+      (ctx as any).reply = (text: string, ...args: any[]) => {
+        const preview = typeof text === 'string' ? text.slice(0, 120) : String(text);
+        console.log(`[bot] >> reply: "${preview}${text.length > 120 ? '...' : ''}"`);
+        return origReply(text, ...args);
+      };
+    }
+
+    return next();
+  });
+
   // ---- /start — онбординг или инфо ----
 
   bot.start((ctx) => {
-    const existing = getBusinessByOwner(ctx.chat.id);
+    const businesses = getBusinessesByOwner(ctx.chat.id);
 
-    if (existing) {
+    if (businesses.length > 0) {
       syncUsername(ctx);
-      handleInfo(ctx, existing);
+      handleInfo(ctx, businesses);
       return;
     }
 
     conversations.set(ctx.chat.id, { step: 'awaiting_name', data: {} });
     ctx.reply(
-      'Привет! Давайте зарегистрируем вашу баню.\n\n' +
-      'Как называется ваша баня?'
+      'Привет! Давайте зарегистрируем ваше заведение.\n\n' +
+      'Как оно называется?'
     );
   });
 
   // ---- /info ----
 
   bot.command('info', (ctx) => {
-    const biz = requireBusiness(ctx);
-    if (!biz) return;
-    handleInfo(ctx, biz);
+    const businesses = getBusinessesByOwner(ctx.chat.id);
+    if (businesses.length === 0) {
+      ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
+      return;
+    }
+    syncUsername(ctx);
+    handleInfo(ctx, businesses);
   });
 
   // ---- /schedule ----
 
   bot.command('schedule', (ctx) => {
-    const biz = requireBusiness(ctx);
+    const text = ctx.message.text.trim();
+    const biz = requireBusinessOrAsk(ctx, text);
     if (!biz) return;
-    const arg = ctx.message.text.replace(/^\/schedule\s*/i, '').trim();
+    const arg = text.replace(/^\/schedule\s*/i, '').trim();
     handleDaySchedule(ctx, biz, arg || 'сегодня');
   });
 
   // ---- /settings ----
 
   bot.command('settings', (ctx) => {
-    const biz = requireBusiness(ctx);
+    const biz = requireBusinessOrAsk(ctx, '/settings');
     if (!biz) return;
     handleSettings(ctx, biz);
   });
 
+  // ---- /add ----
+
+  bot.command('add', (ctx) => {
+    const businesses = getBusinessesByOwner(ctx.chat.id);
+    if (businesses.length === 0) {
+      ctx.reply('Сначала зарегистрируйте первое заведение. Отправьте /start');
+      return;
+    }
+    syncUsername(ctx);
+    conversations.set(ctx.chat.id, { step: 'awaiting_name', data: {} });
+    ctx.reply('Как называется новое заведение?');
+  });
+
+  // ---- /del ----
+
+  bot.command('del', (ctx) => {
+    const businesses = getBusinessesByOwner(ctx.chat.id);
+    if (businesses.length === 0) {
+      ctx.reply('У вас нет зарегистрированных заведений.');
+      return;
+    }
+    syncUsername(ctx);
+
+    const slug = ctx.message.text.replace(/^\/del\s*/i, '').trim();
+    if (!slug) {
+      ctx.reply('Укажите slug заведения: /del <slug>\n\nВаши заведения:\n' +
+        businesses.map((b) => `• ${b.name} — <code>${b.slug}</code>`).join('\n'),
+        { parse_mode: 'HTML' }
+      );
+      return;
+    }
+
+    const biz = getBusinessByOwnerAndSlug(ctx.chat.id, slug);
+    if (!biz) {
+      ctx.reply('Заведение не найдено. Проверьте slug командой /list');
+      return;
+    }
+
+    if (businesses.length === 1) {
+      ctx.reply('Нельзя удалить единственное заведение.');
+      return;
+    }
+
+    deleteBusiness(biz.id);
+    ctx.reply(`✅ «${biz.name}» (${biz.slug}) удалено вместе со всеми слотами.`);
+  });
+
+  // ---- /list ----
+
+  bot.command('list', (ctx) => {
+    const businesses = getBusinessesByOwner(ctx.chat.id);
+    if (businesses.length === 0) {
+      ctx.reply('У вас нет зарегистрированных заведений. Отправьте /start');
+      return;
+    }
+    syncUsername(ctx);
+
+    let text = `🏢 <b>Ваши заведения (${businesses.length}):</b>\n\n`;
+    for (const b of businesses) {
+      const url = getFrontendUrl(b.slug);
+      text += `• <b>${b.name}</b> — <code>${b.slug}</code>`;
+      if (url) text += `\n  🔗 ${url}`;
+      text += '\n';
+    }
+
+    ctx.reply(text, { parse_mode: 'HTML' });
+  });
+
   // ---- Callback actions ----
 
-  bot.action('edit_slots', (ctx) => {
+  bot.action(/^pick_biz:(\d+)$/, (ctx) => {
     ctx.answerCbQuery();
-    const biz = getBusinessByOwner(ctx.chat!.id);
+    const chatId = ctx.chat!.id;
+    const bizId = Number(ctx.match[1]);
+
+    const biz = getBusinessById(bizId);
+    if (!biz || biz.ownerChatId !== String(chatId)) {
+      ctx.reply('Заведение не найдено.');
+      return;
+    }
+
+    const pending = pendingCommands.get(chatId);
+    pendingCommands.delete(chatId);
+
+    if (!pending) {
+      ctx.reply(`Выбрано «${biz.name}». Отправьте команду.`);
+      return;
+    }
+
+    ctx.deleteMessage().catch(() => {});
+    executeCommand(ctx, biz, pending.text);
+  });
+
+  bot.action(/^edit_slots:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    const biz = getBusinessById(bizId);
     if (!biz) return;
     handleEditSlots(ctx, biz);
   });
 
+  bot.action('edit_slots', (ctx) => {
+    ctx.answerCbQuery();
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    handleEditSlots(ctx, biz);
+  });
+
+  bot.action(/^cancel_book:(\d+):(.+):(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    const dateKey = ctx.match[2];
+    const startHour = Number(ctx.match[3]);
+
+    const biz = getBusinessById(bizId);
+    if (!biz) return;
+
+    const result = cancelBooking(biz.id, dateKey, startHour);
+    if (result.cancelled === 0) {
+      ctx.reply(`На ${fmtDate(dateKey)} ${startHour}:00 нет брони.`);
+      return;
+    }
+
+    const endHour = startHour + result.cancelled;
+    let text = `❌ Бронь отменена: ${fmtDate(dateKey)} ${startHour}:00–${endHour}:00`;
+    if (result.clientName) text += ` (${result.clientName})`;
+
+    ctx.editMessageText(text);
+  });
+
   bot.action('example_show', (ctx) => {
     ctx.answerCbQuery();
-    const biz = getBusinessByOwner(ctx.chat!.id);
+    const biz = requireBusiness(ctx);
     if (!biz) return;
     handleShowSchedule(ctx, biz);
   });
 
+  bot.action(/^settings_name:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_name', data: { businessId: bizId } });
+    ctx.reply('Введите новое название:');
+  });
+
   bot.action('settings_name', (ctx) => {
     ctx.answerCbQuery();
-    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_name', data: {} });
-    ctx.reply('Введите новое название бани:');
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_name', data: { businessId: biz.id } });
+    ctx.reply('Введите новое название:');
+  });
+
+  bot.action(/^settings_slug:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: { businessId: bizId } });
+    ctx.reply('Введите новый slug (латиница, цифры, дефис, минимум 3 символа):');
   });
 
   bot.action('settings_slug', (ctx) => {
     ctx.answerCbQuery();
-    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: {} });
+    const biz = requireBusiness(ctx);
+    if (!biz) return;
+    conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: { businessId: biz.id } });
     ctx.reply('Введите новый slug (латиница, цифры, дефис, минимум 3 символа):');
   });
 
@@ -353,10 +561,28 @@ export function initBot(): void {
       return;
     }
 
-    const biz = requireBusiness(ctx);
+    const biz = requireBusinessOrAsk(ctx, text);
     if (!biz) return;
 
+    executeCommand(ctx, biz, text);
+  });
+
+  function executeCommand(ctx: any, biz: Business, text: string): void {
     const textLower = text.toLowerCase();
+
+    if (textLower === '/info') {
+      const allBiz = getBusinessesByOwner(biz.ownerChatId);
+      return handleInfo(ctx, allBiz.length > 0 ? allBiz : [biz]);
+    }
+
+    if (textLower === '/settings') {
+      return handleSettings(ctx, biz);
+    }
+
+    if (textLower.startsWith('/schedule')) {
+      const arg = textLower.replace(/^\/schedule\s*/i, '').trim();
+      return handleDaySchedule(ctx, biz, arg || 'сегодня');
+    }
 
     const scheduleMatch = textLower.match(/расписание\s+на\s+(\S+)/);
     if (scheduleMatch) {
@@ -372,6 +598,11 @@ export function initBot(): void {
       return handleFlexibleSchedule(ctx, biz, flexCmd);
     }
 
+    const cancelCmd = parseCancelCommand(textLower);
+    if (cancelCmd) {
+      return handleCancelCommand(ctx, biz, cancelCmd);
+    }
+
     const bookingRangeCmd = parseBookingRange(textLower);
     if (bookingRangeCmd) {
       return handleBookingRangeCommand(ctx, biz, bookingRangeCmd);
@@ -383,7 +614,7 @@ export function initBot(): void {
     }
 
     ctx.reply('Не понял команду. Отправьте /info для списка возможностей.');
-  });
+  }
 
   // ---- Conversation handlers ----
 
@@ -399,7 +630,7 @@ export function initBot(): void {
           data: { name, slug },
         });
         ctx.reply(
-          `Отлично! Ваша баня: <b>${name}</b>\n` +
+          `Отлично! Название: <b>${name}</b>\n` +
           `Ссылка для клиентов: <b>${slug}</b>\n\n` +
           `Отправьте «да» чтобы подтвердить, или введите свой slug:`,
           { parse_mode: 'HTML' }
@@ -418,7 +649,7 @@ export function initBot(): void {
           );
           conversations.delete(chatId);
           const url = getFrontendUrl(biz.slug);
-          let reply = `✅ Баня «${biz.name}» зарегистрирована!\n\nSlug: ${biz.slug}`;
+          let reply = `✅ «${biz.name}» зарегистрировано!\n\nSlug: ${biz.slug}`;
           if (url) reply += `\n🔗 ${url}`;
           reply += '\n\nТеперь вы можете управлять расписанием. Отправьте /info для списка возможностей.';
           ctx.reply(reply);
@@ -440,7 +671,7 @@ export function initBot(): void {
           );
           conversations.delete(chatId);
           const url = getFrontendUrl(biz.slug);
-          let reply = `✅ Баня «${biz.name}» зарегистрирована!\n\nSlug: ${biz.slug}`;
+          let reply = `✅ «${biz.name}» зарегистрировано!\n\nSlug: ${biz.slug}`;
           if (url) reply += `\n🔗 ${url}`;
           reply += '\n\nТеперь вы можете управлять расписанием. Отправьте /info для списка возможностей.';
           ctx.reply(reply);
@@ -449,7 +680,9 @@ export function initBot(): void {
       }
 
       case 'awaiting_settings_name': {
-        const biz = getBusinessByOwner(chatId);
+        const biz = conv.data.businessId
+          ? getBusinessById(conv.data.businessId)
+          : getBusinessByOwner(chatId);
         if (!biz) {
           conversations.delete(chatId);
           return;
@@ -461,7 +694,9 @@ export function initBot(): void {
       }
 
       case 'awaiting_settings_slug': {
-        const biz = getBusinessByOwner(chatId);
+        const biz = conv.data.businessId
+          ? getBusinessById(conv.data.businessId)
+          : getBusinessByOwner(chatId);
         if (!biz) {
           conversations.delete(chatId);
           return;
@@ -488,26 +723,51 @@ export function initBot(): void {
 
   // ---- Обработчики ----
 
-  function handleInfo(ctx: any, biz: Business): void {
-    const frontendUrl = getFrontendUrl(biz.slug);
-    let text =
-      `🏢 <b>${biz.name}</b>\n\n` +
-      `📌 <b>Возможности:</b>\n\n` +
-      `<b>Время работы</b>\n` +
-      `Например: на этой неделе ПН-ПТ c 10 до 23, ПТ-СБ c 12 до 03\n\n` +
-      `<b>Расписание</b>\n` +
-      `Например:\n` +
-      `- в пятницу бронь на 15:00 на 3 часа\n` +
-      `- в пятницу бронь на 15:00 на 3 часа Иванов\n` +
-      `- сегодня бронь с 14:00 до 18:00\n` +
-      `- сегодня бронь с 14:00 до 18:00 Петров\n` +
-      `- расписание на сегодня\n` +
-      `- расписание на пятницу\n\n` +
-      `<b>Настройки</b>\n` +
-      `/settings — изменить название или slug`;
+  function handleInfo(ctx: any, businesses: Business[]): void {
+    let header = '';
+    if (businesses.length === 1) {
+      header = `🏢 <b>${businesses[0].name}</b>\n\n`;
+    } else {
+      header = `🏢 <b>Ваши заведения:</b>\n`;
+      for (const b of businesses) {
+        header += `• ${b.name} (<code>${b.slug}</code>)\n`;
+      }
+      header += '\n';
+    }
 
-    if (frontendUrl) {
-      text += `\n\n🔗 Расписание для гостей: ${frontendUrl}`;
+    let text = header +
+      `📌 <b>Все команды:</b>\n\n` +
+      `<b>Бронирование</b>\n` +
+      `- сегодня бронь с 14 до 18\n` +
+      `- сегодня бронь с 14 до 18 Петров\n` +
+      `- в пятницу бронь на 15:00 на 3 часа\n` +
+      `- в пятницу бронь на 15:00 на 3 часа Иванов\n\n` +
+      `<b>Отмена брони</b>\n` +
+      `- отмени бронь на сегодня 14\n` +
+      `- отмени бронь на завтра 16\n\n` +
+      `<b>Расписание</b>\n` +
+      `- расписание на сегодня\n` +
+      `- расписание на пятницу\n` +
+      `- покажи расписание\n\n` +
+      `<b>Время работы</b>\n` +
+      `- на этой неделе ПН-ПТ c 10 до 23, ПТ-СБ c 12 до 03\n\n` +
+      `<b>Управление</b>\n` +
+      `/settings — настройки заведения\n` +
+      `/list — список заведений\n` +
+      `/add — добавить заведение\n` +
+      `/del — удалить заведение`;
+
+    const urls = businesses
+      .map((b) => getFrontendUrl(b.slug))
+      .filter(Boolean);
+    if (urls.length === 1) {
+      text += `\n\n🔗 Расписание для гостей: ${urls[0]}`;
+    } else if (urls.length > 1) {
+      text += '\n\n🔗 <b>Ссылки для гостей:</b>';
+      for (let i = 0; i < businesses.length; i++) {
+        const url = getFrontendUrl(businesses[i].slug);
+        if (url) text += `\n• ${businesses[i].name}: ${url}`;
+      }
     }
 
     ctx.reply(text, { parse_mode: 'HTML' });
@@ -516,7 +776,7 @@ export function initBot(): void {
   function handleSettings(ctx: any, biz: Business): void {
     const url = getFrontendUrl(biz.slug);
     let text =
-      `⚙️ <b>Настройки</b>\n\n` +
+      `⚙️ <b>Настройки — ${biz.name}</b>\n\n` +
       `Название: <b>${biz.name}</b>\n` +
       `Slug: <b>${biz.slug}</b>`;
 
@@ -525,8 +785,8 @@ export function initBot(): void {
     ctx.reply(text, {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
-        [Markup.button.callback('✏️ Изменить название', 'settings_name')],
-        [Markup.button.callback('🔗 Изменить slug', 'settings_slug')],
+        [Markup.button.callback('✏️ Изменить название', `settings_name:${biz.id}`)],
+        [Markup.button.callback('🔗 Изменить slug', `settings_slug:${biz.id}`)],
       ]),
     });
   }
@@ -575,7 +835,7 @@ export function initBot(): void {
 
     ctx.reply(text, {
       ...Markup.inlineKeyboard([
-        [Markup.button.callback('✏️ Редактировать слоты', 'edit_slots')],
+        [Markup.button.callback('✏️ Редактировать слоты', `edit_slots:${biz.id}`)],
       ]),
     });
   }
@@ -611,6 +871,30 @@ export function initBot(): void {
 
     text += '\nЧтобы задать расписание, отправьте, например:\n';
     text += '"на этой неделе с пн по пт с 12 до 23, с пт по вс с 12 до 03"';
+
+    ctx.reply(text);
+  }
+
+  function handleCancelCommand(
+    ctx: any,
+    biz: Business,
+    cmd: { dayName: string; hour: number }
+  ): void {
+    const targetDate = resolveDay(cmd.dayName);
+    if (!targetDate) {
+      return ctx.reply(`Не понял день: "${cmd.dayName}"`);
+    }
+
+    const dateKey = toDateKey(targetDate);
+    const result = cancelBooking(biz.id, dateKey, cmd.hour);
+
+    if (result.cancelled === 0) {
+      return ctx.reply(`На ${fmtDate(dateKey)} ${cmd.hour}:00 нет брони.`);
+    }
+
+    const endHour = cmd.hour + result.cancelled;
+    let text = `❌ Бронь отменена: ${fmtDate(dateKey)} ${cmd.hour}:00–${endHour}:00`;
+    if (result.clientName) text += ` (${result.clientName})`;
 
     ctx.reply(text);
   }
@@ -652,7 +936,11 @@ export function initBot(): void {
       replyText += `\n\n🔗 ${frontendUrl}?date=${dateKey}`;
     }
 
-    ctx.reply(replyText);
+    ctx.reply(replyText, {
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${biz.id}:${dateKey}:${cmd.hour}`)],
+      ]),
+    });
   }
 
   function handleDaySchedule(ctx: any, biz: Business, dayName: string): void {
@@ -724,7 +1012,11 @@ export function initBot(): void {
       replyText += `\n\n🔗 ${frontendUrl}?date=${dateKey}`;
     }
 
-    ctx.reply(replyText);
+    ctx.reply(replyText, {
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${biz.id}:${dateKey}:${cmd.startHour}`)],
+      ]),
+    });
   }
 
   function handleShowSchedule(ctx: any, biz: Business): void {
@@ -756,7 +1048,10 @@ export function initBot(): void {
     { command: 'start', description: 'Регистрация / главное меню' },
     { command: 'info', description: 'Возможности бота' },
     { command: 'schedule', description: 'Показать расписание' },
-    { command: 'settings', description: 'Настройки бани' },
+    { command: 'settings', description: 'Настройки заведения' },
+    { command: 'list', description: 'Список заведений' },
+    { command: 'add', description: 'Добавить заведение' },
+    { command: 'del', description: 'Удалить заведение' },
   ]);
 
   bot.launch()
