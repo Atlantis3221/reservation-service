@@ -169,9 +169,8 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 
 ### Настройка
 
-1. Создать бота через @BotFather (например `slotik_monitor_bot`)
-2. Добавить `MONITOR_BOT_TOKEN=<токен>` в `backend/.env`
-3. Написать боту `/start` — он запомнит chat ID и начнёт отправлять алерты
+1. Добавить `MONITOR_BOT_TOKEN=<токен>` в `backend/.env`
+2. Написать [@slotik_monitoring_bot](https://t.me/slotik_monitoring_bot) `/start` — он запомнит chat ID и начнёт отправлять алерты
 
 ### Алерты об ошибках
 
@@ -199,6 +198,8 @@ Rate limiting: не более 1 алерта в 60 секунд. Стектре
 | **IP сервера** | `185.255.132.151` |
 | **URL** | `https://slotik.tech` |
 | **API** | `https://slotik.tech/api/*` |
+| **Бот** | [@slotik_tech_bot](https://t.me/slotik_tech_bot) |
+| **Мониторинг-бот** | [@slotik_monitoring_bot](https://t.me/slotik_monitoring_bot) |
 
 ## Лендинг
 
