@@ -16,17 +16,26 @@
 reservation-service/
 ├── backend/          # Express + Telegraf (Telegram Bot API)
 │   ├── src/
-│   │   ├── index.ts           # точка входа
-│   │   ├── types.ts           # типы (Business, TimeSlot, SlotStatus)
-│   │   ├── routes/api.ts      # REST API расписания
-│   │   └── services/
-│   │       ├── bot.ts         # Telegram-бот (онбординг, команды)
-│   │       ├── business.ts    # CRUD бизнесов, транслитерация, slug
-│   │       ├── db.ts          # SQLite инициализация и миграции
-│   │       ├── monitor.ts     # мониторинг: алерты, /health, ежедневный дайджест
-│   │       └── schedule.ts    # логика расписания и слотов
+│   │   ├── index.ts                  # точка входа
+│   │   ├── types.ts                  # типы (Business, TimeSlot, SlotStatus)
+│   │   ├── bot/                      # Telegram-бот
+│   │   │   ├── index.ts              # инициализация Telegraf
+│   │   │   ├── handlers.ts           # обработчики команд и callback
+│   │   │   ├── formatters.ts         # форматирование сообщений
+│   │   │   └── parsers.ts            # NLP-парсинг команд
+│   │   ├── routes/
+│   │   │   └── api.ts                # REST API расписания
+│   │   ├── services/
+│   │   │   ├── db.ts                 # SQLite инициализация и миграции
+│   │   │   ├── business.ts           # CRUD бизнесов, slug, соглашения
+│   │   │   ├── schedule.ts           # реэкспорт из slot.repository
+│   │   │   └── monitor.ts            # мониторинг: алерты, /health, дайджест
+│   │   ├── repositories/
+│   │   │   └── slot.repository.ts    # слоты: CRUD, бронирование, статистика
+│   │   └── utils/
+│   │       └── date.ts               # даты, форматирование, дни недели
 │   ├── data/
-│   │   └── reservations.db    # файл БД (создаётся автоматически)
+│   │   └── reservations.db           # файл БД (создаётся автоматически)
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/         # React (Vite)
@@ -48,6 +57,30 @@ reservation-service/
 │   └── deploy-frontend.sh    # (legacy) деплой фронтенда на GitHub Pages
 ├── docker-compose.yml         # backend + nginx + certbot
 └── package.json               # npm workspaces root
+```
+
+### Архитектура бэкенда
+
+Подробная документация, диаграммы и гайдлайны — в [`backend/README.md`](backend/README.md).
+
+```mermaid
+graph LR
+    subgraph "Каналы"
+        A[REST API] 
+        B[Telegram-бот]
+    end
+
+    subgraph "Логика"
+        S[Services]
+        R[Repositories]
+    end
+
+    D[(SQLite)]
+
+    A --> S
+    B --> S
+    S --> R
+    R --> D
 ```
 
 ## Быстрый старт
