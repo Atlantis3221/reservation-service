@@ -7,6 +7,7 @@ import {
   cancelBooking,
   cancelBookingById,
   clearDay,
+  findOverlappingBookings,
   getScheduledDays,
   getSlotsForDate,
   getStats,
@@ -51,8 +52,19 @@ interface PendingCommand {
   messageId: number;
 }
 
+interface PendingBooking {
+  businessId: number;
+  businessSlug: string;
+  dateKey: string;
+  startTime: string;
+  endTime: string;
+  note?: string;
+  clientName?: string;
+}
+
 const conversations = new Map<number, ConversationState>();
 const pendingCommands = new Map<number, PendingCommand>();
+const pendingBookings = new Map<number, PendingBooking>();
 
 function getFrontendUrl(slug?: string): string {
   const base = process.env.FRONTEND_URL || '';
@@ -275,6 +287,36 @@ function handleCancelCommand(
   ctx.reply(text);
 }
 
+function createBooking(ctx: any, pending: PendingBooking): void {
+  const result = bookRange(
+    pending.businessId, pending.dateKey,
+    pending.startTime, pending.endTime,
+    pending.note, pending.clientName,
+  );
+  const frontendUrl = getFrontendUrl(pending.businessSlug);
+  const replyText = formatBookingConfirmation(
+    pending.dateKey, pending.startTime, pending.endTime,
+    pending.clientName, frontendUrl,
+  );
+
+  ctx.reply(replyText, {
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('❌ Отменить бронь', `cancel_book:${result.id}`)],
+    ]),
+  });
+}
+
+function formatOverlapWarning(
+  overlaps: Array<{ startTime: string; endTime: string; clientName?: string }>,
+): string {
+  const lines = overlaps.map((o) => {
+    let line = `  • ${o.startTime}–${o.endTime}`;
+    if (o.clientName) line += ` (${o.clientName})`;
+    return line;
+  });
+  return `⚠️ На это время уже есть бронь:\n${lines.join('\n')}\n\nСоздать ещё одну?`;
+}
+
 function handleBookingCommand(
   ctx: any,
   biz: Business,
@@ -292,15 +334,31 @@ function handleBookingCommand(
     addDaySlots(biz.id, dateKey, 10, 22);
   }
 
-  const result = bookRange(biz.id, dateKey, cmd.startTime, cmd.endTime, 'Бронь', cmd.clientName);
-  const frontendUrl = getFrontendUrl(biz.slug);
-  const replyText = formatBookingConfirmation(dateKey, cmd.startTime, cmd.endTime, cmd.clientName, frontendUrl);
+  const pending: PendingBooking = {
+    businessId: biz.id,
+    businessSlug: biz.slug,
+    dateKey,
+    startTime: cmd.startTime,
+    endTime: cmd.endTime,
+    note: 'Бронь',
+    clientName: cmd.clientName,
+  };
 
-  ctx.reply(replyText, {
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('❌ Отменить бронь', `cancel_book:${result.id}`)],
-    ]),
-  });
+  const overlaps = findOverlappingBookings(biz.id, dateKey, cmd.startTime, cmd.endTime);
+  if (overlaps.length > 0) {
+    pendingBookings.set(ctx.chat.id, pending);
+    ctx.reply(formatOverlapWarning(overlaps), {
+      ...Markup.inlineKeyboard([
+        [
+          Markup.button.callback('✅ Да, создать', 'confirm_book'),
+          Markup.button.callback('❌ Нет', 'deny_book'),
+        ],
+      ]),
+    });
+    return;
+  }
+
+  createBooking(ctx, pending);
 }
 
 function handleDaySchedule(ctx: any, biz: Business, dayName: string): void {
@@ -339,15 +397,31 @@ function handleBookingRangeCommand(
     addDaySlots(biz.id, dateKey, 10, 22);
   }
 
-  const result = bookRange(biz.id, dateKey, cmd.startTime, cmd.endTime, 'Бронь', cmd.clientName);
-  const frontendUrl = getFrontendUrl(biz.slug);
-  const replyText = formatBookingConfirmation(dateKey, cmd.startTime, cmd.endTime, cmd.clientName, frontendUrl);
+  const pending: PendingBooking = {
+    businessId: biz.id,
+    businessSlug: biz.slug,
+    dateKey,
+    startTime: cmd.startTime,
+    endTime: cmd.endTime,
+    note: 'Бронь',
+    clientName: cmd.clientName,
+  };
 
-  ctx.reply(replyText, {
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('❌ Отменить бронь', `cancel_book:${result.id}`)],
-    ]),
-  });
+  const overlaps = findOverlappingBookings(biz.id, dateKey, cmd.startTime, cmd.endTime);
+  if (overlaps.length > 0) {
+    pendingBookings.set(ctx.chat.id, pending);
+    ctx.reply(formatOverlapWarning(overlaps), {
+      ...Markup.inlineKeyboard([
+        [
+          Markup.button.callback('✅ Да, создать', 'confirm_book'),
+          Markup.button.callback('❌ Нет', 'deny_book'),
+        ],
+      ]),
+    });
+    return;
+  }
+
+  createBooking(ctx, pending);
 }
 
 function handleShowSchedule(ctx: any, biz: Business): void {
@@ -785,6 +859,27 @@ export function registerHandlers(bot: Telegraf): void {
     if (result.clientName) text += ` (${result.clientName})`;
 
     ctx.editMessageText(text);
+  });
+
+  bot.action('confirm_book', (ctx) => {
+    ctx.answerCbQuery();
+    const chatId = ctx.chat!.id;
+    const pending = pendingBookings.get(chatId);
+    pendingBookings.delete(chatId);
+
+    if (!pending) {
+      ctx.editMessageText('Бронирование не найдено. Попробуйте заново.');
+      return;
+    }
+
+    ctx.deleteMessage().catch(() => {});
+    createBooking(ctx, pending);
+  });
+
+  bot.action('deny_book', (ctx) => {
+    ctx.answerCbQuery();
+    pendingBookings.delete(ctx.chat!.id);
+    ctx.editMessageText('Бронирование отменено.');
   });
 
   bot.action('example_show', (ctx) => {

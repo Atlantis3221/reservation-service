@@ -4,6 +4,7 @@ export {
   getSlotsForDateFull,
   getAllSlots,
   addDaySlots,
+  findOverlappingBookings,
   bookRange,
   cancelBookingById,
   cancelBooking,

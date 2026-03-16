@@ -103,6 +103,28 @@ export function addDaySlots(businessId: number, dateKey: string, startHour: numb
   }];
 }
 
+export function findOverlappingBookings(
+  businessId: number,
+  dateKey: string,
+  startTime: string,
+  endTime: string,
+): Array<{ id: number; startTime: string; endTime: string; clientName?: string }> {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, start_time, end_time, client_name FROM slots
+       WHERE business_id = ? AND date_key = ? AND status = 'booked'
+         AND start_time < ? AND end_time > ?`
+    )
+    .all(businessId, dateKey, endTime, startTime) as any[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    clientName: r.client_name ?? undefined,
+  }));
+}
+
 export function bookRange(
   businessId: number,
   dateKey: string,
