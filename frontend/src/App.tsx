@@ -103,7 +103,7 @@ function BusinessPage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (!business) return;
-    const name = business.name;
+    const name = business.name.replace(/\b\w/g, (c) => c.toUpperCase());
     if (selectedDate) {
       const dateStr = formatDateStr(selectedDate);
       document.title = `${name} — ${dateStr}`;
@@ -119,26 +119,28 @@ function BusinessPage({ slug }: { slug: string }) {
   }, [business, selectedDate]);
 
   useEffect(() => {
-    fetchBusiness();
-  }, [slug]);
-
-  async function fetchBusiness(): Promise<void> {
+    const controller = new AbortController();
     setLoading(true);
-    try {
-      const res = await fetch(apiBase);
-      if (res.status === 404) {
+
+    fetch(apiBase, { signal: controller.signal })
+      .then((res) => {
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        return res.json().then((data) => setBusiness(data));
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        console.error('Ошибка загрузки бани:', err);
         setNotFound(true);
-        return;
-      }
-      const data = await res.json();
-      setBusiness(data);
-    } catch (err) {
-      console.error('Ошибка загрузки бани:', err);
-      setNotFound(true);
-    } finally {
-      setLoading(false);
-    }
-  }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [slug]);
 
   function formatDateStr(dateKey: string): string {
     const d = new Date(dateKey + 'T00:00:00');

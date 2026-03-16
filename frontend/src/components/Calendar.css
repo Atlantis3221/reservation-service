@@ -182,17 +182,9 @@
   box-shadow: 0 0 0 3px #ede9fe;
 }
 
-/* Availability dot */
-.gcal-day-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-}
-
-.gcal-day--other .gcal-day-dot,
-.gcal-day--past .gcal-day-dot {
-  display: none;
+/* Unavailable dates */
+.gcal-day--no-slots {
+  opacity: 0.35;
 }
 
 /* Day Timeline */
@@ -385,19 +377,9 @@
   color: #d1d5db;
 }
 
-.gcal-weeknav-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-}
-
-.gcal-weeknav-dot--hidden {
-  visibility: hidden;
-}
-
-.gcal-weeknav-day--selected .gcal-weeknav-dot {
-  background: #7c3aed;
+/* Unavailable week nav dates */
+.gcal-weeknav-day--no-slots:not(.gcal-weeknav-day--selected) {
+  opacity: 0.35;
 }
 
 @media (max-width: 480px) {
@@ -410,11 +392,6 @@
     height: 28px;
     font-size: 0.75rem;
     border-radius: 10px;
-  }
-
-  .gcal-day-dot {
-    width: 4px;
-    height: 4px;
   }
 
   .gcal-tl-hour {

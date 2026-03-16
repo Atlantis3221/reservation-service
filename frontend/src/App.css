@@ -22,6 +22,14 @@
   margin-bottom: 8px;
 }
 
+.app--day .header h1 {
+  font-size: 1.25rem;
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: #1e1e2e;
+  background-clip: unset;
+}
+
 .header h1 {
   font-size: 1.75rem;
   font-weight: 700;
@@ -262,6 +270,10 @@
 
   .app--day .header {
     margin-bottom: 4px;
+  }
+
+  .app--day .header h1 {
+    font-size: 1.125rem;
   }
 
   .booking-bar {

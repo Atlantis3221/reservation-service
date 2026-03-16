@@ -218,6 +218,7 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
               if (isSelected) cls += ' gcal-weeknav-day--selected';
               if (isToday) cls += ' gcal-weeknav-day--today';
               if (isPast) cls += ' gcal-weeknav-day--past';
+              if (!hasSlots && !isPast) cls += ' gcal-weeknav-day--no-slots';
               return (
                 <button
                   key={dateKey}
@@ -226,7 +227,6 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
                 >
                   <span className="gcal-weeknav-label">{label}</span>
                   <span className="gcal-weeknav-num">{date.getDate()}</span>
-                  <span className={`gcal-weeknav-dot${!hasSlots || isPast ? ' gcal-weeknav-dot--hidden' : ''}`} />
                 </button>
               );
             })}
@@ -333,6 +333,7 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
               if (isPast && !isToday) cls += ' gcal-day--past';
               if (isToday) cls += ' gcal-day--today';
               if (!isPast || isToday) cls += ' gcal-day--clickable';
+              if (!hasSlots && isCurrent && !isPast) cls += ' gcal-day--no-slots';
 
               return (
                 <button
@@ -342,9 +343,6 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
                   onClick={() => handleDayClick(dateKey)}
                 >
                   <span className="gcal-day-number">{day}</span>
-                  {hasSlots && !isPast && (
-                    <span className="gcal-day-dot" />
-                  )}
                 </button>
               );
             })}
