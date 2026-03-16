@@ -1,23 +1,36 @@
 .app {
   max-width: 720px;
   margin: 0 auto;
-  padding: 48px 24px;
+  padding: 24px 20px;
+}
+
+.app--day {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-bottom: 0;
 }
 
 /* Header */
 
 .header {
-  margin-bottom: 40px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.app--day .header {
+  margin-bottom: 8px;
 }
 
 .header h1 {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 700;
+  text-transform: capitalize;
   background: linear-gradient(135deg, #1e1e2e 0%, #4f46e5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
@@ -30,7 +43,13 @@
 .main {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
+}
+
+.app--day .main {
+  flex: 1;
+  min-height: 0;
+  gap: 0;
 }
 
 /* Loading */
@@ -180,15 +199,12 @@
 
 .booking-bar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  border-radius: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-  animation: booking-bar-in 0.25s ease-out;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  flex-shrink: 0;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 @keyframes booking-bar-in {
@@ -196,98 +212,24 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.booking-bar-left {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.booking-bar-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #1e1e2e;
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
-.booking-bar-icon {
-  flex-shrink: 0;
-  color: #4f46e5;
-}
-
-.booking-bar-message {
-  font-size: 0.8125rem;
-  color: #6b7280;
-  padding-left: 30px;
-  line-height: 1.5;
-}
-
-.booking-time-pickers {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-left: 30px;
-}
-
-.booking-time-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8125rem;
-  color: #4b5563;
-}
-
-.booking-time-select {
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: none;
-  font-size: 0.8125rem;
-  font-family: inherit;
-  background: #f3f4f6;
-  color: #1e1e2e;
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.booking-time-select:focus {
-  outline: none;
-  background: #ede9fe;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-}
-
-.booking-error {
-  padding-left: 30px;
-  font-size: 0.8125rem;
-  color: #ef4444;
-}
-
-.booking-bar-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .booking-bar-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 20px;
+  width: 100%;
+  padding: 14px 24px;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   color: #fff;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   transition: opacity 0.12s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .booking-bar-btn:hover {
@@ -298,60 +240,33 @@
   opacity: 0.8;
 }
 
-.booking-bar-btn:disabled {
-  background: #e5e7eb;
-  color: #6b7280;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
 .booking-bar-hint {
   font-size: 0.75rem;
   color: #9ca3af;
-  padding-right: 4px;
+  text-align: center;
   transition: color 0.2s;
 }
 
 @media (max-width: 500px) {
   .app {
-    padding: 28px 16px;
+    padding: 16px 16px;
+  }
+
+  .app--day {
+    padding: 12px 12px 0;
   }
 
   .header h1 {
     font-size: 1.5rem;
   }
 
+  .app--day .header {
+    margin-bottom: 4px;
+  }
+
   .booking-bar {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 16px;
-    gap: 12px;
-  }
-
-  .booking-bar-message {
-    padding-left: 0;
-  }
-
-  .booking-time-pickers {
-    padding-left: 0;
-  }
-
-  .booking-error {
-    padding-left: 0;
-  }
-
-  .booking-bar-actions {
-    align-items: stretch;
-  }
-
-  .booking-bar-btn {
-    justify-content: center;
-  }
-
-  .booking-bar-hint {
-    text-align: center;
-    padding-right: 0;
+    padding: 10px 8px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .landing-title {

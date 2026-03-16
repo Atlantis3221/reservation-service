@@ -5,6 +5,7 @@ interface CalendarProps {
   apiBase: string;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
+  onBack?: () => void;
 }
 
 interface DaySlot {
@@ -16,6 +17,7 @@ interface DaySlot {
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const WEEKDAYS_SHORT = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 const MONTHS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
@@ -40,7 +42,7 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-export default function Calendar({ apiBase, selectedDate, onSelectDate }: CalendarProps) {
+export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -64,41 +66,56 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate }: Calend
 
   const todayKey = useMemo(() => toDateKey(today), [today]);
 
-  useEffect(() => {
-    fetchAvailableDates();
-  }, []);
-
-  useEffect(() => {
-    if (selectedDate) {
-      fetchDaySlots(selectedDate);
+  const weekDays = useMemo(() => {
+    if (!selectedDate) return [];
+    const d = new Date(selectedDate + 'T00:00:00');
+    let dow = d.getDay() - 1;
+    if (dow < 0) dow = 6;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - dow);
+    const days: Array<{ date: Date; dateKey: string; label: string }> = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      days.push({
+        date: day,
+        dateKey: toDateKey(day),
+        label: WEEKDAYS_SHORT[i],
+      });
     }
+    return days;
   }, [selectedDate]);
 
-  async function fetchAvailableDates(): Promise<void> {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    try {
-      const res = await fetch(`${apiBase}/available-dates`);
-      const data = await res.json();
-      setAvailableDates(data.dates || []);
-    } catch (err) {
-      console.error('Ошибка загрузки дат:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+    fetch(`${apiBase}/available-dates`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setAvailableDates(data.dates || []);
+      })
+      .catch((err) => console.error('Ошибка загрузки дат:', err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [apiBase]);
 
-  async function fetchDaySlots(dateKey: string): Promise<void> {
+  useEffect(() => {
+    if (!selectedDate) return;
+    let cancelled = false;
     setLoadingDay(true);
-    try {
-      const res = await fetch(`${apiBase}/day-slots?date=${dateKey}`);
-      const data = await res.json();
-      setDaySlots(data.slots || []);
-    } catch (err) {
-      console.error('Ошибка загрузки слотов:', err);
-    } finally {
-      setLoadingDay(false);
-    }
-  }
+    fetch(`${apiBase}/day-slots?date=${selectedDate}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setDaySlots(data.slots || []);
+      })
+      .catch((err) => console.error('Ошибка загрузки слотов:', err))
+      .finally(() => {
+        if (!cancelled) setLoadingDay(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedDate, apiBase]);
 
   const calendarCells = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -140,25 +157,8 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate }: Calend
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   }
 
-  function goToday(): void {
-    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-  }
-
   function handleDayClick(dateKey: string): void {
     onSelectDate(dateKey);
-  }
-
-  function handleBackToCalendar(): void {
-    onSelectDate(null);
-  }
-
-  function formatSelectedDate(dateKey: string): string {
-    const d = new Date(dateKey + 'T00:00:00');
-    return d.toLocaleDateString('ru-RU', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
   }
 
   if (loading) {
@@ -201,12 +201,36 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate }: Calend
     }
 
     return (
-      <div className="gcal">
-        <div className="gcal-toolbar">
-          <button className="gcal-today-btn" onClick={handleBackToCalendar}>
-            ← К календарю
-          </button>
-          <h2 className="gcal-title">{formatSelectedDate(selectedDate)}</h2>
+      <div className="gcal gcal--day">
+        <div className="gcal-weeknav-row">
+          {onBack && (
+            <button className="gcal-back-btn" onClick={onBack} aria-label="К календарю">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+          )}
+          <div className="gcal-weeknav">
+            {weekDays.map(({ dateKey, date, label }) => {
+              const isSelected = dateKey === selectedDate;
+              const isToday = dateKey === todayKey;
+              const isPast = date < today && !isToday;
+              const hasSlots = availableDates.includes(dateKey);
+              let cls = 'gcal-weeknav-day';
+              if (isSelected) cls += ' gcal-weeknav-day--selected';
+              if (isToday) cls += ' gcal-weeknav-day--today';
+              if (isPast) cls += ' gcal-weeknav-day--past';
+              return (
+                <button
+                  key={dateKey}
+                  className={cls}
+                  onClick={() => onSelectDate(dateKey)}
+                >
+                  <span className="gcal-weeknav-label">{label}</span>
+                  <span className="gcal-weeknav-num">{date.getDate()}</span>
+                  <span className={`gcal-weeknav-dot${!hasSlots || isPast ? ' gcal-weeknav-dot--hidden' : ''}`} />
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {loadingDay ? (
@@ -217,53 +241,55 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate }: Calend
         ) : daySlots.length === 0 ? (
           <div className="gcal-empty">Расписание на этот день не задано</div>
         ) : (
-          <div className="gcal-timeline">
-            <div className="gcal-tl-hours">
-              {hours.map((hour, i) => (
-                <div
-                  key={i}
-                  className="gcal-tl-hour"
-                  style={{ top: (i === 0 ? 0 : (hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin)) }}
-                >
-                  {formatTime(hour)}
-                </div>
-              ))}
-            </div>
-            <div className="gcal-tl-grid" style={{ height: totalMinutes }}>
-              {hours.slice(0, -1).map((hour, i) => (
-                <div
-                  key={i}
-                  className="gcal-tl-gridline"
-                  style={{ top: hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin }}
-                />
-              ))}
-
-              {bookedSlots.map((slot) => {
-                let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
-                let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
-                if (endMin === 0) endMin = 24 * 60;
-                if (endMin <= startMin) endMin += 24 * 60;
-
-                const top = Math.max(0, startMin - rangeStartMin);
-                const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
-                const height = Math.max(bottom - top, 20);
-
-                const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
-                const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
-
-                return (
+          <div className="gcal-timeline-wrap">
+            <div className="gcal-timeline">
+              <div className="gcal-tl-hours">
+                {hours.map((hour, i) => (
                   <div
-                    key={slot.id}
-                    className={`gcal-tl-block gcal-tl-block--${slot.status}`}
-                    style={{ top, height }}
+                    key={i}
+                    className="gcal-tl-hour"
+                    style={{ top: (i === 0 ? 0 : (hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin)) }}
                   >
-                    <span className="gcal-tl-block-time">
-                      {startTimeStr}–{endTimeStr}
-                    </span>
-                    {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
+                    {formatTime(hour)}
                   </div>
-                );
-              })}
+                ))}
+              </div>
+              <div className="gcal-tl-grid" style={{ height: totalMinutes }}>
+                {hours.slice(0, -1).map((hour, i) => (
+                  <div
+                    key={i}
+                    className="gcal-tl-gridline"
+                    style={{ top: hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin }}
+                  />
+                ))}
+
+                {bookedSlots.map((slot) => {
+                  let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
+                  let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
+                  if (endMin === 0) endMin = 24 * 60;
+                  if (endMin <= startMin) endMin += 24 * 60;
+
+                  const top = Math.max(0, startMin - rangeStartMin);
+                  const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
+                  const height = Math.max(bottom - top, 20);
+
+                  const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
+                  const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
+
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`gcal-tl-block gcal-tl-block--${slot.status}`}
+                      style={{ top, height }}
+                    >
+                      <span className="gcal-tl-block-time">
+                        {startTimeStr}–{endTimeStr}
+                      </span>
+                      {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -274,7 +300,6 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate }: Calend
   return (
     <div className="gcal">
       <div className="gcal-toolbar">
-        <button className="gcal-today-btn" onClick={goToday}>Сегодня</button>
         <div className="gcal-nav">
           <button className="gcal-nav-btn" onClick={prevMonth} aria-label="Предыдущий месяц">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
