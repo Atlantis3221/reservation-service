@@ -22,6 +22,10 @@ import {
   updateBusinessName,
   updateBusinessSlug,
   updateTelegramUsername,
+  hasAgreement,
+  saveAgreement,
+  ownerHasPhone,
+  updateOwnerPhone,
 } from './business';
 import type { Business } from '../types';
 
@@ -31,7 +35,8 @@ type ConversationStep =
   | 'awaiting_name'
   | 'awaiting_slug_confirm'
   | 'awaiting_settings_name'
-  | 'awaiting_settings_slug';
+  | 'awaiting_settings_slug'
+  | 'awaiting_contact';
 
 interface ConversationState {
   step: ConversationStep;
@@ -352,20 +357,69 @@ export function initBot(): void {
   // ---- /start — онбординг или инфо ----
 
   bot.start((ctx) => {
-    const businesses = getBusinessesByOwner(ctx.chat.id);
+    const chatId = ctx.chat.id;
+    const businesses = getBusinessesByOwner(chatId);
 
     if (businesses.length > 0) {
       syncUsername(ctx);
       handleInfo(ctx, businesses);
+
+      if (!ownerHasPhone(chatId)) {
+        requestContact(ctx);
+      }
       return;
     }
 
-    conversations.set(ctx.chat.id, { step: 'awaiting_name', data: {} });
+    if (!hasAgreement(chatId)) {
+      showAgreement(ctx);
+      return;
+    }
+
+    if (!ownerHasPhone(chatId)) {
+      requestContact(ctx);
+      return;
+    }
+
+    conversations.set(chatId, { step: 'awaiting_name', data: {} });
     ctx.reply(
       'Привет! Давайте зарегистрируем ваше заведение.\n\n' +
       'Как оно называется?'
     );
   });
+
+  function showAgreement(ctx: any): void {
+    const text =
+      `📜 <b>Пользовательское соглашение</b>\n\n` +
+      `Используя данный сервис, вы соглашаетесь со следующими условиями:\n\n` +
+      `1. Вы предоставляете достоверные данные о себе и своём заведении.\n` +
+      `2. Вы даёте согласие на обработку персональных данных (имя, контактный телефон, Telegram ID) в целях функционирования сервиса.\n` +
+      `3. Сервис предоставляется «как есть» без каких-либо гарантий.\n` +
+      `4. Администрация сервиса может связаться с вами по предоставленному контакту для решения вопросов, связанных с использованием сервиса.\n` +
+      `5. Вы можете прекратить использование сервиса в любой момент, удалив своё заведение.\n\n` +
+      `Нажмите «Принимаю» для продолжения или «Отклоняю» для отказа.`;
+
+    ctx.reply(text, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Принимаю', 'agree_accept')],
+        [Markup.button.callback('❌ Отклоняю', 'agree_decline')],
+      ]),
+    });
+  }
+
+  function requestContact(ctx: any): void {
+    ctx.reply(
+      '📱 Пожалуйста, поделитесь вашим контактом, чтобы мы могли связаться с вами при необходимости.',
+      {
+        reply_markup: {
+          keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      }
+    );
+    conversations.set(ctx.chat.id, { step: 'awaiting_contact', data: {} });
+  }
 
   // ---- /info ----
 
@@ -465,7 +519,35 @@ export function initBot(): void {
     ctx.reply(text, { parse_mode: 'HTML' });
   });
 
+  // ---- /phone ----
+
+  bot.command('phone', (ctx) => {
+    const businesses = getBusinessesByOwner(ctx.chat.id);
+    if (businesses.length === 0) {
+      ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
+      return;
+    }
+    requestContact(ctx);
+  });
+
   // ---- Callback actions ----
+
+  bot.action('agree_accept', (ctx) => {
+    ctx.answerCbQuery();
+    const chatId = ctx.chat!.id;
+    saveAgreement(chatId);
+
+    ctx.editMessageText('✅ Спасибо! Соглашение принято.');
+    requestContact(ctx);
+  });
+
+  bot.action('agree_decline', (ctx) => {
+    ctx.answerCbQuery();
+    ctx.editMessageText(
+      '❌ Без принятия пользовательского соглашения использование сервиса невозможно.\n\n' +
+      'Если передумаете — отправьте /start'
+    );
+  });
 
   bot.action(/^pick_biz:(\d+)$/, (ctx) => {
     ctx.answerCbQuery();
@@ -557,6 +639,31 @@ export function initBot(): void {
     if (!biz) return;
     conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: { businessId: biz.id } });
     ctx.reply('Введите новый slug (латиница, цифры, дефис, минимум 3 символа):');
+  });
+
+  // ---- Контакт ----
+
+  bot.on('contact' as any, (ctx: any) => {
+    const chatId = ctx.chat.id;
+    const contact = ctx.message?.contact;
+    if (!contact?.phone_number) return;
+
+    updateOwnerPhone(chatId, contact.phone_number);
+    conversations.delete(chatId);
+
+    const businesses = getBusinessesByOwner(chatId);
+    if (businesses.length === 0) {
+      ctx.reply(
+        '✅ Спасибо! Ваш номер телефона сохранён.\n\n' +
+        'Давайте зарегистрируем ваше заведение. Как оно называется?',
+        { reply_markup: { remove_keyboard: true } }
+      );
+      conversations.set(chatId, { step: 'awaiting_name', data: {} });
+    } else {
+      ctx.reply('✅ Спасибо! Ваш номер телефона сохранён.', {
+        reply_markup: { remove_keyboard: true },
+      });
+    }
   });
 
   // ---- Текстовые сообщения ----
@@ -700,6 +807,20 @@ export function initBot(): void {
         updateBusinessName(biz.id, text);
         conversations.delete(chatId);
         ctx.reply(`✅ Название изменено на «${text}»`);
+        break;
+      }
+
+      case 'awaiting_contact': {
+        ctx.reply(
+          '📱 Пожалуйста, нажмите кнопку «Поделиться контактом» ниже для передачи номера.',
+          {
+            reply_markup: {
+              keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
+              resize_keyboard: true,
+              one_time_keyboard: true,
+            },
+          }
+        );
         break;
       }
 
@@ -1053,6 +1174,7 @@ export function initBot(): void {
     { command: 'list', description: 'Список заведений' },
     { command: 'add', description: 'Добавить заведение' },
     { command: 'del', description: 'Удалить заведение' },
+    { command: 'phone', description: 'Обновить номер телефона' },
   ]);
 
   bot.launch()

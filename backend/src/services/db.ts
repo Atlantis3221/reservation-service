@@ -83,6 +83,27 @@ function migrate(): void {
   }
 
   db.exec('CREATE INDEX IF NOT EXISTS idx_slots_business_date ON slots(business_id, date_key)');
+
+  const bizCols = db.prepare("PRAGMA table_info(businesses)").all() as any[];
+  if (!bizCols.some((c: any) => c.name === 'owner_phone')) {
+    db.exec('ALTER TABLE businesses ADD COLUMN owner_phone TEXT');
+  }
+  if (!bizCols.some((c: any) => c.name === 'agreement_accepted_at')) {
+    db.exec('ALTER TABLE businesses ADD COLUMN agreement_accepted_at TEXT');
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS owner_agreements (
+      owner_chat_id  TEXT PRIMARY KEY,
+      accepted_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      phone          TEXT
+    )
+  `);
+
+  const agrCols = db.prepare("PRAGMA table_info(owner_agreements)").all() as any[];
+  if (agrCols.length > 0 && !agrCols.some((c: any) => c.name === 'phone')) {
+    db.exec('ALTER TABLE owner_agreements ADD COLUMN phone TEXT');
+  }
 }
 
 function pad2(n: number): string {

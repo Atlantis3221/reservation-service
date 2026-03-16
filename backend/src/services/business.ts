@@ -59,6 +59,7 @@ function rowToBusiness(row: any): Business {
     name: row.name,
     ownerChatId: row.owner_chat_id,
     telegramUsername: row.telegram_username,
+    ownerPhone: row.owner_phone ?? null,
     createdAt: row.created_at,
   };
 }
@@ -69,12 +70,14 @@ export function createBusiness(
   ownerChatId: string,
   telegramUsername?: string
 ): Business {
+  const phone = getOwnerPhone(ownerChatId);
+
   const result = getDb()
     .prepare(
-      `INSERT INTO businesses (slug, name, owner_chat_id, telegram_username)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO businesses (slug, name, owner_chat_id, telegram_username, owner_phone)
+       VALUES (?, ?, ?, ?, ?)`
     )
-    .run(slug, name, ownerChatId, telegramUsername ?? null);
+    .run(slug, name, ownerChatId, telegramUsername ?? null, phone);
 
   return {
     id: result.lastInsertRowid as number,
@@ -82,6 +85,7 @@ export function createBusiness(
     name,
     ownerChatId,
     telegramUsername: telegramUsername ?? null,
+    ownerPhone: phone,
     createdAt: new Date().toISOString(),
   };
 }
@@ -141,4 +145,38 @@ export function getBusinessByOwnerAndSlug(chatId: string | number, slug: string)
     .prepare('SELECT * FROM businesses WHERE owner_chat_id = ? AND slug = ?')
     .get(String(chatId), slug);
   return row ? rowToBusiness(row) : null;
+}
+
+export function hasAgreement(chatId: string | number): boolean {
+  return !!getDb()
+    .prepare('SELECT 1 FROM owner_agreements WHERE owner_chat_id = ?')
+    .get(String(chatId));
+}
+
+export function saveAgreement(chatId: string | number): void {
+  getDb()
+    .prepare('INSERT OR IGNORE INTO owner_agreements (owner_chat_id) VALUES (?)')
+    .run(String(chatId));
+}
+
+export function ownerHasPhone(chatId: string | number): boolean {
+  const row = getDb()
+    .prepare('SELECT phone FROM owner_agreements WHERE owner_chat_id = ? AND phone IS NOT NULL')
+    .get(String(chatId)) as any;
+  return !!row;
+}
+
+export function getOwnerPhone(chatId: string | number): string | null {
+  const row = getDb()
+    .prepare('SELECT phone FROM owner_agreements WHERE owner_chat_id = ?')
+    .get(String(chatId)) as any;
+  return row?.phone ?? null;
+}
+
+export function updateOwnerPhone(chatId: string | number, phone: string): void {
+  const db = getDb();
+  db.prepare('UPDATE owner_agreements SET phone = ? WHERE owner_chat_id = ?')
+    .run(phone, String(chatId));
+  db.prepare('UPDATE businesses SET owner_phone = ? WHERE owner_chat_id = ?')
+    .run(phone, String(chatId));
 }

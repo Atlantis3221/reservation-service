@@ -6,6 +6,7 @@ export interface Business {
   name: string;
   ownerChatId: string;
   telegramUsername: string | null;
+  ownerPhone: string | null;
   createdAt: string;
 }
 
