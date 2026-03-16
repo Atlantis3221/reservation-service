@@ -17,9 +17,14 @@ REMOTE_PATH="${DEPLOY_PATH:-/opt/reservation-service}"
 
 echo "==> Deploying to ${USER}@${HOST}:${REMOTE_PATH}"
 
-# 1. Build frontend
+# 1. Build frontend + admin
 echo "==> Building frontend..."
 cd frontend
+npm run build
+cd ..
+
+echo "==> Building admin panel..."
+cd admin
 npm run build
 cd ..
 
@@ -33,6 +38,7 @@ rsync -avz --delete \
   --exclude='frontend-dist/' \
   --exclude='.git' \
   --exclude='backend/data/' \
+  --exclude='admin-dist/' \
   ./ \
   "${USER}@${HOST}:${REMOTE_PATH}/"
 
@@ -42,7 +48,13 @@ rsync -avz --delete \
   frontend/dist/ \
   "${USER}@${HOST}:${REMOTE_PATH}/frontend-dist/"
 
-# 4. Rebuild and restart containers
+# 4. Sync built admin to admin-dist on server
+echo "==> Syncing admin build..."
+rsync -avz --delete \
+  admin/dist/ \
+  "${USER}@${HOST}:${REMOTE_PATH}/admin-dist/"
+
+# 5. Rebuild and restart containers
 echo "==> Restarting containers..."
 ssh "${USER}@${HOST}" "cd ${REMOTE_PATH} && docker-compose up -d --build"
 

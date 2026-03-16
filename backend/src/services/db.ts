@@ -104,6 +104,37 @@ function migrate(): void {
   if (agrCols.length > 0 && !agrCols.some((c: any) => c.name === 'phone')) {
     db.exec('ALTER TABLE owner_agreements ADD COLUMN phone TEXT');
   }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      email          TEXT    NOT NULL UNIQUE,
+      password_hash  TEXT    NOT NULL,
+      owner_chat_id  TEXT,
+      created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS link_codes (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      code           TEXT    NOT NULL,
+      owner_chat_id  TEXT    NOT NULL,
+      expires_at     TEXT    NOT NULL,
+      used           INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reset_tokens (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      token          TEXT    NOT NULL UNIQUE,
+      admin_user_id  INTEGER NOT NULL,
+      expires_at     TEXT    NOT NULL,
+      used           INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (admin_user_id) REFERENCES admin_users(id)
+    )
+  `);
 }
 
 function pad2(n: number): string {

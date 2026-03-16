@@ -2,7 +2,7 @@
 
 **Ветка:** `18-admin-panel`
 **Создана:** 2026-03-16
-**Статус:** черновик
+**Статус:** реализовано
 
 ## Контекст
 
@@ -302,64 +302,108 @@ sequenceDiagram
 
 ## Критерии приёмки
 
-- [ ] Страница регистрации: email + пароль → аккаунт создан, JWT в localStorage, редирект в чат
-- [ ] Страница входа: email + пароль → JWT, редирект в чат
-- [ ] Валидация: email формат, пароль >= 8 символов, дублирование email
-- [ ] JWT middleware: запросы к `/admin/*` (кроме auth) без/с невалидным токеном → 401
-- [ ] `POST /admin/command` принимает текст + businessId, возвращает `{ messages: [...] }` с текстом и кнопками
-- [ ] Все команды бота работают через веб-чат: бронирование, отмена, расписание, время работы, настройки, /add, /del, /list
-- [ ] Кнопки в ответах (подтверждение брони, отмена) кликабельны и вызывают `POST /admin/command` с action
-- [ ] Переключатель заведений в шапке: dropdown с названиями, выбранное сохраняется в state
-- [ ] Новый пользователь без заведений → автоматический диалог создания заведения
-- [ ] Список команд: кнопка «Команды», popup со списком, клик → вставка в поле ввода
-- [ ] `/link` в Telegram-боте → 6-значный код, `POST /admin/link-telegram` привязывает owner_chat_id
-- [ ] `/reset` в Telegram-боте → ссылка для сброса пароля (30 мин), страница сброса работает
-- [ ] UI в стиле ChatGPT: тёмная/светлая тема, область сообщений по центру, поле ввода внизу
-- [ ] Nginx: `admin.slotik.tech` → статика + проксирование `/admin/*` на бэкенд
-- [ ] Таблицы `admin_users`, `link_codes`, `reset_tokens` созданы миграцией в `services/db.ts`
+- [x] Страница регистрации: email + пароль → аккаунт создан, JWT в localStorage, редирект в чат
+- [x] Страница входа: email + пароль → JWT, редирект в чат
+- [x] Валидация: email формат, пароль >= 8 символов, дублирование email
+- [x] JWT middleware: запросы к `/admin/*` (кроме auth) без/с невалидным токеном → 401
+- [x] `POST /admin/command` принимает текст + businessId, возвращает `{ messages: [...] }` с текстом и кнопками
+- [x] Все команды бота работают через веб-чат: бронирование, отмена, расписание, время работы, настройки, /add, /del, /list
+- [x] Кнопки в ответах (подтверждение брони, отмена) кликабельны и вызывают `POST /admin/command` с action
+- [x] Переключатель заведений в шапке: dropdown с названиями, выбранное сохраняется в state
+- [x] Новый пользователь без заведений → автоматический диалог создания заведения
+- [x] Список команд: кнопка «Команды», popup со списком, клик → вставка в поле ввода
+- [x] `/link` в Telegram-боте → 6-значный код, `POST /admin/link-telegram` привязывает owner_chat_id
+- [x] `/reset` в Telegram-боте → ссылка для сброса пароля (30 мин), страница сброса работает
+- [x] UI в стиле ChatGPT: тёмная тема, область сообщений по центру, поле ввода внизу
+- [x] Nginx: `admin.slotik.tech` → статика + проксирование `/admin/*` на бэкенд
+- [x] Таблицы `admin_users`, `link_codes`, `reset_tokens` созданы миграцией в `services/db.ts`
 
 ## Задачи
 
 ### Backend
 
-- [ ] Миграция БД: таблицы `admin_users`, `link_codes`, `reset_tokens` в `services/db.ts`
-- [ ] `repositories/admin-user.repository.ts` — CRUD admin_users, link_codes, reset_tokens
-- [ ] `services/auth.ts` — register, login, verifyToken (JWT), hashPassword, comparePassword (bcrypt)
-- [ ] `services/command.ts` — рефакторинг: извлечь логику из `bot/handlers.ts` в переиспользуемые функции, которые возвращают `{ messages, buttons }` вместо вызова `ctx.reply()`
-- [ ] `routes/admin.ts` — эндпоинты: register, login, command, link-telegram, reset-password, me
-- [ ] JWT middleware для защиты admin-эндпоинтов
-- [ ] Подключить `routes/admin.ts` в `index.ts`
-- [ ] Команда `/link` в `bot/handlers.ts` — генерация и сохранение 6-значного кода
-- [ ] Команда `/reset` в `bot/handlers.ts` — генерация reset-токена, отправка ссылки
-- [ ] Переменная `JWT_SECRET` в `.env.example`
-- [ ] Зависимости: `bcrypt` (или `bcryptjs`), `jsonwebtoken`
+- [x] Миграция БД: таблицы `admin_users`, `link_codes`, `reset_tokens` в `services/db.ts`
+- [x] `repositories/admin-user.repository.ts` — CRUD admin_users, link_codes, reset_tokens
+- [x] `services/auth.ts` — register, login, verifyToken (JWT), hashPassword, comparePassword (bcrypt)
+- [x] `services/command.ts` — извлечённая логика из `bot/handlers.ts`, возвращает `{ messages, buttons }`
+- [x] `routes/admin.ts` — эндпоинты: register, login, command, init, link-telegram, reset-password, me, commands
+- [x] JWT middleware для защиты admin-эндпоинтов
+- [x] Подключить `routes/admin.ts` в `index.ts`
+- [x] Команда `/link` в `bot/handlers.ts` — генерация и сохранение 6-значного кода
+- [x] Команда `/reset` в `bot/handlers.ts` — генерация reset-токена, отправка ссылки
+- [x] Переменные `JWT_SECRET`, `ADMIN_URL` в `.env.example`
+- [x] Зависимости: `bcryptjs`, `jsonwebtoken`
 
 ### Admin frontend
 
-- [ ] Инициализация проекта: `admin/` — Vite + React + TypeScript
-- [ ] Роутинг: `/login`, `/register`, `/reset`, `/` (чат)
-- [ ] `LoginPage.tsx` — форма email + пароль
-- [ ] `RegisterPage.tsx` — форма email + пароль
-- [ ] `ResetPasswordPage.tsx` — форма нового пароля (по токену из URL)
-- [ ] `ChatPage.tsx` — основной экран чата
-- [ ] `ChatMessage.tsx` — рендер сообщений (user/assistant) с поддержкой форматирования
-- [ ] `ChatInput.tsx` — поле ввода + кнопка отправки (Enter)
-- [ ] `ActionButton.tsx` — кликабельные кнопки в сообщениях
-- [ ] `CommandList.tsx` — popup со списком команд и описаниями
-- [ ] `BusinessSwitcher.tsx` — dropdown выбора заведения в шапке
-- [ ] Auth context: хранение JWT, auto-redirect на login при 401
-- [ ] API client: fetch-обёртка с JWT header
-- [ ] UI стиль ChatGPT: центрированная область чата, тёмная тема, адаптив
+- [x] Инициализация проекта: `admin/` — Vite + React + TypeScript
+- [x] Роутинг: `/login`, `/register`, `/reset`, `/` (чат)
+- [x] `LoginPage.tsx` — форма email + пароль
+- [x] `RegisterPage.tsx` — форма email + пароль
+- [x] `ResetPasswordPage.tsx` — форма нового пароля (по токену из URL)
+- [x] `ChatPage.tsx` — основной экран чата
+- [x] `ChatMessage.tsx` — рендер сообщений (user/assistant) с кнопками
+- [x] `ChatInput.tsx` — поле ввода + кнопка отправки (Enter)
+- [x] `CommandList.tsx` — popup со списком команд и описаниями
+- [x] `BusinessSwitcher.tsx` — dropdown выбора заведения в шапке
+- [x] `LinkTelegram.tsx` — компонент привязки Telegram по коду
+- [x] Auth context: хранение JWT, auto-redirect на login при 401
+- [x] API client: fetch-обёртка с JWT header
+- [x] UI стиль ChatGPT: центрированная область чата, тёмная тема, адаптив
 
 ### Nginx & deploy
 
-- [ ] DNS: A-запись `admin.slotik.tech → 185.255.132.151`
-- [ ] `nginx/nginx.conf`: server block для `admin.slotik.tech`
-- [ ] SSL: certbot для `admin.slotik.tech`
-- [ ] `docker-compose.yml`: volume для `admin/dist/`
-- [ ] GitHub Actions: сборка `admin/` при деплое
+- [ ] DNS: A-запись `admin.slotik.tech → 185.255.132.151` — создать в панели регистратора домена
+- [x] `nginx/nginx.conf`: server block для `admin.slotik.tech`
+- [x] `docker-compose.yml`: volume `./admin-dist:/usr/share/nginx/admin:ro`
+- [x] `deploy.yml`: сборка `admin/` + rsync `admin/dist/` → `admin-dist/` на сервере
+- [x] `deploy.sh`: аналогичные шаги для ручного деплоя
+
+#### SSL: certbot для поддомена (выполнить один раз на сервере)
+
+**Предварительно:** DNS A-запись `admin.slotik.tech` должна быть создана и распространена.
+
+```bash
+ssh root@185.255.132.151
+cd /opt/reservation-service
+
+# Расширить сертификат на поддомен
+docker run --rm \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  -v "$(pwd)/certbot/www:/var/www/certbot" \
+  certbot/certbot certonly \
+  --webroot --webroot-path=/var/www/certbot \
+  --email admin@slotik.tech --agree-tos --no-eff-email \
+  -d slotik.tech -d admin.slotik.tech --expand
+
+# Перезапустить nginx
+docker-compose restart nginx
+```
+
+#### JWT_SECRET и ADMIN_URL (выполнить один раз на сервере)
+
+```bash
+ssh root@185.255.132.151
+
+# Сгенерировать секрет
+JWT_SECRET=$(openssl rand -base64 32)
+
+# Добавить переменные в backend/.env
+cat >> /opt/reservation-service/backend/.env <<EOF
+JWT_SECRET=${JWT_SECRET}
+ADMIN_URL=https://admin.slotik.tech
+EOF
+
+# Перезапустить бэкенд
+cd /opt/reservation-service && docker-compose up -d --build backend
+```
+
+| Переменная | Зачем | Без неё |
+|---|---|---|
+| `JWT_SECRET` | Подпись JWT-токенов авторизации | Используется `dev-secret-change-in-production` — небезопасно, токены можно подделать |
+| `ADMIN_URL` | URL для ссылок в боте (`/link`, `/reset`) | Дефолт `https://admin.slotik.tech` — ок для production |
 
 ### Документация
 
-- [ ] Обновить `README.md` — структура, переменные окружения, архитектура
-- [ ] Обновить `backend/README.md` — новые модули, диаграммы, таблица «Куда класть код»
+- [x] Обновить `README.md` — структура, переменные окружения, архитектура
+- [x] Обновить `backend/README.md` — новые модули, диаграммы, таблица «Куда класть код»

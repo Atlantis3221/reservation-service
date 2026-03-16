@@ -44,6 +44,7 @@ export function initBot(): void {
     { command: 'list', description: 'Список заведений' },
     { command: 'add', description: 'Добавить заведение' },
     { command: 'del', description: 'Удалить заведение' },
+    { command: 'link', description: 'Код для привязки веб-панели' },
   ]);
 
   bot.launch()

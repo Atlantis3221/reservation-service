@@ -33,6 +33,8 @@ import {
 } from '../services/business';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
 import { trackUnrecognizedCommand } from '../services/monitor';
+import { createLinkCode, getAdminUserByOwnerChatId, createResetToken } from '../repositories/admin-user.repository';
+import crypto from 'crypto';
 import type { Business } from '../types';
 
 type ConversationStep =
@@ -149,7 +151,9 @@ function handleInfo(ctx: any, businesses: Business[]): void {
     `/settings — настройки заведения\n` +
     `/list — список заведений\n` +
     `/add — добавить заведение\n` +
-    `/del — удалить заведение`;
+    `/del — удалить заведение\n\n` +
+    `<b>Веб-панель</b>\n` +
+    `/link — код для привязки веб-панели`;
 
   const urls = businesses
     .map((b) => getFrontendUrl(b.slug))
@@ -775,6 +779,52 @@ export function registerHandlers(bot: Telegraf): void {
     }
 
     ctx.reply(text, { parse_mode: 'HTML' });
+  });
+
+  // ---- /link ----
+
+  bot.command('link', (ctx) => {
+    const chatId = ctx.chat.id;
+    const businesses = getBusinessesByOwner(chatId);
+    if (businesses.length === 0) {
+      ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
+      return;
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    createLinkCode(code, String(chatId), expiresAt);
+
+    const adminUrl = process.env.ADMIN_URL || 'https://admin.slotik.tech';
+    ctx.reply(
+      `🔗 Код для привязки веб-панели:\n\n` +
+      `<code>${code}</code>\n\n` +
+      `Введите этот код на ${adminUrl} в разделе привязки Telegram.\n` +
+      `Код действителен 10 минут.`,
+      { parse_mode: 'HTML' }
+    );
+  });
+
+  // ---- /reset ----
+
+  bot.command('reset', (ctx) => {
+    const chatId = ctx.chat.id;
+    const adminUser = getAdminUserByOwnerChatId(String(chatId));
+    if (!adminUser) {
+      ctx.reply('К вашему Telegram не привязан веб-аккаунт. Зарегистрируйтесь на admin.slotik.tech и привяжите аккаунт командой /link');
+      return;
+    }
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    createResetToken(token, adminUser.id, expiresAt);
+
+    const adminUrl = process.env.ADMIN_URL || 'https://admin.slotik.tech';
+    ctx.reply(
+      `🔑 Ссылка для сброса пароля:\n\n` +
+      `${adminUrl}/reset?token=${token}\n\n` +
+      `Ссылка действительна 30 минут.`
+    );
   });
 
   // ---- /phone ----

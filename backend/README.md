@@ -14,17 +14,24 @@ graph TB
 
     subgraph "Каналы доступа"
         API[routes/api.ts<br/>REST API]
+        ADMIN[routes/admin.ts<br/>Admin API]
         BOT[bot/<br/>Telegram-бот]
         MON[services/monitor.ts<br/>Мониторинг-бот]
     end
 
+    subgraph "Авторизация"
+        AUTH[services/auth.ts<br/>JWT, bcrypt]
+    end
+
     subgraph "Бизнес-логика"
+        CMD[services/command.ts<br/>Выполнение команд]
         BIZ[services/business.ts<br/>CRUD бизнесов, slug]
         SCH[services/schedule.ts<br/>Реэкспорт слотов]
     end
 
     subgraph "Данные"
         REPO[repositories/slot.repository.ts<br/>Слоты: CRUD, бронирование]
+        ADMIN_REPO[repositories/admin-user.repository.ts<br/>Пользователи, коды]
         DB[services/db.ts<br/>SQLite, миграции]
     end
 
@@ -33,9 +40,15 @@ graph TB
     end
 
     EP --> API
+    EP --> ADMIN
     EP --> BOT
     EP --> MON
 
+    ADMIN --> AUTH
+    ADMIN --> CMD
+    AUTH --> ADMIN_REPO
+    CMD --> BIZ
+    CMD --> SCH
     API --> BIZ
     API --> SCH
     BOT --> BIZ
@@ -43,6 +56,7 @@ graph TB
     SCH --> REPO
     REPO --> DB
     BIZ --> DB
+    ADMIN_REPO --> DB
     BOT --> UTIL
     REPO --> UTIL
 ```
@@ -117,19 +131,23 @@ backend/
 │   │       ├── formatters.test.ts
 │   │       └── parsers.test.ts
 │   │
-│   ├── routes/                           # REST API (канал доступа)
-│   │   └── api.ts                        # Express-роуты: /business/:slug/*
+│   ├── routes/                           # REST API (каналы доступа)
+│   │   ├── api.ts                        # Express-роуты: /business/:slug/*
+│   │   └── admin.ts                      # Admin API: auth, command, link
 │   │
 │   ├── services/                         # Бизнес-логика и инфраструктура
 │   │   ├── db.ts                         # SQLite init, миграции, getDb()
 │   │   ├── business.ts                   # CRUD бизнесов, slug, соглашения
 │   │   ├── schedule.ts                   # Реэкспорт из slot.repository
+│   │   ├── auth.ts                       # Регистрация, вход, JWT, bcrypt
+│   │   ├── command.ts                    # Выполнение команд (реюз из bot/)
 │   │   ├── monitor.ts                    # Мониторинг: алерты, /health, дайджест
 │   │   └── __tests__/
 │   │       └── business.test.ts
 │   │
 │   ├── repositories/                     # Доступ к данным (SQL-запросы)
 │   │   ├── slot.repository.ts            # Слоты: выборка, бронирование, отмена
+│   │   ├── admin-user.repository.ts      # Admin users, link codes, reset tokens
 │   │   └── __tests__/
 │   │       └── slot.repository.test.ts
 │   │
@@ -151,7 +169,10 @@ backend/
 |---|---|---|
 | Новый SQL-запрос или работа с таблицей | `repositories/*.repository.ts` | Поиск слотов, агрегации |
 | CRUD-операции над бизнес-сущностью | `services/*.ts` | Создание/удаление бизнесов |
-| Новый REST-эндпоинт | `routes/api.ts` | GET /api/business/:slug/stats |
+| Новый REST-эндпоинт (клиентский) | `routes/api.ts` | GET /api/business/:slug/stats |
+| Новый Admin-эндпоинт | `routes/admin.ts` | POST /admin/command |
+| Авторизация / JWT | `services/auth.ts` | Проверка токена, хеширование |
+| Команда чата (web) | `services/command.ts` | Обработка текстовой команды |
 | Новая команда бота | `bot/handlers.ts` | Обработка /report |
 | Парсинг текста пользователя | `bot/parsers.ts` | Распознавание "перенеси бронь" |
 | Форматирование ответа бота | `bot/formatters.ts` | Новый формат расписания |

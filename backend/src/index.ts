@@ -5,6 +5,7 @@ import { networkInterfaces } from 'os';
 import { initDb } from './services/db';
 import { initBot } from './bot';
 import { apiRouter } from './routes/api';
+import { adminRouter } from './routes/admin';
 import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
 
 process.on('uncaughtException', (err) => {
@@ -26,6 +27,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', apiRouter);
+app.use('/admin', adminRouter);
 
 app.get('/health', (_req, res) => {
   const info = getHealthInfo();
