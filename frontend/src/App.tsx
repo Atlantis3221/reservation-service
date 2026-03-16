@@ -54,7 +54,7 @@ function LandingPage() {
       <div className="landing">
         <h1 className="landing-title">Сервис бронирования</h1>
         <p className="landing-desc">
-          Онлайн-расписание для вашей бани. Клиенты видят свободные слоты
+          Онлайн-расписание для вашего заведения. Клиенты видят свободные слоты
           и записываются через Telegram.
         </p>
         <div className="landing-steps">
@@ -62,13 +62,13 @@ function LandingPage() {
             <span className="landing-step-num">1</span>
             <div>
               <strong>Подключите бота</strong>
-              <p>Напишите <a href={`https://t.me/${TELEGRAM_BOT}`} target="_blank" rel="noopener">@{TELEGRAM_BOT}</a> в Telegram и отправьте /start</p>
+              <p>Найдите бота по имени <a href={`https://t.me/${TELEGRAM_BOT}`} target="_blank" rel="noopener">@{TELEGRAM_BOT}</a> в Telegram и отправьте /start</p>
             </div>
           </div>
           <div className="landing-step">
             <span className="landing-step-num">2</span>
             <div>
-              <strong>Зарегистрируйте баню</strong>
+              <strong>Зарегистрируйте заведение</strong>
               <p>Бот спросит название и создаст персональную ссылку</p>
             </div>
           </div>

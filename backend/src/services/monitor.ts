@@ -14,6 +14,15 @@ let monitorChatId: string | null = null;
 let lastAlertAt = 0;
 let digestTimer: ReturnType<typeof setTimeout> | null = null;
 const startedAt = Date.now();
+let unrecognizedCommands = 0;
+
+export function trackUnrecognizedCommand(): void {
+  unrecognizedCommands++;
+}
+
+export function getUnrecognizedCount(): number {
+  return unrecognizedCommands;
+}
 
 function isEnabled(): boolean {
   return !!monitorBot && !!monitorChatId;
@@ -112,6 +121,7 @@ export function getHealthInfo(): {
   businesses: number;
   slots: number;
   dbSizeMb: number;
+  unrecognizedCommands: number;
 } {
   const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
   const hours = Math.floor(uptimeSec / 3600);
@@ -144,6 +154,7 @@ export function getHealthInfo(): {
     businesses,
     slots,
     dbSizeMb: getDbSizeMb(),
+    unrecognizedCommands,
   };
 }
 
@@ -165,7 +176,8 @@ async function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): Prom
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
     `🏢 Businesses: ${info.businesses}\n` +
     `📅 Slots: ${info.slots}\n` +
-    `🗄 DB: ${info.dbSizeMb} MB` +
+    `🗄 DB: ${info.dbSizeMb} MB\n` +
+    `❓ Unrecognized: ${info.unrecognizedCommands}` +
     formatContainers(containers)
   );
 }
@@ -200,7 +212,8 @@ async function sendDailyDigest(): Promise<void> {
     `🏢 Businesses: ${info.businesses}\n` +
     `📅 Slots: ${info.slots}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
-    `🔴 Bookings (24h): ${bookings24h}` +
+    `🔴 Bookings (24h): ${bookings24h}\n` +
+    `❓ Unrecognized: ${info.unrecognizedCommands}` +
     formatContainers(containers);
 
   sendTelegram(text);

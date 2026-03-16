@@ -2,7 +2,7 @@
 
 **Ветка:** `07-backend-modular-refactor`
 **Создана:** 2026-03-14
-**Статус:** черновик
+**Статус:** реализовано
 
 ## Контекст
 
@@ -109,37 +109,42 @@ backend/src/
 ## Критерии приёмки
 
 ### Рефакторинг
-- [ ] `bot.ts` разбит на `bot/index.ts`, `bot/handlers.ts`, `bot/parsers.ts`, `bot/formatters.ts`
-- [ ] Создан `repositories/slot.repository.ts` с SQL-запросами из `schedule.ts`
-- [ ] `schedule.ts` содержит только бизнес-логику, вызывает repository
-- [ ] Создан `utils/date.ts` с общими дата-утилитами
-- [ ] Дублирующиеся хелперы удалены из `bot.ts` и `schedule.ts`
-- [ ] Неиспользуемые импорты удалены из `api.ts`
-- [ ] TypeScript компилируется без ошибок
+- [x] `bot.ts` разбит на `bot/index.ts`, `bot/handlers.ts`, `bot/parsers.ts`, `bot/formatters.ts`
+- [x] Создан `repositories/slot.repository.ts` с SQL-запросами из `schedule.ts`
+- [x] `schedule.ts` содержит только бизнес-логику, вызывает repository
+- [x] Создан `utils/date.ts` с общими дата-утилитами
+- [x] Дублирующиеся хелперы удалены из `bot.ts` и `schedule.ts`
+- [x] Неиспользуемые импорты удалены из `api.ts`
+- [x] TypeScript компилируется без ошибок
 - [ ] Бот и API работают идентично поведению до рефакторинга
 
+### CI/CD
+- [x] В GitHub Actions пайплайне (`deploy.yml`) запускаются бэкенд-тесты перед деплоем
+- [x] При падении тестов деплой не происходит
+
 ### Юнит-тесты
-- [ ] Vitest добавлен в devDependencies, скрипт `test` в package.json
-- [ ] Тесты на `parseFlexibleSchedule`: корректный ввод (эта/следующая неделя, один/несколько диапазонов), некорректный ввод (без недели, без диапазонов), edge cases (ночной диапазон 12→03)
-- [ ] Тесты на `parseBookingCommand`: стандартный ввод, с именем клиента, без имени, невалидные минуты (!=0), невалидные часы
-- [ ] Тесты на `parseBookingRange`: стандартный диапазон, с именем клиента, startHour >= endHour, ненулевые минуты
-- [ ] Тесты на дата-утилиты: `toDateKey`, `fmtDate`, `resolveDay` (сегодня, завтра, день недели), `getNextWeekday` (склонения, несуществующий день)
-- [ ] Тесты на форматтеры: форматирование расписания дня, статистики
+- [x] Vitest добавлен в devDependencies, скрипт `test` в package.json
+- [x] Тесты на `parseFlexibleSchedule`: корректный ввод (эта/следующая неделя, один/несколько диапазонов), некорректный ввод (без недели, без диапазонов), edge cases (ночной диапазон 12→03)
+- [x] Тесты на `parseBookingCommand`: стандартный ввод, с именем клиента, без имени, невалидные минуты (!=0), невалидные часы
+- [x] Тесты на `parseBookingRange`: стандартный диапазон, с именем клиента, startHour >= endHour, ненулевые минуты
+- [x] Тесты на дата-утилиты: `toDateKey`, `fmtDate`, `resolveDay` (сегодня, завтра, день недели), `getNextWeekday` (склонения, несуществующий день)
+- [x] Тесты на форматтеры: форматирование расписания дня, статистики
 
 ## Задачи
 
-- [ ] Добавить `vitest` в devDependencies, скрипт `"test": "vitest run"` в package.json
-- [ ] Создать `backend/src/utils/date.ts` — вынести все дата-хелперы
-- [ ] Создать `backend/src/repositories/slot.repository.ts` — вынести SQL из `schedule.ts`
-- [ ] Переписать `schedule.ts` — вызывать repository вместо прямых SQL
-- [ ] Создать `backend/src/bot/parsers.ts` — вынести парсеры из `bot.ts`
-- [ ] Создать `backend/src/bot/formatters.ts` — вынести форматирование из `bot.ts`
-- [ ] Создать `backend/src/bot/handlers.ts` — тонкие обработчики команд
-- [ ] Создать `backend/src/bot/index.ts` — инициализация Telegraf
-- [ ] Почистить импорты в `routes/api.ts`
-- [ ] Написать тесты: `backend/src/utils/__tests__/date.test.ts`
-- [ ] Написать тесты: `backend/src/bot/__tests__/parsers.test.ts`
-- [ ] Написать тесты: `backend/src/bot/__tests__/formatters.test.ts`
-- [ ] Проверить компиляцию TypeScript
-- [ ] Проверить что все тесты проходят
+- [x] Добавить `vitest` в devDependencies, скрипт `"test": "vitest run"` в package.json
+- [x] Создать `backend/src/utils/date.ts` — вынести все дата-хелперы
+- [x] Создать `backend/src/repositories/slot.repository.ts` — вынести SQL из `schedule.ts`
+- [x] Переписать `schedule.ts` — вызывать repository вместо прямых SQL
+- [x] Создать `backend/src/bot/parsers.ts` — вынести парсеры из `bot.ts`
+- [x] Создать `backend/src/bot/formatters.ts` — вынести форматирование из `bot.ts`
+- [x] Создать `backend/src/bot/handlers.ts` — тонкие обработчики команд
+- [x] Создать `backend/src/bot/index.ts` — инициализация Telegraf
+- [x] Почистить импорты в `routes/api.ts`
+- [x] Написать тесты: `backend/src/utils/__tests__/date.test.ts`
+- [x] Написать тесты: `backend/src/bot/__tests__/parsers.test.ts`
+- [x] Написать тесты: `backend/src/bot/__tests__/formatters.test.ts`
+- [x] Добавить шаг `Run backend tests` в `.github/workflows/deploy.yml` перед билдом фронта
+- [x] Проверить компиляцию TypeScript
+- [x] Проверить что все тесты проходят
 - [ ] Проверить что бот и API работают как раньше

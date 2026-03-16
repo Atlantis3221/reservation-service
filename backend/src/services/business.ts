@@ -175,6 +175,8 @@ export function getOwnerPhone(chatId: string | number): string | null {
 
 export function updateOwnerPhone(chatId: string | number, phone: string): void {
   const db = getDb();
+  db.prepare('INSERT OR IGNORE INTO owner_agreements (owner_chat_id) VALUES (?)')
+    .run(String(chatId));
   db.prepare('UPDATE owner_agreements SET phone = ? WHERE owner_chat_id = ?')
     .run(phone, String(chatId));
   db.prepare('UPDATE businesses SET owner_phone = ? WHERE owner_chat_id = ?')

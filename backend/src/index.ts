@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { networkInterfaces } from 'os';
 import { initDb } from './services/db';
-import { initBot } from './services/bot';
+import { initBot } from './bot';
 import { apiRouter } from './routes/api';
 import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
 
@@ -37,6 +37,7 @@ app.get('/health', (_req, res) => {
     businesses: info.businesses,
     slots: info.slots,
     dbSizeMb: info.dbSizeMb,
+    unrecognizedCommands: info.unrecognizedCommands,
   });
 });
 
