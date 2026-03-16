@@ -3,13 +3,14 @@ import './Calendar.css';
 
 interface CalendarProps {
   apiBase: string;
-  onSelectSlot: (dateTime: string) => void;
-  selectedSlot: string | null;
+  selectedDate: string | null;
+  onSelectDate: (date: string | null) => void;
 }
 
 interface DaySlot {
-  datetime: string;
-  duration: number;
+  id: number;
+  startDatetime: string;
+  endDatetime: string;
   status: 'available' | 'booked' | 'blocked';
   note?: string;
 }
@@ -20,8 +21,8 @@ const MONTHS = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
 ];
 
-const START_HOUR = 10;
-const END_HOUR = 22;
+const DEFAULT_START_HOUR = 10;
+const DEFAULT_END_HOUR = 22;
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -34,7 +35,12 @@ function formatTime(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`;
 }
 
-export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: CalendarProps) {
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+export default function Calendar({ apiBase, selectedDate, onSelectDate }: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -46,10 +52,6 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
     }
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('date') || null;
   });
   const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
   const [loadingDay, setLoadingDay] = useState(false);
@@ -143,20 +145,11 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
   }
 
   function handleDayClick(dateKey: string): void {
-    setSelectedDate(dateKey);
-    onSelectSlot('');
-  }
-
-  function handleHourClick(hour: number): void {
-    if (!selectedDate) return;
-    // Локальное время без UTC-сдвига
-    const datetime = `${selectedDate}T${String(hour).padStart(2, '0')}:00:00`;
-    onSelectSlot(datetime);
+    onSelectDate(dateKey);
   }
 
   function handleBackToCalendar(): void {
-    setSelectedDate(null);
-    onSelectSlot('');
+    onSelectDate(null);
   }
 
   function formatSelectedDate(dateKey: string): string {
@@ -166,35 +159,6 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
       day: 'numeric',
       month: 'long',
     });
-  }
-
-  // Проверяем, занят ли час
-  function isHourBooked(hour: number): DaySlot | null {
-    for (const slot of daySlots) {
-      const slotHour = new Date(slot.datetime).getHours();
-      if (slotHour === hour && slot.status !== 'available') {
-        return slot;
-      }
-    }
-    return null;
-  }
-
-  // Проверяем, свободен ли час
-  function isHourAvailable(hour: number): boolean {
-    for (const slot of daySlots) {
-      const slotHour = new Date(slot.datetime).getHours();
-      if (slotHour === hour && slot.status === 'available') {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Выбран ли час
-  function isHourSelected(hour: number): boolean {
-    if (!selectedSlot) return false;
-    const selectedHour = new Date(selectedSlot).getHours();
-    return selectedHour === hour && selectedDate === toDateKey(new Date(selectedSlot));
   }
 
   if (loading) {
@@ -208,8 +172,34 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
     );
   }
 
-  // Показываем таймлайн дня
   if (selectedDate) {
+    const availableSlots = daySlots.filter((s) => s.status === 'available');
+    const bookedSlots = daySlots.filter((s) => s.status !== 'available');
+
+    let rangeStartMin = DEFAULT_START_HOUR * 60;
+    let rangeEndMin = DEFAULT_END_HOUR * 60;
+
+    if (availableSlots.length > 0) {
+      const starts = availableSlots.map((s) =>
+        timeToMinutes(s.startDatetime.split('T')[1].substring(0, 5))
+      );
+      const ends = availableSlots.map((s) => {
+        const m = timeToMinutes(s.endDatetime.split('T')[1].substring(0, 5));
+        return m === 0 ? 24 * 60 : m;
+      });
+      rangeStartMin = Math.min(...starts);
+      rangeEndMin = Math.max(...ends);
+    }
+
+    const rangeStartHour = Math.floor(rangeStartMin / 60);
+    const rangeEndHour = Math.ceil(rangeEndMin / 60);
+    const totalMinutes = rangeEndMin - rangeStartMin;
+
+    const hours: number[] = [];
+    for (let h = rangeStartHour; h <= rangeEndHour; h++) {
+      hours.push(h >= 24 ? h - 24 : h);
+    }
+
     return (
       <div className="gcal">
         <div className="gcal-toolbar">
@@ -224,47 +214,53 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
             <div className="gcal-spinner" />
             <span>Загрузка...</span>
           </div>
+        ) : daySlots.length === 0 ? (
+          <div className="gcal-empty">Расписание на этот день не задано</div>
         ) : (
           <div className="gcal-timeline">
             <div className="gcal-tl-hours">
-              {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i).map((hour) => (
-                <div key={hour} className="gcal-tl-hour">
+              {hours.map((hour, i) => (
+                <div
+                  key={i}
+                  className="gcal-tl-hour"
+                  style={{ top: (i === 0 ? 0 : (hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin)) }}
+                >
                   {formatTime(hour)}
                 </div>
               ))}
             </div>
-            <div className="gcal-tl-cells-wrap">
-              {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i).map((hour) => {
-                const booked = isHourBooked(hour);
-                const available = isHourAvailable(hour);
-                const selected = isHourSelected(hour);
-                const isPast = selectedDate === todayKey && hour < new Date().getHours();
+            <div className="gcal-tl-grid" style={{ height: totalMinutes }}>
+              {hours.slice(0, -1).map((hour, i) => (
+                <div
+                  key={i}
+                  className="gcal-tl-gridline"
+                  style={{ top: hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin }}
+                />
+              ))}
 
-                let cellClass = 'gcal-tl-cell';
-                if (booked) {
-                  cellClass += booked.status === 'booked' ? ' gcal-tl-cell--booked' : ' gcal-tl-cell--blocked';
-                } else if (available && !isPast) {
-                  cellClass += ' gcal-tl-cell--available';
-                }
-                if (selected) cellClass += ' gcal-tl-cell--selected';
-                if (isPast) cellClass += ' gcal-tl-cell--past';
+              {bookedSlots.map((slot) => {
+                let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
+                let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
+                if (endMin === 0) endMin = 24 * 60;
+                if (endMin <= startMin) endMin += 24 * 60;
+
+                const top = Math.max(0, startMin - rangeStartMin);
+                const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
+                const height = Math.max(bottom - top, 20);
+
+                const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
+                const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
 
                 return (
                   <div
-                    key={hour}
-                    className={cellClass}
-                    onClick={() => available && !isPast && handleHourClick(hour)}
+                    key={slot.id}
+                    className={`gcal-tl-block gcal-tl-block--${slot.status}`}
+                    style={{ top, height }}
                   >
-                    {booked && (
-                      <div
-                        className="gcal-tl-block"
-                        style={{
-                          height: `${booked.duration * 60}px`,
-                        }}
-                      >
-                        {booked.note && <span className="gcal-tl-block-note">{booked.note}</span>}
-                      </div>
-                    )}
+                    <span className="gcal-tl-block-time">
+                      {startTimeStr}–{endTimeStr}
+                    </span>
+                    {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
                   </div>
                 );
               })}
@@ -275,7 +271,6 @@ export default function Calendar({ apiBase, onSelectSlot, selectedSlot }: Calend
     );
   }
 
-  // Показываем месячную сетку
   return (
     <div className="gcal">
       <div className="gcal-toolbar">

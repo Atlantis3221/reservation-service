@@ -223,95 +223,77 @@
 }
 
 .gcal-tl-hours {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
+  position: relative;
   border-right: 1px solid #dadce0;
 }
 
 .gcal-tl-hour {
-  height: 60px;
+  position: absolute;
+  right: 0;
   padding-right: 12px;
-  text-align: right;
   font-size: 0.75rem;
   color: #70757a;
-  line-height: 60px;
+  line-height: 1;
+  transform: translateY(-50%);
+  white-space: nowrap;
 }
 
-.gcal-tl-cells-wrap {
+.gcal-tl-grid {
   position: relative;
-  padding: 0;
+  min-height: 120px;
 }
 
-.gcal-tl-cell {
-  height: 60px;
-  border-bottom: 1px solid #e8eaed;
-  position: relative;
-  transition: background 0.1s;
-}
-
-.gcal-tl-cell--available {
-  cursor: pointer;
-}
-
-.gcal-tl-cell--available:hover {
-  background: #f1f3f4;
-}
-
-.gcal-tl-cell--selected {
-  background: #e8f0fe;
-  border-color: #1a73e8;
-}
-
-.gcal-tl-cell--selected::after {
-  content: '';
+.gcal-tl-gridline {
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #1a73e8;
-}
-
-.gcal-tl-cell--booked {
-  background: #fce8e6;
-}
-
-.gcal-tl-cell--blocked {
-  background: #f1f3f4;
-  opacity: 0.6;
-}
-
-.gcal-tl-cell--past {
-  opacity: 0.4;
-  cursor: not-allowed;
+  right: 0;
+  height: 0;
+  border-top: 1px solid #e8eaed;
 }
 
 .gcal-tl-block {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  background: #fce8e6;
-  border-left: 3px solid #d93025;
+  left: 4px;
+  right: 4px;
+  border-radius: 4px;
   padding: 4px 8px;
   font-size: 0.8125rem;
-  color: #c5221f;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
-.gcal-tl-cell--blocked .gcal-tl-block {
+.gcal-tl-block--booked {
+  background: #fce8e6;
+  border-left: 3px solid #d93025;
+  color: #c5221f;
+}
+
+.gcal-tl-block--blocked {
   background: #f1f3f4;
-  border-left-color: #5f6368;
+  border-left: 3px solid #5f6368;
   color: #5f6368;
+}
+
+.gcal-tl-block-time {
+  font-weight: 500;
+  font-size: 0.75rem;
 }
 
 .gcal-tl-block-note {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.75rem;
+}
+
+.gcal-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: #5f6368;
+  font-size: 0.875rem;
 }
 
 /* ---- Responsive ---- */
@@ -349,14 +331,5 @@
 
   .gcal-tl-hour {
     font-size: 0.6875rem;
-  }
-
-  .gcal-tl-cell {
-    height: 50px;
-  }
-
-  .gcal-tl-hour {
-    height: 50px;
-    line-height: 50px;
   }
 }

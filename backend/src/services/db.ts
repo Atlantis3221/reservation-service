@@ -58,49 +58,116 @@ function migrate(): void {
   `);
 
   const cols = db.prepare("PRAGMA table_info(slots)").all() as any[];
-  const hasBusinessId = cols.some((c: any) => c.name === 'business_id');
+  const hasHour = cols.some((c: any) => c.name === 'hour');
+  const hasStartTime = cols.some((c: any) => c.name === 'start_time');
 
-  if (cols.length > 0 && !hasBusinessId) {
-    console.log('[db] Migrating slots table: adding business_id...');
-
-    db.exec(`
-      CREATE TABLE slots_new (
-        business_id  INTEGER NOT NULL DEFAULT 1,
-        date_key     TEXT    NOT NULL,
-        hour         INTEGER NOT NULL,
-        status       TEXT    NOT NULL DEFAULT 'available',
-        note         TEXT,
-        client_name  TEXT,
-        client_phone TEXT,
-        PRIMARY KEY (business_id, date_key, hour),
-        FOREIGN KEY (business_id) REFERENCES businesses(id)
-      )
-    `);
-
-    db.exec(`
-      INSERT OR IGNORE INTO slots_new (business_id, date_key, hour, status, note, client_name, client_phone)
-      SELECT 1, date_key, hour, status, note, client_name, client_phone FROM slots
-    `);
-
-    db.exec('DROP TABLE slots');
-    db.exec('ALTER TABLE slots_new RENAME TO slots');
-
-    console.log('[db] Migration complete: slots now have business_id');
+  if (cols.length > 0 && hasHour && !hasStartTime) {
+    console.log('[db] Migrating slots: hour → start_time/end_time...');
+    migrateHourToTimeRange();
+    console.log('[db] Migration complete: slots now use start_time/end_time');
   } else if (cols.length === 0) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS slots (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
         business_id  INTEGER NOT NULL,
         date_key     TEXT    NOT NULL,
-        hour         INTEGER NOT NULL,
+        start_time   TEXT    NOT NULL,
+        end_time     TEXT    NOT NULL,
         status       TEXT    NOT NULL DEFAULT 'available',
         note         TEXT,
         client_name  TEXT,
         client_phone TEXT,
-        PRIMARY KEY (business_id, date_key, hour),
         FOREIGN KEY (business_id) REFERENCES businesses(id)
       )
     `);
   }
 
+  db.exec('CREATE INDEX IF NOT EXISTS idx_slots_business_date ON slots(business_id, date_key)');
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function migrateHourToTimeRange(): void {
+  const rows = db
+    .prepare('SELECT * FROM slots ORDER BY business_id, date_key, hour')
+    .all() as any[];
+
+  interface Range {
+    business_id: number;
+    date_key: string;
+    start_hour: number;
+    end_hour: number;
+    status: string;
+    note: string | null;
+    client_name: string | null;
+    client_phone: string | null;
+  }
+
+  const ranges: Range[] = [];
+  let current: Range | null = null;
+
+  for (const row of rows) {
+    if (
+      current &&
+      current.business_id === row.business_id &&
+      current.date_key === row.date_key &&
+      current.status === row.status &&
+      (current.note || null) === (row.note || null) &&
+      (current.client_name || null) === (row.client_name || null) &&
+      current.end_hour === row.hour
+    ) {
+      current.end_hour = row.hour + 1;
+    } else {
+      if (current) ranges.push(current);
+      current = {
+        business_id: row.business_id,
+        date_key: row.date_key,
+        start_hour: row.hour,
+        end_hour: row.hour + 1,
+        status: row.status,
+        note: row.note,
+        client_name: row.client_name,
+        client_phone: row.client_phone,
+      };
+    }
+  }
+  if (current) ranges.push(current);
+
+  db.exec(`
+    CREATE TABLE slots_new (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  INTEGER NOT NULL,
+      date_key     TEXT    NOT NULL,
+      start_time   TEXT    NOT NULL,
+      end_time     TEXT    NOT NULL,
+      status       TEXT    NOT NULL DEFAULT 'available',
+      note         TEXT,
+      client_name  TEXT,
+      client_phone TEXT,
+      FOREIGN KEY (business_id) REFERENCES businesses(id)
+    )
+  `);
+
+  const insert = db.prepare(`
+    INSERT INTO slots_new (business_id, date_key, start_time, end_time, status, note, client_name, client_phone)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const tx = db.transaction(() => {
+    for (const range of ranges) {
+      const startTime = `${pad2(range.start_hour)}:00`;
+      const endTime = range.end_hour === 24 ? '00:00' : `${pad2(range.end_hour)}:00`;
+      insert.run(
+        range.business_id, range.date_key, startTime, endTime,
+        range.status, range.note, range.client_name, range.client_phone,
+      );
+    }
+  });
+  tx();
+
+  db.exec('DROP TABLE slots');
+  db.exec('ALTER TABLE slots_new RENAME TO slots');
   db.exec('CREATE INDEX IF NOT EXISTS idx_slots_business_date ON slots(business_id, date_key)');
 }

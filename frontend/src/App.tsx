@@ -22,6 +22,22 @@ function getSlugFromPath(): string | null {
   return path || null;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function generateTimeOptions(): string[] {
+  const options: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 5) {
+      options.push(`${pad2(h)}:${pad2(m)}`);
+    }
+  }
+  return options;
+}
+
+const TIME_OPTIONS = generateTimeOptions();
+
 export default function App() {
   const slug = useMemo(() => getSlugFromPath(), []);
 
@@ -73,8 +89,12 @@ function BusinessPage({ slug }: { slug: string }) {
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [duration, setDuration] = useState<number>(1);
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('date') || null;
+  });
+  const [startTime, setStartTime] = useState<string>('10:00');
+  const [endTime, setEndTime] = useState<string>('12:00');
   const [copied, setCopied] = useState(false);
 
   const apiBase = `${API_URL}/business/${slug}`;
@@ -102,24 +122,23 @@ function BusinessPage({ slug }: { slug: string }) {
     }
   }
 
-  function buildMessage(): string {
-    if (!selectedSlot) return '';
-    const d = new Date(selectedSlot);
-    const dateStr = d.toLocaleDateString('ru-RU', {
+  function formatDateStr(dateKey: string): string {
+    const d = new Date(dateKey + 'T00:00:00');
+    return d.toLocaleDateString('ru-RU', {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
     });
-    const timeStr = d.toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const hoursPart = duration === 1 ? 'на 1 час' : `на ${duration} часа`;
-    return `Здравствуйте! Хочу забронировать баню на ${dateStr} с ${timeStr} ${hoursPart}.`;
+  }
+
+  function buildMessage(): string {
+    if (!selectedDate) return '';
+    const dateStr = formatDateStr(selectedDate);
+    return `Здравствуйте! Хочу забронировать баню на ${dateStr} с ${startTime} до ${endTime}.`;
   }
 
   function handleBook(): void {
-    if (!selectedSlot || !telegramUsername) return;
+    if (!selectedDate || !telegramUsername) return;
 
     const message = buildMessage();
 
@@ -138,19 +157,7 @@ function BusinessPage({ slug }: { slug: string }) {
     window.open(`https://t.me/${telegramUsername}`, '_blank');
   }
 
-  function formatSelectedSlot(): string {
-    if (!selectedSlot) return '';
-    const d = new Date(selectedSlot);
-    const date = d.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-    });
-    const time = d.toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${date}, ${time}`;
-  }
+  const isValidTimeRange = startTime !== endTime;
 
   if (loading) {
     return (
@@ -185,37 +192,58 @@ function BusinessPage({ slug }: { slug: string }) {
       <main className="main">
         <Calendar
           apiBase={apiBase}
-          onSelectSlot={setSelectedSlot}
-          selectedSlot={selectedSlot}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
         />
 
-        {selectedSlot && (
+        {selectedDate && (
           <div className="booking-bar">
             <div className="booking-bar-left">
               <div className="booking-bar-info">
                 <svg className="booking-bar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                <span>{formatSelectedSlot()}</span>
+                <span>{formatDateStr(selectedDate)}</span>
               </div>
+              <div className="booking-time-pickers">
+                <label className="booking-time-label">
+                  <span>С:</span>
+                  <select
+                    className="booking-time-select"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="booking-time-label">
+                  <span>До:</span>
+                  <select
+                    className="booking-time-select"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {!isValidTimeRange && (
+                <div className="booking-error">Время начала и конца не должны совпадать</div>
+              )}
               <div className="booking-bar-message">{buildMessage()}</div>
-              <div className="booking-duration">
-                <span>Длительность:</span>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                >
-                  <option value={1}>1 час</option>
-                  <option value={2}>2 часа</option>
-                  <option value={3}>3 часа</option>
-                  <option value={4}>4 часа</option>
-                </select>
-              </div>
             </div>
             <div className="booking-bar-actions">
               {telegramUsername ? (
                 <>
-                  <button className="booking-bar-btn" onClick={handleBook}>
+                  <button
+                    className="booking-bar-btn"
+                    onClick={handleBook}
+                    disabled={!isValidTimeRange}
+                  >
                     <svg width="18" height="18" viewBox="0 0 240 240"><path d="M120 0C53.7 0 0 53.7 0 120s53.7 120 120 120 120-53.7 120-120S186.3 0 120 0zm55.9 82.3l-19.6 92.4c-1.5 6.5-5.3 8.1-10.7 5l-29.6-21.8-14.3 13.7c-1.6 1.6-2.9 2.9-5.9 2.9l2.1-30.1 55.2-49.9c2.4-2.1-.5-3.3-3.7-1.2l-68.2 43-29.4-9.2c-6.4-2-6.5-6.4 1.3-9.5l114.8-44.3c5.3-2 10 1.3 8 9z" fill="currentColor"/></svg>
                     {copied ? 'Скопировано! Откройте чат' : 'Забронировать в Telegram'}
                   </button>

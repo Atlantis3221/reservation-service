@@ -196,20 +196,40 @@
   line-height: 1.4;
 }
 
-.booking-duration {
+.booking-time-pickers {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
+  padding-left: 30px;
+}
+
+.booking-time-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.8125rem;
   color: #5f6368;
 }
 
-.booking-duration select {
-  padding: 4px 8px;
+.booking-time-select {
+  padding: 6px 10px;
   border-radius: 4px;
   border: 1px solid #dadce0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   background: #fff;
+  cursor: pointer;
+}
+
+.booking-time-select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.booking-error {
+  padding-left: 30px;
+  font-size: 0.8125rem;
+  color: #d93025;
 }
 
 .booking-bar-actions {
@@ -246,6 +266,12 @@
   background: #185abc;
 }
 
+.booking-bar-btn:disabled {
+  background: #dadce0;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .booking-bar-hint {
   font-size: 0.75rem;
   color: #70757a;
@@ -262,6 +288,14 @@
   }
 
   .booking-bar-message {
+    padding-left: 0;
+  }
+
+  .booking-time-pickers {
+    padding-left: 0;
+  }
+
+  .booking-error {
     padding-left: 0;
   }
 

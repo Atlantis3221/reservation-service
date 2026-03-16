@@ -2,6 +2,7 @@ import { Telegraf, Markup } from 'telegraf';
 import {
   addDaySlots,
   cancelBooking,
+  cancelBookingById,
   clearDay,
   getScheduledDays,
   getSlotsForDate,
@@ -212,7 +213,11 @@ function parseFlexibleSchedule(text: string): FlexibleScheduleCommand | null {
   return { week, ranges };
 }
 
-function parseBookingCommand(text: string): { dayName: string; hour: number; minutes: number; duration: number; clientName?: string } | null {
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function parseBookingCommand(text: string): { dayName: string; startTime: string; endTime: string; clientName?: string } | null {
   const match = text.match(/(?:в|на)\s+([а-яё]+)\s+бронь\s+на\s+(\d+):(\d+)\s+на\s+(\d+)\s+час\S*\s*(.*)?/i);
   if (!match) return null;
 
@@ -223,14 +228,18 @@ function parseBookingCommand(text: string): { dayName: string; hour: number; min
   const rawName = match[5]?.trim() || undefined;
   const clientName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : undefined;
 
-  if (hour < 0 || hour >= 24 || minutes !== 0 || duration < 1) {
+  if (hour < 0 || hour >= 24 || minutes < 0 || minutes >= 60 || duration < 1) {
     return null;
   }
 
-  return { dayName, hour, minutes, duration, clientName };
+  const startTime = `${pad2(hour)}:${pad2(minutes)}`;
+  const endHour = (hour + duration) % 24;
+  const endTime = `${pad2(endHour)}:${pad2(minutes)}`;
+
+  return { dayName, startTime, endTime, clientName };
 }
 
-function parseBookingRange(text: string): { dayName: string; startHour: number; endHour: number; clientName?: string } | null {
+function parseBookingRange(text: string): { dayName: string; startTime: string; endTime: string; clientName?: string } | null {
   const match = text.match(/(?:(?:в|на)\s+)?(\S+)\s+бронь\s+[сc]\s+(\d{1,2})(?::(\d{2}))?\s+(?:до|по)\s+(\d{1,2})(?::(\d{2}))?\s*(.*)?/i);
   if (!match) return null;
 
@@ -242,17 +251,23 @@ function parseBookingRange(text: string): { dayName: string; startHour: number; 
   const rawName = match[6]?.trim() || undefined;
   const clientName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : undefined;
 
-  if (startMin !== 0 || endMin !== 0) return null;
   if (startHour < 0 || startHour >= 24 || endHour < 0 || endHour > 24) return null;
-  if (startHour >= endHour) return null;
+  if (startMin < 0 || startMin >= 60 || endMin < 0 || endMin >= 60) return null;
 
-  return { dayName, startHour, endHour, clientName };
+  const startTime = `${pad2(startHour)}:${pad2(startMin)}`;
+  const endTime = endHour === 24 ? '00:00' : `${pad2(endHour)}:${pad2(endMin)}`;
+
+  if (startTime === endTime) return null;
+
+  return { dayName, startTime, endTime, clientName };
 }
 
-function parseCancelCommand(text: string): { dayName: string; hour: number } | null {
-  const match = text.match(/отмени\s+бронь\s+(?:на\s+)?(\S+)\s+(\d{1,2})(?::00)?/i);
+function parseCancelCommand(text: string): { dayName: string; startTime: string } | null {
+  const match = text.match(/отмени\s+бронь\s+(?:на\s+)?(\S+)\s+(\d{1,2})(?::(\d{2}))?/i);
   if (!match) return null;
-  return { dayName: match[1], hour: Number(match[2]) };
+  const hour = Number(match[2]);
+  const minutes = Number(match[3] || '0');
+  return { dayName: match[1], startTime: `${pad2(hour)}:${pad2(minutes)}` };
 }
 
 // ---- Telegram username sync ----
@@ -490,23 +505,18 @@ export function initBot(): void {
     handleEditSlots(ctx, biz);
   });
 
-  bot.action(/^cancel_book:(\d+):(.+):(\d+)$/, (ctx) => {
+  bot.action(/^cancel_book:(\d+)$/, (ctx) => {
     ctx.answerCbQuery();
-    const bizId = Number(ctx.match[1]);
-    const dateKey = ctx.match[2];
-    const startHour = Number(ctx.match[3]);
+    const slotId = Number(ctx.match[1]);
 
-    const biz = getBusinessById(bizId);
-    if (!biz) return;
-
-    const result = cancelBooking(biz.id, dateKey, startHour);
+    const result = cancelBookingById(slotId);
     if (result.cancelled === 0) {
-      ctx.reply(`На ${fmtDate(dateKey)} ${startHour}:00 нет брони.`);
+      ctx.reply('Бронь не найдена или уже отменена.');
       return;
     }
 
-    const endHour = startHour + result.cancelled;
-    let text = `❌ Бронь отменена: ${fmtDate(dateKey)} ${startHour}:00–${endHour}:00`;
+    let text = `❌ Бронь отменена`;
+    if (result.dateKey) text += `: ${fmtDate(result.dateKey)} ${result.startTime}–${result.endTime}`;
     if (result.clientName) text += ` (${result.clientName})`;
 
     ctx.editMessageText(text);
@@ -739,9 +749,9 @@ export function initBot(): void {
       `📌 <b>Все команды:</b>\n\n` +
       `<b>Бронирование</b>\n` +
       `- сегодня бронь с 14 до 18\n` +
-      `- сегодня бронь с 14 до 18 Петров\n` +
+      `- сегодня бронь с 14:30 до 18:00 Петров\n` +
       `- в пятницу бронь на 15:00 на 3 часа\n` +
-      `- в пятницу бронь на 15:00 на 3 часа Иванов\n\n` +
+      `- в пятницу бронь на 15:30 на 2 часа Иванов\n\n` +
       `<b>Отмена брони</b>\n` +
       `- отмени бронь на сегодня 14\n` +
       `- отмени бронь на завтра 16\n\n` +
@@ -854,14 +864,14 @@ export function initBot(): void {
 
       if (slots.length > 0) {
         hasSlots = true;
-        const hours = slots.map((s) => {
-          const timePart = s.datetime.split('T')[1];
-          return Number(timePart.split(':')[0]);
-        }).sort((a, b) => a - b);
-
-        const minHour = hours[0];
-        const maxHour = hours[hours.length - 1] + 1;
-        text += `${fmtDate(dateKey)} — ${minHour}:00–${maxHour}:00 (${slots.length} сл.)\n`;
+        const availableSlots = slots.filter((s) => s.status === 'available');
+        if (availableSlots.length > 0) {
+          const startTime = availableSlots[0].startDatetime.split('T')[1].substring(0, 5);
+          const endTime = availableSlots[availableSlots.length - 1].endDatetime.split('T')[1].substring(0, 5);
+          text += `${fmtDate(dateKey)} — ${startTime}–${endTime} (${slots.length} сл.)\n`;
+        } else {
+          text += `${fmtDate(dateKey)} — ${slots.length} сл.\n`;
+        }
       }
     }
 
@@ -878,7 +888,7 @@ export function initBot(): void {
   function handleCancelCommand(
     ctx: any,
     biz: Business,
-    cmd: { dayName: string; hour: number }
+    cmd: { dayName: string; startTime: string }
   ): void {
     const targetDate = resolveDay(cmd.dayName);
     if (!targetDate) {
@@ -886,14 +896,13 @@ export function initBot(): void {
     }
 
     const dateKey = toDateKey(targetDate);
-    const result = cancelBooking(biz.id, dateKey, cmd.hour);
+    const result = cancelBooking(biz.id, dateKey, cmd.startTime);
 
     if (result.cancelled === 0) {
-      return ctx.reply(`На ${fmtDate(dateKey)} ${cmd.hour}:00 нет брони.`);
+      return ctx.reply(`На ${fmtDate(dateKey)} ${cmd.startTime} нет брони.`);
     }
 
-    const endHour = cmd.hour + result.cancelled;
-    let text = `❌ Бронь отменена: ${fmtDate(dateKey)} ${cmd.hour}:00–${endHour}:00`;
+    let text = `❌ Бронь отменена: ${fmtDate(dateKey)} ${cmd.startTime}`;
     if (result.clientName) text += ` (${result.clientName})`;
 
     ctx.reply(text);
@@ -902,11 +911,11 @@ export function initBot(): void {
   function handleBookingCommand(
     ctx: any,
     biz: Business,
-    cmd: { dayName: string; hour: number; minutes: number; duration: number; clientName?: string }
+    cmd: { dayName: string; startTime: string; endTime: string; clientName?: string }
   ): void {
-    const targetDate = getNextWeekday(cmd.dayName);
+    const targetDate = resolveDay(cmd.dayName) || getNextWeekday(cmd.dayName);
     if (!targetDate) {
-      return ctx.reply(`Не понял день недели: "${cmd.dayName}"`);
+      return ctx.reply(`Не понял день: "${cmd.dayName}"`);
     }
 
     const dateKey = toDateKey(targetDate);
@@ -916,16 +925,12 @@ export function initBot(): void {
       addDaySlots(biz.id, dateKey, 10, 22);
     }
 
-    const count = bookRange(biz.id, dateKey, cmd.hour, cmd.duration, 'Бронь', cmd.clientName);
-
-    if (count === 0) {
-      return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
-    }
+    const result = bookRange(biz.id, dateKey, cmd.startTime, cmd.endTime, 'Бронь', cmd.clientName);
 
     let replyText =
       `✅ Бронь создана!\n\n` +
       `Дата: ${fmtDate(dateKey)}\n` +
-      `Время: ${cmd.hour}:00 – ${cmd.hour + cmd.duration}:00`;
+      `Время: ${cmd.startTime} – ${cmd.endTime}`;
 
     if (cmd.clientName) {
       replyText += `\nКлиент: ${cmd.clientName}`;
@@ -938,7 +943,7 @@ export function initBot(): void {
 
     ctx.reply(replyText, {
       ...Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${biz.id}:${dateKey}:${cmd.hour}`)],
+        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${result.id}`)],
       ]),
     });
   }
@@ -959,11 +964,12 @@ export function initBot(): void {
     let text = `📅 Расписание на ${fmtDate(dateKey)}:\n\n`;
 
     for (const slot of slots) {
-      const hour = slot.datetime.split('T')[1].split(':')[0];
+      const startTime = slot.startDatetime.split('T')[1].substring(0, 5);
+      const endTime = slot.endDatetime.split('T')[1].substring(0, 5);
       const emoji = slot.status === 'available' ? '🟢' : slot.status === 'booked' ? '🔴' : '⛔';
       const note = slot.note ? ` — ${slot.note}` : '';
       const client = slot.clientName ? ` (${slot.clientName})` : '';
-      text += `${emoji} ${hour}:00${note}${client}\n`;
+      text += `${emoji} ${startTime}–${endTime}${note}${client}\n`;
     }
 
     const frontendUrl = getFrontendUrl(biz.slug);
@@ -977,7 +983,7 @@ export function initBot(): void {
   function handleBookingRangeCommand(
     ctx: any,
     biz: Business,
-    cmd: { dayName: string; startHour: number; endHour: number; clientName?: string }
+    cmd: { dayName: string; startTime: string; endTime: string; clientName?: string }
   ): void {
     const targetDate = resolveDay(cmd.dayName);
     if (!targetDate) {
@@ -985,23 +991,18 @@ export function initBot(): void {
     }
 
     const dateKey = toDateKey(targetDate);
-    const duration = cmd.endHour - cmd.startHour;
 
     const existingSlots = getSlotsForDate(biz.id, dateKey);
     if (existingSlots.length === 0) {
       addDaySlots(biz.id, dateKey, 10, 22);
     }
 
-    const count = bookRange(biz.id, dateKey, cmd.startHour, duration, 'Бронь', cmd.clientName);
-
-    if (count === 0) {
-      return ctx.reply(`Не удалось забронировать. Указанное время вне диапазона слотов на ${fmtDate(dateKey)}.`);
-    }
+    const result = bookRange(biz.id, dateKey, cmd.startTime, cmd.endTime, 'Бронь', cmd.clientName);
 
     let replyText =
       `✅ Бронь создана!\n\n` +
       `Дата: ${fmtDate(dateKey)}\n` +
-      `Время: ${cmd.startHour}:00 – ${cmd.endHour}:00`;
+      `Время: ${cmd.startTime} – ${cmd.endTime}`;
 
     if (cmd.clientName) {
       replyText += `\nКлиент: ${cmd.clientName}`;
@@ -1014,7 +1015,7 @@ export function initBot(): void {
 
     ctx.reply(replyText, {
       ...Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${biz.id}:${dateKey}:${cmd.startHour}`)],
+        [Markup.button.callback('❌ Отменить бронь', `cancel_book:${result.id}`)],
       ]),
     });
   }

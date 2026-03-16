@@ -14,10 +14,11 @@ export interface Business {
 export type SlotStatus = 'available' | 'booked' | 'blocked';
 
 export interface TimeSlot {
-  /** ISO datetime строка (2026-03-15T14:00:00) */
-  datetime: string;
-  /** Длительность в часах (всегда 1) */
-  duration: number;
+  id: number;
+  /** ISO datetime начала (2026-03-15T14:30:00) */
+  startDatetime: string;
+  /** ISO datetime конца (2026-03-15T16:00:00) */
+  endDatetime: string;
   status: SlotStatus;
   /** Кем/чем занято (если booked/blocked) */
   note?: string;
