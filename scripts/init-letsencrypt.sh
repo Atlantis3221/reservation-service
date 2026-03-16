@@ -40,6 +40,12 @@ if [ "$STAGING" -eq 1 ]; then
   echo "    (using staging server — cert will NOT be trusted)"
 fi
 
+restore_compose() {
+  echo "==> Restoring original docker-compose.yml..."
+  mv docker-compose.yml.bak docker-compose.yml
+}
+trap restore_compose EXIT
+
 docker run --rm \
   -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
   -v "$(pwd)/certbot/www:/var/www/certbot" \
@@ -50,12 +56,12 @@ docker run --rm \
   --agree-tos \
   --no-eff-email \
   -d "$DOMAIN" \
-  -d "www.${DOMAIN}" \
   $STAGING_FLAG
 
-# 6. Restore HTTPS config and restart
+# 6. Restore HTTPS config and restart (trap handles docker-compose.yml.bak)
 echo "==> Switching to HTTPS nginx config..."
-mv docker-compose.yml.bak docker-compose.yml
+trap - EXIT
+restore_compose
 docker-compose down
 docker-compose up -d
 
