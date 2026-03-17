@@ -135,6 +135,17 @@ function migrate(): void {
       FOREIGN KEY (admin_user_id) REFERENCES admin_users(id)
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_links (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  INTEGER NOT NULL,
+      type         TEXT    NOT NULL CHECK(type IN ('telegram', 'vk', 'max')),
+      url          TEXT    NOT NULL,
+      FOREIGN KEY (business_id) REFERENCES businesses(id),
+      UNIQUE(business_id, type)
+    )
+  `);
 }
 
 function pad2(n: number): string {

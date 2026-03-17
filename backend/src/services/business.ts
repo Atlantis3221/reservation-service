@@ -1,5 +1,6 @@
 import { getDb } from './db';
-import type { Business } from '../types';
+import { notifyNewBusiness } from './monitor';
+import type { Business, ContactLink, ContactLinkType } from '../types';
 
 const TRANSLIT: Record<string, string> = {
   'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
@@ -79,6 +80,8 @@ export function createBusiness(
     )
     .run(slug, name, ownerChatId, telegramUsername ?? null, phone);
 
+  notifyNewBusiness(name, slug);
+
   return {
     id: result.lastInsertRowid as number,
     slug,
@@ -136,8 +139,47 @@ export function updateTelegramUsername(chatId: string | number, username: string
 
 export function deleteBusiness(id: number): void {
   const db = getDb();
+  db.prepare('DELETE FROM contact_links WHERE business_id = ?').run(id);
   db.prepare('DELETE FROM slots WHERE business_id = ?').run(id);
   db.prepare('DELETE FROM businesses WHERE id = ?').run(id);
+}
+
+// ---- Контактные ссылки ----
+
+const CONTACT_LINK_ORDER: ContactLinkType[] = ['telegram', 'vk', 'max'];
+
+export function getContactLinks(businessId: number): ContactLink[] {
+  const rows = getDb()
+    .prepare('SELECT type, url FROM contact_links WHERE business_id = ? ORDER BY id')
+    .all(businessId) as ContactLink[];
+  return rows.sort((a, b) =>
+    CONTACT_LINK_ORDER.indexOf(a.type) - CONTACT_LINK_ORDER.indexOf(b.type)
+  );
+}
+
+export function getContactLinksWithFallback(businessId: number, telegramUsername: string | null): ContactLink[] {
+  const links = getContactLinks(businessId);
+  if (links.length > 0) return links;
+  if (telegramUsername) {
+    return [{ type: 'telegram', url: `https://t.me/${telegramUsername}` }];
+  }
+  return [];
+}
+
+export function upsertContactLink(businessId: number, type: ContactLinkType, url: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO contact_links (business_id, type, url) VALUES (?, ?, ?)
+       ON CONFLICT(business_id, type) DO UPDATE SET url = excluded.url`
+    )
+    .run(businessId, type, url);
+}
+
+export function deleteContactLink(businessId: number, type: ContactLinkType): boolean {
+  const result = getDb()
+    .prepare('DELETE FROM contact_links WHERE business_id = ? AND type = ?')
+    .run(businessId, type);
+  return result.changes > 0;
 }
 
 export function getBusinessByOwnerAndSlug(chatId: string | number, slug: string): Business | null {

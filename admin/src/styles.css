@@ -126,26 +126,20 @@ a:hover { text-decoration: underline; }
 
 /* ---- Header ---- */
 .chat-header {
-  height: var(--header-height); display: flex;
-  align-items: center; justify-content: space-between;
+  height: var(--header-height); display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
   padding: 0 16px; border-bottom: 1px solid var(--border);
   background: var(--bg); flex-shrink: 0;
+  gap: 12px;
 }
 
-.header-left { display: flex; align-items: center; gap: 16px; }
-.header-right { display: flex; align-items: center; gap: 8px; }
-
-.logo {
-  font-size: 18px; font-weight: 700; color: var(--text);
-  letter-spacing: -0.3px;
+.header-center {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
 }
 
 .biz-name {
   font-size: 14px; color: var(--text-secondary); font-weight: 500;
-}
-
-.user-email {
-  font-size: 13px; color: var(--text-muted);
 }
 
 .header-btn {
@@ -155,11 +149,6 @@ a:hover { text-decoration: underline; }
   border-radius: 8px; transition: background 0.15s;
 }
 .header-btn:hover { background: var(--bg-hover); color: var(--text); }
-
-.logout-icon {
-  width: 18px; height: 18px; stroke: currentColor; stroke-width: 2;
-  fill: none; stroke-linecap: round; stroke-linejoin: round;
-}
 
 /* ---- Business switcher ---- */
 .biz-switcher { position: relative; }
@@ -673,9 +662,106 @@ a:hover { text-decoration: underline; }
 .btn-danger:hover:not(:disabled) { opacity: 0.9; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ---- Burger menu ---- */
+.burger-btn svg {
+  width: 20px; height: 20px;
+}
+
+.burger-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 500;
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.burger-panel {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  width: 280px; max-width: 80vw;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  animation: slide-in-left 0.25s ease-out;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.burger-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.burger-logo {
+  font-size: 20px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.burger-close {
+  width: 32px; height: 32px; border: none; background: transparent;
+  color: var(--text-secondary); cursor: pointer; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.burger-close:hover { background: var(--bg-hover); color: var(--text); }
+.burger-close svg { width: 18px; height: 18px; }
+
+.burger-nav {
+  flex: 1; padding: 8px 12px;
+  overflow-y: auto;
+}
+
+.burger-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 12px; border: none; background: transparent;
+  color: var(--text); font-size: 14px; cursor: pointer;
+  border-radius: var(--radius-sm); text-align: left;
+  transition: background 0.1s; font-family: inherit;
+}
+.burger-item:hover { background: var(--bg-hover); }
+
+.burger-item-icon {
+  width: 20px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; font-size: 16px;
+}
+
+.burger-item-content {
+  display: flex; flex-direction: column; gap: 1px;
+}
+
+.burger-item-label { font-weight: 500; }
+
+.burger-item-hint {
+  font-size: 12px; color: var(--text-muted);
+}
+
+.burger-item--danger { color: var(--error); }
+.burger-item--danger:hover { background: #fef2f2; }
+
+.burger-logout-icon {
+  width: 18px; height: 18px; stroke: currentColor; stroke-width: 2;
+  fill: none; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.burger-footer {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+
+.burger-email {
+  font-size: 13px; color: var(--text-muted);
+  padding: 4px 12px 8px; word-break: break-all;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 640px) {
-  .user-email { display: none; }
   .chat-messages { padding: 16px 12px 12px; }
   .chat-footer { padding: 8px 12px 12px; }
   .auth-card { padding: 32px 20px; }

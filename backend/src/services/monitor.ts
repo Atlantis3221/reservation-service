@@ -49,6 +49,17 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;');
 }
 
+export function notifyNewBusiness(name: string, slug: string): void {
+  if (!isEnabled()) return;
+
+  const text =
+    `🏢 <b>Новый клиент</b>\n\n` +
+    `Название: ${escapeHtml(name)}\n` +
+    `Slug: <code>${escapeHtml(slug)}</code>`;
+
+  sendTelegram(text);
+}
+
 export function notifyError(error: unknown, context?: string): void {
   if (!isEnabled()) return;
 

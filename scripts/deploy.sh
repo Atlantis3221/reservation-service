@@ -29,7 +29,7 @@ npm run build
 cd ..
 
 echo "==> Building landing..."
-ADMIN_URL=https://admin.slotik.tech npm run build:landing
+npm run build:landing
 
 # 2. Sync project files to server
 echo "==> Syncing files to server..."

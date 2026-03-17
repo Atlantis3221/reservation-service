@@ -248,11 +248,28 @@
   opacity: 0.8;
 }
 
+.booking-bar-btn--telegram {
+  background: linear-gradient(135deg, #2AABEE, #229ED9);
+}
+
+.booking-bar-btn--vk {
+  background: linear-gradient(135deg, #4680C2, #3B6BA5);
+}
+
+.booking-bar-btn--max {
+  background: linear-gradient(135deg, #FF6B00, #E05500);
+}
+
 .booking-bar-hint {
   font-size: 0.75rem;
   color: #9ca3af;
   text-align: center;
   transition: color 0.2s;
+}
+
+.booking-bar-hint--no-links {
+  font-size: 0.875rem;
+  padding: 14px 0;
 }
 
 @media (max-width: 500px) {

@@ -26,3 +26,12 @@ export interface TimeSlot {
   /** Имя клиента (не показывается на фронтенде) */
   clientName?: string;
 }
+
+// ---- Контактные ссылки ----
+
+export type ContactLinkType = 'telegram' | 'vk' | 'max';
+
+export interface ContactLink {
+  type: ContactLinkType;
+  url: string;
+}

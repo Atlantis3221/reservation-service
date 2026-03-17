@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getAvailableDateKeys, getSlotsForDateFull } from '../services/schedule';
-import { getBusinessBySlug } from '../services/business';
+import { getBusinessBySlug, getContactLinksWithFallback } from '../services/business';
 
 export const apiRouter = Router();
 
@@ -9,20 +9,21 @@ export const apiRouter = Router();
 apiRouter.get('/business/:slug', (req: Request<{ slug: string }>, res: Response) => {
   const biz = getBusinessBySlug(req.params.slug);
   if (!biz) {
-    res.status(404).json({ error: 'Баня не найдена' });
+    res.status(404).json({ error: 'Заведение не найдено' });
     return;
   }
   res.json({
     name: biz.name,
     slug: biz.slug,
     telegramUsername: biz.telegramUsername,
+    contactLinks: getContactLinksWithFallback(biz.id, biz.telegramUsername),
   });
 });
 
 apiRouter.get('/business/:slug/available-dates', (req: Request<{ slug: string }>, res: Response) => {
   const biz = getBusinessBySlug(req.params.slug);
   if (!biz) {
-    res.status(404).json({ error: 'Баня не найдена' });
+    res.status(404).json({ error: 'Заведение не найдено' });
     return;
   }
   res.json({ dates: getAvailableDateKeys(biz.id) });
@@ -31,7 +32,7 @@ apiRouter.get('/business/:slug/available-dates', (req: Request<{ slug: string }>
 apiRouter.get('/business/:slug/day-slots', (req: Request<{ slug: string }>, res: Response) => {
   const biz = getBusinessBySlug(req.params.slug);
   if (!biz) {
-    res.status(404).json({ error: 'Баня не найдена' });
+    res.status(404).json({ error: 'Заведение не найдено' });
     return;
   }
   const date = req.query.date as string;

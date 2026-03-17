@@ -23,9 +23,12 @@ import {
   isSlugTaken,
   updateBusinessName,
   updateBusinessSlug,
+  getContactLinks,
+  upsertContactLink,
+  deleteContactLink,
 } from './business';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
-import type { Business } from '../types';
+import type { Business, ContactLinkType } from '../types';
 
 export interface CommandButton {
   label: string;
@@ -45,11 +48,12 @@ type ConversationStep =
   | 'awaiting_name'
   | 'awaiting_slug_confirm'
   | 'awaiting_settings_name'
-  | 'awaiting_settings_slug';
+  | 'awaiting_settings_slug'
+  | 'awaiting_contact_link';
 
 interface ConversationState {
   step: ConversationStep;
-  data: { name?: string; slug?: string; businessId?: number };
+  data: { name?: string; slug?: string; businessId?: number; linkType?: ContactLinkType };
 }
 
 interface PendingBooking {
@@ -162,6 +166,32 @@ export function executeAction(
     const bizId = Number(settingsSlugMatch[1]);
     conversations.set(adminUserId, { step: 'awaiting_settings_slug', data: { businessId: bizId } });
     return { messages: [{ text: 'Введите новый slug (латиница, цифры, дефис, минимум 3 символа):' }] };
+  }
+
+  const contactLinksMatch = action.match(/^contact_links:(\d+)$/);
+  if (contactLinksMatch) {
+    const biz = getBusinessById(Number(contactLinksMatch[1]));
+    if (!biz) return { messages: [{ text: 'Заведение не найдено.' }] };
+    return handleContactLinks(biz);
+  }
+
+  const addContactMatch = action.match(/^add_contact:(telegram|vk|max):(\d+)$/);
+  if (addContactMatch) {
+    const type = addContactMatch[1] as ContactLinkType;
+    const bizId = Number(addContactMatch[2]);
+    conversations.set(adminUserId, {
+      step: 'awaiting_contact_link',
+      data: { businessId: bizId, linkType: type },
+    });
+    return { messages: [{ text: `Отправьте ссылку для ${CONTACT_TYPE_LABELS[type]} (начинается с https://):` }] };
+  }
+
+  const delContactMatch = action.match(/^del_contact:(telegram|vk|max):(\d+)$/);
+  if (delContactMatch) {
+    const type = delContactMatch[1] as ContactLinkType;
+    const bizId = Number(delContactMatch[2]);
+    deleteContactLink(bizId, type);
+    return { messages: [{ text: `✅ Ссылка ${CONTACT_TYPE_LABELS[type]} удалена.` }] };
   }
 
   return { messages: [{ text: 'Неизвестное действие.' }] };
@@ -323,6 +353,21 @@ function handleConversation(adminUserId: number, conv: ConversationState, text: 
       if (url) reply += `\n🔗 Новая ссылка: ${url}`;
       return { messages: [{ text: reply }] };
     }
+
+    case 'awaiting_contact_link': {
+      const biz = conv.data.businessId ? getBusinessById(conv.data.businessId) : null;
+      const linkType = conv.data.linkType;
+      conversations.delete(adminUserId);
+      if (!biz || !linkType) return { messages: [{ text: 'Заведение не найдено.' }] };
+
+      const url = text.trim();
+      if (!url.startsWith('https://')) {
+        return { messages: [{ text: 'Ссылка должна начинаться с https://. Попробуйте ещё раз через настройки.' }] };
+      }
+
+      upsertContactLink(biz.id, linkType, url);
+      return { messages: [{ text: `✅ Ссылка ${CONTACT_TYPE_LABELS[linkType]} сохранена: ${url}` }] };
+    }
   }
 }
 
@@ -357,13 +402,28 @@ function handleInfo(biz: Business): CommandResult {
   return { messages: [{ text }] };
 }
 
+const CONTACT_TYPE_LABELS: Record<ContactLinkType, string> = {
+  telegram: 'Telegram',
+  vk: 'VK',
+  max: 'MAX',
+};
+
 function handleSettings(biz: Business): CommandResult {
   const url = getFrontendUrl(biz.slug);
+  const links = getContactLinks(biz.id);
+
   let text =
     `⚙️ Настройки — ${biz.name}\n\n` +
     `Название: ${biz.name}\n` +
     `Slug: ${biz.slug}`;
   if (url) text += `\n🔗 ${url}`;
+
+  if (links.length > 0) {
+    text += '\n\n📞 Ссылки для связи:';
+    for (const link of links) {
+      text += `\n• ${CONTACT_TYPE_LABELS[link.type]}: ${link.url}`;
+    }
+  }
 
   return {
     messages: [{
@@ -371,9 +431,37 @@ function handleSettings(biz: Business): CommandResult {
       buttons: [
         { label: '✏️ Изменить название', action: `settings_name:${biz.id}` },
         { label: '🔗 Изменить slug', action: `settings_slug:${biz.id}` },
+        { label: '📞 Ссылки для связи', action: `contact_links:${biz.id}` },
       ],
     }],
   };
+}
+
+function handleContactLinks(biz: Business): CommandResult {
+  const links = getContactLinks(biz.id);
+  const allTypes: ContactLinkType[] = ['telegram', 'vk', 'max'];
+  const existingTypes = new Set(links.map((l) => l.type));
+
+  let text = `📞 Ссылки для связи — ${biz.name}\n`;
+
+  if (links.length > 0) {
+    for (const link of links) {
+      text += `\n• ${CONTACT_TYPE_LABELS[link.type]}: ${link.url}`;
+    }
+  } else {
+    text += '\nСсылок пока нет.';
+  }
+
+  const buttons: CommandButton[] = [];
+  for (const type of allTypes) {
+    if (existingTypes.has(type)) {
+      buttons.push({ label: `❌ Удалить ${CONTACT_TYPE_LABELS[type]}`, action: `del_contact:${type}:${biz.id}` });
+    } else {
+      buttons.push({ label: `➕ Добавить ${CONTACT_TYPE_LABELS[type]}`, action: `add_contact:${type}:${biz.id}` });
+    }
+  }
+
+  return { messages: [{ text, buttons }] };
 }
 
 function handleDaySchedule(biz: Business, dayName: string): CommandResult {

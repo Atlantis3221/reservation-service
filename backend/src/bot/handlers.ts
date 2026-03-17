@@ -30,6 +30,9 @@ import {
   saveAgreement,
   ownerHasPhone,
   updateOwnerPhone,
+  getContactLinks,
+  upsertContactLink,
+  deleteContactLink,
 } from '../services/business';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
 import { trackUnrecognizedCommand } from '../services/monitor';
@@ -42,11 +45,14 @@ type ConversationStep =
   | 'awaiting_slug_confirm'
   | 'awaiting_settings_name'
   | 'awaiting_settings_slug'
-  | 'awaiting_contact';
+  | 'awaiting_contact'
+  | 'awaiting_contact_link';
+
+type ContactLinkType = 'telegram' | 'vk' | 'max';
 
 interface ConversationState {
   step: ConversationStep;
-  data: { name?: string; slug?: string; businessId?: number };
+  data: { name?: string; slug?: string; businessId?: number; linkType?: ContactLinkType };
 }
 
 interface PendingCommand {
@@ -171,8 +177,16 @@ function handleInfo(ctx: any, businesses: Business[]): void {
   ctx.reply(text, { parse_mode: 'HTML' });
 }
 
+const CONTACT_TYPE_LABELS: Record<ContactLinkType, string> = {
+  telegram: 'Telegram',
+  vk: 'VK',
+  max: 'MAX',
+};
+
 function handleSettings(ctx: any, biz: Business): void {
   const url = getFrontendUrl(biz.slug);
+  const links = getContactLinks(biz.id);
+
   let text =
     `⚙️ <b>Настройки — ${biz.name}</b>\n\n` +
     `Название: <b>${biz.name}</b>\n` +
@@ -180,12 +194,50 @@ function handleSettings(ctx: any, biz: Business): void {
 
   if (url) text += `\n🔗 ${url}`;
 
+  if (links.length > 0) {
+    text += '\n\n📞 <b>Ссылки для связи:</b>';
+    for (const link of links) {
+      text += `\n• ${CONTACT_TYPE_LABELS[link.type]}: ${link.url}`;
+    }
+  }
+
   ctx.reply(text, {
     parse_mode: 'HTML',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('✏️ Изменить название', `settings_name:${biz.id}`)],
       [Markup.button.callback('🔗 Изменить slug', `settings_slug:${biz.id}`)],
+      [Markup.button.callback('📞 Ссылки для связи', `contact_links:${biz.id}`)],
     ]),
+  });
+}
+
+function handleContactLinks(ctx: any, biz: Business): void {
+  const links = getContactLinks(biz.id);
+  const allTypes: ContactLinkType[] = ['telegram', 'vk', 'max'];
+  const existingTypes = new Set(links.map((l) => l.type));
+
+  let text = `📞 <b>Ссылки для связи — ${biz.name}</b>\n`;
+
+  if (links.length > 0) {
+    for (const link of links) {
+      text += `\n• ${CONTACT_TYPE_LABELS[link.type]}: ${link.url}`;
+    }
+  } else {
+    text += '\nСсылок пока нет.';
+  }
+
+  const buttons: any[][] = [];
+  for (const type of allTypes) {
+    if (existingTypes.has(type)) {
+      buttons.push([Markup.button.callback(`❌ Удалить ${CONTACT_TYPE_LABELS[type]}`, `del_contact:${type}:${biz.id}`)]);
+    } else {
+      buttons.push([Markup.button.callback(`➕ Добавить ${CONTACT_TYPE_LABELS[type]}`, `add_contact:${type}:${biz.id}`)]);
+    }
+  }
+
+  ctx.reply(text, {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard(buttons),
   });
 }
 
@@ -557,6 +609,23 @@ function handleConversation(ctx: any, conv: ConversationState, text: string): vo
       let reply = `✅ Slug изменён на «${newSlug}»`;
       if (url) reply += `\n🔗 Новая ссылка: ${url}`;
       ctx.reply(reply);
+      break;
+    }
+
+    case 'awaiting_contact_link': {
+      const biz = conv.data.businessId ? getBusinessById(conv.data.businessId) : null;
+      const linkType = conv.data.linkType;
+      conversations.delete(chatId);
+      if (!biz || !linkType) return;
+
+      const url = text.trim();
+      if (!url.startsWith('https://')) {
+        ctx.reply('Ссылка должна начинаться с https://. Попробуйте ещё раз через настройки.');
+        return;
+      }
+
+      upsertContactLink(biz.id, linkType, url);
+      ctx.reply(`✅ Ссылка ${CONTACT_TYPE_LABELS[linkType]} сохранена: ${url}`);
       break;
     }
   }
@@ -967,6 +1036,37 @@ export function registerHandlers(bot: Telegraf): void {
     if (!biz) return;
     conversations.set(ctx.chat!.id, { step: 'awaiting_settings_slug', data: { businessId: biz.id } });
     ctx.reply('Введите новый slug (латиница, цифры, дефис, минимум 3 символа):');
+  });
+
+  // ---- Ссылки для связи ----
+
+  bot.action(/^contact_links:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    const biz = getBusinessById(bizId);
+    if (!biz) return;
+    handleContactLinks(ctx, biz);
+  });
+
+  bot.action(/^add_contact:(telegram|vk|max):(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const type = ctx.match[1] as ContactLinkType;
+    const bizId = Number(ctx.match[2]);
+    conversations.set(ctx.chat!.id, {
+      step: 'awaiting_contact_link',
+      data: { businessId: bizId, linkType: type },
+    });
+    ctx.reply(`Отправьте ссылку для ${CONTACT_TYPE_LABELS[type]} (начинается с https://):`);
+  });
+
+  bot.action(/^del_contact:(telegram|vk|max):(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const type = ctx.match[1] as ContactLinkType;
+    const bizId = Number(ctx.match[2]);
+    const biz = getBusinessById(bizId);
+    if (!biz) return;
+    deleteContactLink(bizId, type);
+    ctx.reply(`✅ Ссылка ${CONTACT_TYPE_LABELS[type]} удалена.`);
   });
 
   // ---- Контакт ----

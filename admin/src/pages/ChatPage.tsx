@@ -6,6 +6,7 @@ import { ChatInput } from '../components/ChatInput';
 import { BusinessSwitcher } from '../components/BusinessSwitcher';
 import { CommandList } from '../components/CommandList';
 import { LinkTelegram } from '../components/LinkTelegram';
+import { BurgerMenu } from '../components/BurgerMenu';
 import { CalendarPage } from './CalendarPage';
 
 interface ChatMsg {
@@ -36,6 +37,7 @@ export function ChatPage() {
   const [showLink, setShowLink] = useState(false);
   const [inputText, setInputText] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'calendar'>('chat');
+  const [burgerOpen, setBurgerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const selectedBiz = businesses.find((b) => b.id === selectedBizId) ?? null;
 
@@ -112,8 +114,18 @@ export function ChatPage() {
   return (
     <div className="chat-layout">
       <header className="chat-header">
-        <div className="header-left">
-          <span className="logo">Slotik</span>
+        <button
+          className="header-btn burger-btn"
+          onClick={() => setBurgerOpen(true)}
+          aria-label="Меню"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <div className="header-center">
           {businesses.length > 0 && (
             <>
               <BusinessSwitcher
@@ -140,24 +152,16 @@ export function ChatPage() {
             </>
           )}
         </div>
-        <div className="header-right">
-          <button
-            className="header-btn"
-            onClick={() => setShowLink(!showLink)}
-            title="Привязать Telegram"
-          >
-            🔗
-          </button>
-          <span className="user-email">{user?.email}</span>
-          <button className="header-btn" onClick={logout} title="Выйти">
-            <svg className="logout-icon" viewBox="0 0 24 24">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        </div>
       </header>
+
+      <BurgerMenu
+        open={burgerOpen}
+        onClose={() => setBurgerOpen(false)}
+        email={user?.email || ''}
+        telegramLinked={!!user?.ownerChatId}
+        onLinkTelegram={() => setShowLink(true)}
+        onLogout={logout}
+      />
 
       {showLink && (
         <div className="link-banner">

@@ -120,7 +120,7 @@ sequenceDiagram
 backend/
 ├── src/
 │   ├── index.ts                          # Точка входа: Express, CORS, init
-│   ├── types.ts                          # Типы: Business, TimeSlot, SlotStatus
+│   ├── types.ts                          # Типы: Business, TimeSlot, SlotStatus, ContactLink
 │   │
 │   ├── bot/                              # Telegram-бот (канал доступа)
 │   │   ├── index.ts                      # Инициализация Telegraf, middleware
@@ -137,7 +137,7 @@ backend/
 │   │
 │   ├── services/                         # Бизнес-логика и инфраструктура
 │   │   ├── db.ts                         # SQLite init, миграции, getDb()
-│   │   ├── business.ts                   # CRUD бизнесов, slug, соглашения
+│   │   ├── business.ts                   # CRUD бизнесов, slug, соглашения, контактные ссылки
 │   │   ├── schedule.ts                   # Реэкспорт из slot.repository
 │   │   ├── auth.ts                       # Регистрация, вход, JWT, bcrypt
 │   │   ├── command.ts                    # Выполнение команд (реюз из bot/)
