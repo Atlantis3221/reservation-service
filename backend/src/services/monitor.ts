@@ -72,7 +72,7 @@ interface DockerContainer {
   status: string;
 }
 
-function getDockerContainers(): Promise<DockerContainer[]> {
+function fetchDockerContainers(): Promise<DockerContainer[]> {
   return new Promise((resolve) => {
     const req = http.request(
       { socketPath: '/var/run/docker.sock', path: '/containers/json?all=true', method: 'GET' },
@@ -99,6 +99,13 @@ function getDockerContainers(): Promise<DockerContainer[]> {
     req.setTimeout(3000, () => { req.destroy(); resolve([]); });
     req.end();
   });
+}
+
+function getDockerContainers(): Promise<DockerContainer[]> {
+  return Promise.race([
+    fetchDockerContainers(),
+    new Promise<DockerContainer[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+  ]);
 }
 
 function getDbSizeMb(): number {
