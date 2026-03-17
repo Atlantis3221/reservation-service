@@ -155,21 +155,20 @@ function getBookingsLast24h(): number {
   }
 }
 
-async function sendDailyDigest(): Promise<void> {
+function sendDailyDigest(): void {
   const info = getHealthInfo();
   const bookings24h = getBookingsLast24h();
-  const containers = await getDockerContainers();
+  const dockerPs = getDockerPs();
 
   const text =
     `📋 <b>Daily Digest</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
     `🏢 Businesses: ${info.businesses}\n` +
-    `📅 Slots: ${info.slots}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `🔴 Bookings (24h): ${bookings24h}\n` +
-    `❓ Unrecognized: ${info.unrecognizedCommands}` +
-    formatContainers(containers);
+    `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
+    `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`;
 
   sendTelegram(text);
 }
@@ -207,9 +206,9 @@ export function initMonitor(): void {
 
   monitorBot = new Telegraf(MONITOR_BOT_TOKEN);
 
-  monitorBot.command('health', async (ctx) => {
+  monitorBot.command('health', (ctx) => {
     const info = getHealthInfo();
-    const text = await formatHealthMessage(info);
+    const text = formatHealthMessage(info);
     ctx.reply(text, { parse_mode: 'HTML' });
   });
 

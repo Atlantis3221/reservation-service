@@ -37,7 +37,6 @@ app.get('/health', (_req, res) => {
     uptime: info.uptime,
     memory: info.memoryMb,
     businesses: info.businesses,
-    slots: info.slots,
     dbSizeMb: info.dbSizeMb,
     unrecognizedCommands: info.unrecognizedCommands,
   });
