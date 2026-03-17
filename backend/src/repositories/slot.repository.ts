@@ -132,13 +132,14 @@ export function bookRange(
   endTime: string,
   note?: string,
   clientName?: string,
+  clientPhone?: string,
 ): { id: number; count: number } {
   const result = getDb()
     .prepare(
-      `INSERT INTO slots (business_id, date_key, start_time, end_time, status, note, client_name)
-       VALUES (?, ?, ?, ?, 'booked', ?, ?)`
+      `INSERT INTO slots (business_id, date_key, start_time, end_time, status, note, client_name, client_phone)
+       VALUES (?, ?, ?, ?, 'booked', ?, ?, ?)`
     )
-    .run(businessId, dateKey, startTime, endTime, note ?? null, clientName ?? null);
+    .run(businessId, dateKey, startTime, endTime, note ?? null, clientName ?? null, clientPhone ?? null);
 
   return { id: Number(result.lastInsertRowid), count: 1 };
 }
@@ -206,6 +207,51 @@ export function getScheduledDays(businessId: number, limit = 14): string[] {
     )
     .all(businessId, today, limit) as { date_key: string }[];
   return rows.map((r) => r.date_key);
+}
+
+export function getSlotsForDateAdmin(businessId: number, dateKey: string): Array<{
+  id: number;
+  startDatetime: string;
+  endDatetime: string;
+  status: SlotStatus;
+  note?: string;
+  clientName?: string;
+  clientPhone?: string;
+}> {
+  const rows = getDb()
+    .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY start_time')
+    .all(businessId, dateKey);
+  return rows.map((row: any) => {
+    const crossesMidnight = row.end_time < row.start_time;
+    const endDK = crossesMidnight ? nextDateKey(row.date_key) : row.date_key;
+    return {
+      id: row.id,
+      startDatetime: `${row.date_key}T${row.start_time}:00`,
+      endDatetime: `${endDK}T${row.end_time}:00`,
+      status: row.status as SlotStatus,
+      note: row.note ?? undefined,
+      clientName: row.client_name ?? undefined,
+      clientPhone: row.client_phone ?? undefined,
+    };
+  });
+}
+
+export function getAllDateKeys(businessId: number): string[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT date_key FROM slots
+       WHERE business_id = ?
+       ORDER BY date_key`
+    )
+    .all(businessId) as { date_key: string }[];
+  return rows.map((r) => r.date_key);
+}
+
+export function getSlotBusinessId(slotId: number): number | null {
+  const row = getDb()
+    .prepare('SELECT business_id FROM slots WHERE id = ?')
+    .get(slotId) as any;
+  return row ? row.business_id : null;
 }
 
 export function getStats(businessId: number): { total: number; available: number; booked: number; blocked: number } {

@@ -14,7 +14,7 @@ graph TB
 
     subgraph "Каналы доступа"
         API[routes/api.ts<br/>REST API]
-        ADMIN[routes/admin.ts<br/>Admin API]
+        ADMIN[routes/admin.ts<br/>Admin API + Calendar API]
         BOT[bot/<br/>Telegram-бот]
         MON[services/monitor.ts<br/>Мониторинг-бот]
     end
@@ -133,7 +133,7 @@ backend/
 │   │
 │   ├── routes/                           # REST API (каналы доступа)
 │   │   ├── api.ts                        # Express-роуты: /business/:slug/*
-│   │   └── admin.ts                      # Admin API: auth, command, link
+│   │   └── admin.ts                      # Admin API: auth, command, link, calendar
 │   │
 │   ├── services/                         # Бизнес-логика и инфраструктура
 │   │   ├── db.ts                         # SQLite init, миграции, getDb()
@@ -170,7 +170,7 @@ backend/
 | Новый SQL-запрос или работа с таблицей | `repositories/*.repository.ts` | Поиск слотов, агрегации |
 | CRUD-операции над бизнес-сущностью | `services/*.ts` | Создание/удаление бизнесов |
 | Новый REST-эндпоинт (клиентский) | `routes/api.ts` | GET /api/business/:slug/stats |
-| Новый Admin-эндпоинт | `routes/admin.ts` | POST /admin/command |
+| Новый Admin-эндпоинт | `routes/admin.ts` | POST /admin/command, Calendar API |
 | Авторизация / JWT | `services/auth.ts` | Проверка токена, хеширование |
 | Команда чата (web) | `services/command.ts` | Обработка текстовой команды |
 | Новая команда бота | `bot/handlers.ts` | Обработка /report |

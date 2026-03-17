@@ -6,6 +6,7 @@ import { ChatInput } from '../components/ChatInput';
 import { BusinessSwitcher } from '../components/BusinessSwitcher';
 import { CommandList } from '../components/CommandList';
 import { LinkTelegram } from '../components/LinkTelegram';
+import { CalendarPage } from './CalendarPage';
 
 interface ChatMsg {
   id: number;
@@ -24,6 +25,7 @@ export function ChatPage() {
   const [showCommands, setShowCommands] = useState(false);
   const [showLink, setShowLink] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [activeTab, setActiveTab] = useState<'chat' | 'calendar'>('chat');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -134,39 +136,71 @@ export function ChatPage() {
         </div>
       )}
 
-      <main className="chat-main">
-        <div className="chat-messages">
-          {messages.length === 0 && (
-            <div className="empty-chat">
-              <div className="empty-icon">💬</div>
-              <p>Отправьте команду для управления расписанием</p>
-              <button className="btn-secondary" onClick={() => setShowCommands(true)}>
-                Посмотреть команды
-              </button>
+      {activeTab === 'chat' ? (
+        <>
+          <main className="chat-main">
+            <div className="chat-messages">
+              {messages.length === 0 && (
+                <div className="empty-chat">
+                  <div className="empty-icon">💬</div>
+                  <p>Отправьте команду для управления расписанием</p>
+                  <button className="btn-secondary" onClick={() => setShowCommands(true)}>
+                    Посмотреть команды
+                  </button>
+                </div>
+              )}
+              {messages.map((msg) => (
+                <ChatMessageBubble
+                  key={msg.id}
+                  role={msg.role}
+                  message={msg.content}
+                  onAction={handleAction}
+                  disabled={sending}
+                />
+              ))}
+              <div ref={bottomRef} />
             </div>
-          )}
-          {messages.map((msg) => (
-            <ChatMessageBubble
-              key={msg.id}
-              role={msg.role}
-              message={msg.content}
-              onAction={handleAction}
-              disabled={sending}
-            />
-          ))}
-          <div ref={bottomRef} />
-        </div>
-      </main>
+          </main>
 
-      <footer className="chat-footer">
-        <ChatInput
-          onSend={handleSend}
-          disabled={sending}
-          onCommandsClick={() => setShowCommands(!showCommands)}
-          externalText={inputText}
-          onExternalTextConsumed={() => setInputText('')}
-        />
-      </footer>
+          <footer className="chat-footer">
+            <ChatInput
+              onSend={handleSend}
+              disabled={sending}
+              onCommandsClick={() => setShowCommands(!showCommands)}
+              externalText={inputText}
+              onExternalTextConsumed={() => setInputText('')}
+            />
+          </footer>
+        </>
+      ) : (
+        <main className="calendar-main">
+          <CalendarPage businessId={selectedBizId} />
+        </main>
+      )}
+
+      <nav className="tab-bar">
+        <button
+          className={`tab-bar-item${activeTab === 'chat' ? ' tab-bar-item--active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <span>Чат</span>
+        </button>
+        <button
+          className={`tab-bar-item${activeTab === 'calendar' ? ' tab-bar-item--active' : ''}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>Календарь</span>
+        </button>
+      </nav>
 
       {showCommands && (
         <CommandList

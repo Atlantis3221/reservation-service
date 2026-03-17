@@ -8,6 +8,15 @@ import {
   consumeResetToken,
 } from '../repositories/admin-user.repository';
 import { getBusinessesByOwner, getBusinessById } from '../services/business';
+import {
+  getAllDateKeys,
+  getSlotsForDateAdmin,
+  findOverlappingBookings,
+  bookRange,
+  cancelBookingById,
+  addDaySlots,
+  getSlotBusinessId,
+} from '../services/schedule';
 
 export const adminRouter = Router();
 
@@ -151,4 +160,104 @@ adminRouter.post('/link-telegram', (req: AuthRequest, res: Response) => {
   setOwnerChatId(req.adminUserId!, ownerChatId);
   const businesses = getBusinessesByOwner(ownerChatId);
   res.json({ ok: true, businesses });
+});
+
+// ---- Calendar API ----
+
+function verifyBusinessAccess(req: AuthRequest, businessId: number): { ok: boolean; error?: string } {
+  const user = getAuthUser(req.adminUserId!);
+  const business = getBusinessById(businessId);
+  if (!business) return { ok: false, error: 'Заведение не найдено' };
+  if (business.ownerChatId !== user.ownerChatId && business.ownerChatId !== String(req.adminUserId)) {
+    return { ok: false, error: 'Нет доступа к этому заведению' };
+  }
+  return { ok: true };
+}
+
+adminRouter.get('/calendar/dates', (req: AuthRequest, res: Response) => {
+  const businessId = Number(req.query.businessId);
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const dates = getAllDateKeys(businessId);
+  res.json({ dates });
+});
+
+adminRouter.get('/calendar/slots', (req: AuthRequest, res: Response) => {
+  const businessId = Number(req.query.businessId);
+  const date = req.query.date as string;
+  if (!businessId || !date) {
+    res.status(400).json({ error: 'businessId и date обязательны' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const slots = getSlotsForDateAdmin(businessId, date);
+  res.json({ slots });
+});
+
+adminRouter.post('/calendar/booking', (req: AuthRequest, res: Response) => {
+  const { businessId, date, startTime, endTime, clientName, clientPhone, force } = req.body;
+  if (!businessId || !date || !startTime || !endTime) {
+    res.status(400).json({ error: 'Обязательные поля: businessId, date, startTime, endTime' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  const overlaps = findOverlappingBookings(businessId, date, startTime, endTime);
+  if (overlaps.length > 0 && !force) {
+    res.json({ conflict: true, overlaps });
+    return;
+  }
+
+  const result = bookRange(businessId, date, startTime, endTime, undefined, clientName, clientPhone);
+  res.json({ ok: true, id: result.id });
+});
+
+adminRouter.delete('/calendar/booking/:id', (req: AuthRequest, res: Response) => {
+  const slotId = Number(req.params.id);
+  const slotBusinessId = getSlotBusinessId(slotId);
+  if (!slotBusinessId) {
+    res.status(404).json({ error: 'Запись не найдена' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, slotBusinessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const result = cancelBookingById(slotId);
+  if (result.cancelled === 0) {
+    res.status(404).json({ error: 'Запись не найдена или уже отменена' });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+adminRouter.post('/calendar/schedule', (req: AuthRequest, res: Response) => {
+  const { businessId, date, startHour, endHour } = req.body;
+  if (!businessId || !date || startHour == null || endHour == null) {
+    res.status(400).json({ error: 'Обязательные поля: businessId, date, startHour, endHour' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const slots = addDaySlots(businessId, date, startHour, endHour);
+  res.json({ ok: true, slots });
 });

@@ -1,19 +1,27 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import './Calendar.css';
 
-interface CalendarProps {
-  apiBase: string;
-  selectedDate: string | null;
-  onSelectDate: (date: string | null) => void;
-  onBack?: () => void;
-}
-
-interface DaySlot {
+export interface DaySlot {
   id: number;
   startDatetime: string;
   endDatetime: string;
   status: 'available' | 'booked' | 'blocked';
   note?: string;
+  clientName?: string;
+  clientPhone?: string;
+}
+
+export interface CalendarProps {
+  fetchAvailableDates: () => Promise<string[]>;
+  fetchDaySlots: (date: string) => Promise<DaySlot[]>;
+  selectedDate: string | null;
+  onSelectDate: (date: string | null) => void;
+  onBack?: () => void;
+  onSlotClick?: (slot: DaySlot) => void;
+  onTimeClick?: (date: string, minutes: number) => void;
+  showClientInfo?: boolean;
+  emptyDayContent?: ReactNode;
+  refreshTrigger?: unknown;
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -42,7 +50,18 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }: CalendarProps) {
+export default function Calendar({
+  fetchAvailableDates,
+  fetchDaySlots,
+  selectedDate,
+  onSelectDate,
+  onBack,
+  onSlotClick,
+  onTimeClick,
+  showClientInfo,
+  emptyDayContent,
+  refreshTrigger,
+}: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -57,6 +76,11 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
   });
   const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
   const [loadingDay, setLoadingDay] = useState(false);
+
+  const fetchDatesRef = useRef(fetchAvailableDates);
+  const fetchSlotsRef = useRef(fetchDaySlots);
+  fetchDatesRef.current = fetchAvailableDates;
+  fetchSlotsRef.current = fetchDaySlots;
 
   const today = useMemo(() => {
     const d = new Date();
@@ -89,33 +113,31 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`${apiBase}/available-dates`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setAvailableDates(data.dates || []);
+    fetchDatesRef.current()
+      .then((dates) => {
+        if (!cancelled) setAvailableDates(dates);
       })
       .catch((err) => console.error('Ошибка загрузки дат:', err))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [apiBase]);
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (!selectedDate) return;
     let cancelled = false;
     setLoadingDay(true);
-    fetch(`${apiBase}/day-slots?date=${selectedDate}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setDaySlots(data.slots || []);
+    fetchSlotsRef.current(selectedDate)
+      .then((slots) => {
+        if (!cancelled) setDaySlots(slots);
       })
       .catch((err) => console.error('Ошибка загрузки слотов:', err))
       .finally(() => {
         if (!cancelled) setLoadingDay(false);
       });
     return () => { cancelled = true; };
-  }, [selectedDate, apiBase]);
+  }, [selectedDate, refreshTrigger]);
 
   const calendarCells = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -200,6 +222,15 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
       hours.push(h >= 24 ? h - 24 : h);
     }
 
+    function handleGridClick(e: React.MouseEvent<HTMLDivElement>) {
+      if (!onTimeClick || !selectedDate) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const minutesInRange = (y / rect.height) * totalMinutes;
+      const absMinutes = Math.round((minutesInRange + rangeStartMin) / 5) * 5;
+      onTimeClick(selectedDate, absMinutes);
+    }
+
     return (
       <div className="gcal gcal--day">
         <div className="gcal-weeknav-row">
@@ -239,7 +270,7 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
             <span>Загрузка...</span>
           </div>
         ) : daySlots.length === 0 ? (
-          <div className="gcal-empty">Расписание на этот день не задано</div>
+          emptyDayContent || <div className="gcal-empty">Расписание на этот день не задано</div>
         ) : (
           <div className="gcal-timeline-wrap">
             <div className="gcal-timeline">
@@ -254,7 +285,11 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
                   </div>
                 ))}
               </div>
-              <div className="gcal-tl-grid" style={{ height: totalMinutes }}>
+              <div
+                className={`gcal-tl-grid${onTimeClick ? ' gcal-tl-grid--interactive' : ''}`}
+                style={{ height: totalMinutes }}
+                onClick={handleGridClick}
+              >
                 {hours.slice(0, -1).map((hour, i) => (
                   <div
                     key={i}
@@ -276,16 +311,25 @@ export default function Calendar({ apiBase, selectedDate, onSelectDate, onBack }
                   const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
                   const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
 
+                  const interactive = !!onSlotClick;
+
                   return (
                     <div
                       key={slot.id}
-                      className={`gcal-tl-block gcal-tl-block--${slot.status}`}
+                      className={`gcal-tl-block gcal-tl-block--${slot.status}${interactive ? ' gcal-tl-block--interactive' : ''}`}
                       style={{ top, height }}
+                      onClick={interactive ? (e) => { e.stopPropagation(); onSlotClick!(slot); } : undefined}
                     >
                       <span className="gcal-tl-block-time">
                         {startTimeStr}–{endTimeStr}
                       </span>
                       {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
+                      {showClientInfo && slot.clientName && (
+                        <span className="gcal-tl-block-client">{slot.clientName}</span>
+                      )}
+                      {showClientInfo && slot.clientPhone && (
+                        <span className="gcal-tl-block-phone">{slot.clientPhone}</span>
+                      )}
                     </div>
                   );
                 })}

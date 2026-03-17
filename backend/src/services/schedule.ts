@@ -2,7 +2,9 @@ export {
   getSlotsForDate,
   getAvailableDateKeys,
   getSlotsForDateFull,
+  getSlotsForDateAdmin,
   getAllSlots,
+  getAllDateKeys,
   addDaySlots,
   findOverlappingBookings,
   bookRange,
@@ -10,5 +12,6 @@ export {
   cancelBooking,
   clearDay,
   getScheduledDays,
+  getSlotBusinessId,
   getStats,
 } from '../repositories/slot.repository';

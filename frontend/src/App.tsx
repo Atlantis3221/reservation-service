@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import Calendar from './components/Calendar';
+import { Calendar } from '@shared/calendar';
 import './App.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -209,7 +209,12 @@ function BusinessPage({ slug }: { slug: string }) {
 
       <main className="main">
         <Calendar
-          apiBase={apiBase}
+          fetchAvailableDates={() =>
+            fetch(`${apiBase}/available-dates`).then((r) => r.json()).then((d) => d.dates || [])
+          }
+          fetchDaySlots={(date) =>
+            fetch(`${apiBase}/day-slots?date=${date}`).then((r) => r.json()).then((d) => d.slots || [])
+          }
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           onBack={() => setSelectedDate(null)}

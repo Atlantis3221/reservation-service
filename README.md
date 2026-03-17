@@ -48,13 +48,19 @@ reservation-service/
 │   │   └── components/
 │   ├── vite.config.ts
 │   └── package.json
-├── admin/            # React (Vite) — админ-панель (чат-интерфейс)
+├── admin/            # React (Vite) — админ-панель (чат + визуальный календарь)
 │   ├── src/
 │   │   ├── App.tsx
-│   │   ├── pages/         # LoginPage, RegisterPage, ChatPage, ResetPasswordPage
+│   │   ├── pages/         # LoginPage, RegisterPage, ChatPage, CalendarPage, ResetPasswordPage
 │   │   └── components/    # ChatMessage, ChatInput, BusinessSwitcher, CommandList
 │   ├── vite.config.ts
 │   └── package.json
+├── shared/           # Shared-компоненты (локальная библиотека)
+│   └── calendar/     # Переиспользуемый компонент календаря
+│       └── src/
+│           ├── index.ts         # реэкспорт Calendar, DaySlot
+│           ├── Calendar.tsx     # месячный вид + дневной таймлайн
+│           └── Calendar.css     # стили календаря
 ├── landing/          # Статический лендинг (SEO)
 │   ├── index.html           # исходник с {{BOT_URL}} плейсхолдером
 │   └── dist/index.html      # собранный файл (после build:landing)
@@ -256,6 +262,11 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 | `POST`   | `/admin/command`                  | Выполнить команду чата                | JWT  |
 | `POST`   | `/admin/init`                     | Инициализация чата (начальные сообщения) | JWT |
 | `POST`   | `/admin/link-telegram`            | Привязка Telegram по коду             | JWT  |
+| `GET`    | `/admin/calendar/dates`           | Все даты со слотами (для календаря)   | JWT  |
+| `GET`    | `/admin/calendar/slots`           | Слоты на дату (с clientName/Phone)    | JWT  |
+| `POST`   | `/admin/calendar/booking`         | Создать запись из календаря            | JWT  |
+| `DELETE` | `/admin/calendar/booking/:id`     | Отменить запись из календаря           | JWT  |
+| `POST`   | `/admin/calendar/schedule`        | Задать расписание на день              | JWT  |
 
 ### Legacy (обратная совместимость, business_id=1)
 
@@ -267,7 +278,7 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 
 ## Админ-панель
 
-Веб-интерфейс для управления заведениями — чат в стиле ChatGPT, где владелец отправляет те же команды, что и в Telegram-боте.
+Веб-интерфейс для управления заведениями — чат в стиле ChatGPT + визуальный календарь в стиле Google Calendar. Два режима работы переключаются через нижний таб-бар (Чат / Календарь).
 
 - **URL:** `https://admin.slotik.tech` (dev: `http://localhost:5174`)
 - **Авторизация:** email + пароль (без внешних сервисов)

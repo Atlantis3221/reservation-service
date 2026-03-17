@@ -65,6 +65,16 @@ export interface CommandCategory {
   commands: CommandInfo[];
 }
 
+export interface CalendarSlot {
+  id: number;
+  startDatetime: string;
+  endDatetime: string;
+  status: 'available' | 'booked' | 'blocked';
+  note?: string;
+  clientName?: string;
+  clientPhone?: string;
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<AuthResult>('/auth/register', {
@@ -109,5 +119,41 @@ export const api = {
     request<{ ok: boolean; businesses: Business[] }>('/link-telegram', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    }),
+
+  getCalendarDates: (businessId: number) =>
+    request<{ dates: string[] }>(`/calendar/dates?businessId=${businessId}`)
+      .then((r) => r.dates),
+
+  getCalendarSlots: (businessId: number, date: string) =>
+    request<{ slots: CalendarSlot[] }>(`/calendar/slots?businessId=${businessId}&date=${date}`)
+      .then((r) => r.slots),
+
+  createCalendarBooking: (data: {
+    businessId: number;
+    date: string;
+    startTime: string;
+    endTime: string;
+    clientName: string;
+    clientPhone?: string;
+    force?: boolean;
+  }) =>
+    request<{ ok?: boolean; conflict?: boolean; overlaps?: any[] }>('/calendar/booking', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  cancelCalendarBooking: (id: number) =>
+    request<{ ok: boolean }>(`/calendar/booking/${id}`, { method: 'DELETE' }),
+
+  setCalendarSchedule: (data: {
+    businessId: number;
+    date: string;
+    startHour: number;
+    endHour: number;
+  }) =>
+    request<{ ok: boolean }>('/calendar/schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };
