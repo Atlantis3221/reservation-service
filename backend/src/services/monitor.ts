@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import http from 'http';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from './db';
@@ -66,46 +66,12 @@ export function notifyError(error: unknown, context?: string): void {
   sendTelegram(text);
 }
 
-interface DockerContainer {
-  name: string;
-  state: string;
-  status: string;
-}
-
-function fetchDockerContainers(): Promise<DockerContainer[]> {
-  return new Promise((resolve) => {
-    const req = http.request(
-      { socketPath: '/var/run/docker.sock', path: '/containers/json?all=true', method: 'GET' },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const containers = JSON.parse(data) as any[];
-            resolve(
-              containers.map((c) => ({
-                name: (c.Names?.[0] || '').replace(/^\//, ''),
-                state: c.State,
-                status: c.Status,
-              }))
-            );
-          } catch {
-            resolve([]);
-          }
-        });
-      }
-    );
-    req.on('error', () => resolve([]));
-    req.setTimeout(3000, () => { req.destroy(); resolve([]); });
-    req.end();
-  });
-}
-
-function getDockerContainers(): Promise<DockerContainer[]> {
-  return Promise.race([
-    fetchDockerContainers(),
-    new Promise<DockerContainer[]>((resolve) => setTimeout(() => resolve([]), 5000)),
-  ]);
+function getDockerPs(): string {
+  try {
+    return execSync('docker ps', { timeout: 5000, encoding: 'utf-8' }).trim();
+  } catch {
+    return 'unavailable';
+  }
 }
 
 function getDbSizeMb(): number {
@@ -126,7 +92,6 @@ export function getHealthInfo(): {
   uptime: string;
   memoryMb: { rss: number; heapUsed: number; heapTotal: number };
   businesses: number;
-  slots: number;
   dbSizeMb: number;
   unrecognizedCommands: number;
 } {
@@ -140,16 +105,11 @@ export function getHealthInfo(): {
   const toMb = (bytes: number) => Math.round(bytes / 1024 / 1024 * 10) / 10;
 
   let businesses = 0;
-  let slots = 0;
   try {
     const db = getDb();
     const bizRow = db.prepare('SELECT COUNT(*) as cnt FROM businesses').get() as any;
     businesses = bizRow?.cnt ?? 0;
-    const slotRow = db.prepare('SELECT COUNT(*) as cnt FROM slots').get() as any;
-    slots = slotRow?.cnt ?? 0;
-  } catch {
-    // DB may not be ready
-  }
+  } catch {}
 
   return {
     uptime,
@@ -159,33 +119,21 @@ export function getHealthInfo(): {
       heapTotal: toMb(mem.heapTotal),
     },
     businesses,
-    slots,
     dbSizeMb: getDbSizeMb(),
     unrecognizedCommands,
   };
 }
 
-function formatContainers(containers: DockerContainer[]): string {
-  if (containers.length === 0) return '\n🐳 Docker: unavailable';
-  let text = '\n🐳 <b>Docker:</b>\n';
-  for (const c of containers) {
-    const icon = c.state === 'running' ? '🟢' : '🔴';
-    text += `${icon} ${c.name} — ${c.status}\n`;
-  }
-  return text;
-}
-
-async function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): Promise<string> {
-  const containers = await getDockerContainers();
+function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
+  const dockerPs = getDockerPs();
   return (
     `📊 <b>Server Health</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
     `🏢 Businesses: ${info.businesses}\n` +
-    `📅 Slots: ${info.slots}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
-    `❓ Unrecognized: ${info.unrecognizedCommands}` +
-    formatContainers(containers)
+    `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
+    `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`
   );
 }
 

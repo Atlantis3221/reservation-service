@@ -43,9 +43,14 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.use((err: Error, req: Request, _res: Response, next: NextFunction) => {
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Маршрут не найден' });
+});
+
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   notifyError(err, `${req.method} ${req.originalUrl}`);
-  next(err);
+  console.error(`[error] ${req.method} ${req.originalUrl}:`, err);
+  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
 
 function getLocalNetworkIP(): string | null {

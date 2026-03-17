@@ -10,12 +10,26 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch {
+    throw new Error('Нет соединения с сервером');
+  }
 
   if (res.status === 401) {
     localStorage.removeItem('token');
     window.location.href = '/login';
     throw new Error('Unauthorized');
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      res.status === 502 || res.status === 503
+        ? 'Сервер временно недоступен'
+        : `Ошибка сервера (${res.status})`,
+    );
   }
 
   const data = await res.json();
