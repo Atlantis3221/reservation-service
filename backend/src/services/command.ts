@@ -623,23 +623,6 @@ function handleList(ownerChatId: string): CommandResult {
 
 export const AVAILABLE_COMMANDS = [
   {
-    category: 'Бронирование',
-    commands: [
-      { command: 'сегодня бронь с _ до _', description: 'Бронь на сегодня (укажите время)' },
-      { command: 'сегодня бронь с _ до _ Фамилия', description: 'Бронь с именем клиента' },
-      { command: 'в пятницу бронь на _:00 на _ часа', description: 'Бронь на день недели' },
-      { command: 'отмени бронь на сегодня _', description: 'Отменить бронь (укажите час)' },
-    ],
-  },
-  {
-    category: 'Расписание',
-    commands: [
-      { command: 'покажи расписание', description: 'Статистика и ближайшие дни' },
-      { command: 'расписание на сегодня', description: 'Слоты на конкретный день' },
-      { command: 'расписание на завтра', description: 'Слоты на завтра' },
-    ],
-  },
-  {
     category: 'Время работы',
     commands: [
       { command: 'на этой неделе пн-пт с 10 до 23, пт-сб с 12 до 03', description: 'Задать расписание на неделю' },
