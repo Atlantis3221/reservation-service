@@ -380,6 +380,43 @@
   opacity: 0.35;
 }
 
+/* Current time indicator */
+
+.gcal-tl-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid #ef4444;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.gcal-tl-now::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+/* Pending (ghost) slot */
+
+.gcal-tl-block--pending {
+  background: rgba(79, 70, 229, 0.12);
+  color: #4f46e5;
+  border: 2px dashed #4f46e5;
+  animation: gcal-pending-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes gcal-pending-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* Interactive mode (admin) */
 
 .gcal-tl-grid--interactive {

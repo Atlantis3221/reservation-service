@@ -206,7 +206,7 @@ adminRouter.get('/calendar/slots', (req: AuthRequest, res: Response) => {
 });
 
 adminRouter.post('/calendar/booking', (req: AuthRequest, res: Response) => {
-  const { businessId, date, startTime, endTime, clientName, clientPhone, force } = req.body;
+  const { businessId, date, startTime, endTime, clientName, clientPhone, note, force } = req.body;
   if (!businessId || !date || !startTime || !endTime) {
     res.status(400).json({ error: 'Обязательные поля: businessId, date, startTime, endTime' });
     return;
@@ -223,7 +223,7 @@ adminRouter.post('/calendar/booking', (req: AuthRequest, res: Response) => {
     return;
   }
 
-  const result = bookRange(businessId, date, startTime, endTime, undefined, clientName, clientPhone);
+  const result = bookRange(businessId, date, startTime, endTime, note, clientName, clientPhone);
   res.json({ ok: true, id: result.id });
 });
 

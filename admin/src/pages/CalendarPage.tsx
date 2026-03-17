@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Calendar, type DaySlot } from '@shared/calendar';
+import { useState, useCallback, useMemo } from 'react';
+import { Calendar, type DaySlot, type PendingSlot } from '@shared/calendar';
 import { api } from '../api';
 
 function pad(n: number): string {
@@ -34,6 +34,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
   const [endTime, setEndTime] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [note, setNote] = useState('');
 
   const [scheduleStart, setScheduleStart] = useState('10:00');
   const [scheduleEnd, setScheduleEnd] = useState('22:00');
@@ -73,6 +74,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
     setEndTime(minutesToTime(endMins));
     setClientName('');
     setClientPhone('');
+    setNote('');
     setError('');
     setShowConfirm(false);
     setSheet({ type: 'new-booking', date });
@@ -101,6 +103,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
         endTime,
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim() || undefined,
+        note: note.trim() || undefined,
         force,
       });
       if (result.conflict) {
@@ -157,6 +160,11 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
     }
   }
 
+  const pendingSlot: PendingSlot | null = useMemo(() => {
+    if (sheet.type !== 'new-booking' || !startTime || !endTime) return null;
+    return { startTime, endTime };
+  }, [sheet.type, startTime, endTime]);
+
   if (!businessId) {
     return (
       <div className="cal-placeholder">
@@ -177,6 +185,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
         onSlotClick={handleSlotClick}
         onTimeClick={handleTimeClick}
         showClientInfo
+        pendingSlot={pendingSlot}
         emptyDayContent={
           <div className="cal-empty-day">
             <p>Расписание на этот день не задано</p>
@@ -223,6 +232,15 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
                       value={clientPhone}
                       onChange={(e) => setClientPhone(e.target.value)}
                       placeholder="+7 900 123-45-67"
+                    />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Описание</label>
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Комментарий к записи"
+                      rows={2}
                     />
                   </div>
                 </div>

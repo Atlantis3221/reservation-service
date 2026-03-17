@@ -11,6 +11,11 @@ export interface DaySlot {
   clientPhone?: string;
 }
 
+export interface PendingSlot {
+  startTime: string;
+  endTime: string;
+}
+
 export interface CalendarProps {
   fetchAvailableDates: () => Promise<string[]>;
   fetchDaySlots: (date: string) => Promise<DaySlot[]>;
@@ -22,6 +27,7 @@ export interface CalendarProps {
   showClientInfo?: boolean;
   emptyDayContent?: ReactNode;
   refreshTrigger?: unknown;
+  pendingSlot?: PendingSlot | null;
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -61,6 +67,7 @@ export default function Calendar({
   showClientInfo,
   emptyDayContent,
   refreshTrigger,
+  pendingSlot,
 }: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +83,18 @@ export default function Calendar({
   });
   const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
   const [loadingDay, setLoadingDay] = useState(false);
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchDatesRef = useRef(fetchAvailableDates);
   const fetchSlotsRef = useRef(fetchDaySlots);
@@ -333,6 +352,32 @@ export default function Calendar({
                     </div>
                   );
                 })}
+
+                {pendingSlot && (() => {
+                  const pStart = timeToMinutes(pendingSlot.startTime);
+                  const pEnd = timeToMinutes(pendingSlot.endTime);
+                  const pTop = Math.max(0, pStart - rangeStartMin);
+                  const pBottom = Math.min(totalMinutes, pEnd - rangeStartMin);
+                  const pHeight = Math.max(pBottom - pTop, 20);
+                  return (
+                    <div
+                      className="gcal-tl-block gcal-tl-block--pending"
+                      style={{ top: pTop, height: pHeight }}
+                    >
+                      <span className="gcal-tl-block-time">
+                        {pendingSlot.startTime}–{pendingSlot.endTime}
+                      </span>
+                      <span className="gcal-tl-block-note">Новая запись</span>
+                    </div>
+                  );
+                })()}
+
+                {selectedDate === todayKey && nowMinutes >= rangeStartMin && nowMinutes <= rangeEndMin && (
+                  <div
+                    className="gcal-tl-now"
+                    style={{ top: nowMinutes - rangeStartMin }}
+                  />
+                )}
               </div>
             </div>
           </div>

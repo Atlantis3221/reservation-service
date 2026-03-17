@@ -150,6 +150,7 @@ export const api = {
     endTime: string;
     clientName: string;
     clientPhone?: string;
+    note?: string;
     force?: boolean;
   }) =>
     request<{ ok?: boolean; conflict?: boolean; overlaps?: any[] }>('/calendar/booking', {
