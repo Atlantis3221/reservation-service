@@ -62,8 +62,10 @@ reservation-service/
 │           ├── Calendar.tsx     # месячный вид + дневной таймлайн
 │           └── Calendar.css     # стили календаря
 ├── landing/          # Статический лендинг (SEO)
-│   ├── index.html           # исходник с {{BOT_URL}} плейсхолдером
-│   └── dist/index.html      # собранный файл (после build:landing)
+│   ├── index.html           # исходник с {{ADMIN_URL}} плейсхолдером
+│   ├── styles.css           # стили лендинга
+│   ├── media/               # медиа-файлы (видео, скриншоты)
+│   └── dist/                # собранный лендинг (после build:landing)
 ├── nginx/            # Nginx конфиги
 │   ├── nginx.conf         # основной конфиг (HTTPS + проксирование)
 │   └── nginx-init.conf    # временный конфиг (HTTP, для получения SSL)
@@ -346,15 +348,17 @@ Rate limiting: не более 1 алерта в 60 секунд. Стектре
 
 Статический HTML-лендинг для SEO. Раздаётся nginx на `/`, React SPA — на `/:slug`.
 
+CTA-ссылки ведут на регистрацию в админ-панели (`ADMIN_URL`). Видео и скриншоты лежат в `landing/media/` (пользователь кладёт файлы сам, см. `landing/media/README.md`).
+
 ```bash
-# Сборка (подставляет ссылку на бота из backend/.env или переменной TELEGRAM_BOT_USERNAME)
+# Сборка (подставляет ADMIN_URL из backend/.env или переменной окружения)
 npm run build:landing
 
-# Или с явным указанием бота
-TELEGRAM_BOT_USERNAME=my_bot npm run build:landing
+# Или с явным указанием
+ADMIN_URL=https://admin.slotik.tech npm run build:landing
 ```
 
-Результат — `landing/dist/index.html`. При деплое nginx раздаёт этот файл на корневой URL.
+Результат — `landing/dist/` (index.html, styles.css, media/). При деплое nginx раздаёт на корневой URL.
 
 ## Деплой
 

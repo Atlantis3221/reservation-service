@@ -29,6 +29,9 @@ jobs:
       - name: Build admin panel
         run: npm run build --workspace=admin
 
+      - name: Build landing
+        run: ADMIN_URL=https://admin.slotik.tech npm run build:landing
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh

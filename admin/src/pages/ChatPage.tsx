@@ -16,6 +16,16 @@ interface ChatMsg {
 
 let msgId = 0;
 
+function getScheduleBaseUrl(): string {
+  const env = import.meta.env.VITE_FRONTEND_URL;
+  if (env) return env.replace(/\/+$/, '');
+  const { protocol, hostname } = window.location;
+  if (hostname.startsWith('admin.')) {
+    return `${protocol}//${hostname.replace('admin.', '')}`;
+  }
+  return `${protocol}//${hostname}`;
+}
+
 export function ChatPage() {
   const { user, businesses, setBusinesses, logout } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -27,6 +37,7 @@ export function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'calendar'>('chat');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const selectedBiz = businesses.find((b) => b.id === selectedBizId) ?? null;
 
   useEffect(() => {
     api.getCommands().then(({ commands: cmds }) => setCommands(cmds)).catch(() => {});
@@ -104,11 +115,29 @@ export function ChatPage() {
         <div className="header-left">
           <span className="logo">Slotik</span>
           {businesses.length > 0 && (
-            <BusinessSwitcher
-              businesses={businesses}
-              selectedId={selectedBizId}
-              onSelect={setSelectedBizId}
-            />
+            <>
+              <BusinessSwitcher
+                businesses={businesses}
+                selectedId={selectedBizId}
+                onSelect={setSelectedBizId}
+              />
+              {selectedBiz && (
+                <a
+                  className="schedule-link"
+                  href={`${getScheduleBaseUrl()}/${selectedBiz.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Открыть расписание для клиентов"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  <span className="schedule-link-text">Расписание</span>
+                </a>
+              )}
+            </>
           )}
         </div>
         <div className="header-right">
