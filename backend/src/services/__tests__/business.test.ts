@@ -59,6 +59,17 @@ function createSchema(db: Database.Database): void {
   db.exec('CREATE INDEX idx_slots_business_date ON slots(business_id, date_key)');
 
   db.exec(`
+    CREATE TABLE contact_links (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  INTEGER NOT NULL,
+      type         TEXT    NOT NULL CHECK(type IN ('telegram', 'vk', 'max')),
+      url          TEXT    NOT NULL,
+      FOREIGN KEY (business_id) REFERENCES businesses(id),
+      UNIQUE(business_id, type)
+    )
+  `);
+
+  db.exec(`
     CREATE TABLE owner_agreements (
       owner_chat_id  TEXT PRIMARY KEY,
       accepted_at    TEXT NOT NULL DEFAULT (datetime('now')),
