@@ -102,6 +102,7 @@ function getDbSizeMb(): number {
 export function getHealthInfo(): {
   uptime: string;
   memoryMb: { rss: number; heapUsed: number; heapTotal: number };
+  users: number;
   businesses: number;
   dbSizeMb: number;
   unrecognizedCommands: number;
@@ -116,10 +117,13 @@ export function getHealthInfo(): {
   const toMb = (bytes: number) => Math.round(bytes / 1024 / 1024 * 10) / 10;
 
   let businesses = 0;
+  let users = 0;
   try {
     const db = getDb();
     const bizRow = db.prepare('SELECT COUNT(*) as cnt FROM businesses').get() as any;
     businesses = bizRow?.cnt ?? 0;
+    const usersRow = db.prepare('SELECT COUNT(DISTINCT owner_chat_id) as cnt FROM businesses').get() as any;
+    users = usersRow?.cnt ?? 0;
   } catch {}
 
   return {
@@ -129,6 +133,7 @@ export function getHealthInfo(): {
       heapUsed: toMb(mem.heapUsed),
       heapTotal: toMb(mem.heapTotal),
     },
+    users,
     businesses,
     dbSizeMb: getDbSizeMb(),
     unrecognizedCommands,
@@ -141,6 +146,7 @@ function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
     `📊 <b>Server Health</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
+    `👤 Users: ${info.users}\n` +
     `🏢 Businesses: ${info.businesses}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
@@ -175,6 +181,7 @@ function sendDailyDigest(): void {
     `📋 <b>Daily Digest</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
+    `👤 Users: ${info.users}\n` +
     `🏢 Businesses: ${info.businesses}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `🔴 Bookings (24h): ${bookings24h}\n` +
@@ -233,18 +240,7 @@ export function initMonitor(): void {
   });
 
   monitorBot.launch()
-    .then(async () => {
-      console.log('[monitor] Monitor bot started');
-
-      const updates = await monitorBot!.telegram.getUpdates(0, 1, 0, []);
-      if (updates.length > 0) {
-        const chatId = (updates[0] as any).message?.chat?.id;
-        if (chatId) {
-          monitorChatId = String(chatId);
-          console.log(`[monitor] Chat ID detected: ${monitorChatId}`);
-        }
-      }
-    })
+    .then(() => console.log('[monitor] Monitor bot started'))
     .catch((err: Error) => console.error('[monitor] Failed to start:', err.message));
 
   monitorBot.on('message', (ctx) => {

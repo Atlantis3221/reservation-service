@@ -36,6 +36,7 @@ app.get('/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     uptime: info.uptime,
     memory: info.memoryMb,
+    users: info.users,
     businesses: info.businesses,
     dbSizeMb: info.dbSizeMb,
     unrecognizedCommands: info.unrecognizedCommands,
