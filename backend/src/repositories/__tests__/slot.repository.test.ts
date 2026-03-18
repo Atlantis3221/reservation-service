@@ -134,7 +134,7 @@ describe('getSlotsForDate', () => {
     testDb.prepare(
       "INSERT INTO businesses (slug, name, owner_chat_id) VALUES ('other', 'Other', '2')"
     ).run();
-    const otherId = Number(testDb.prepare("SELECT id FROM businesses WHERE slug = 'other'").get()!['id' as any]);
+    const otherId = Number((testDb.prepare("SELECT id FROM businesses WHERE slug = 'other'").get() as Record<string, unknown>)?.id);
     addDaySlots(otherId, '2026-03-16', 10, 14);
 
     expect(getSlotsForDate(bizId, '2026-03-16')).toHaveLength(1);
