@@ -286,6 +286,7 @@ sqlite3 -header -column backend/data/reservations.db "SELECT * FROM slots;"
 | `GET`    | `/admin/calendar/dates`           | Все даты со слотами (для календаря)   | JWT  |
 | `GET`    | `/admin/calendar/slots`           | Слоты на дату (с clientName/Phone)    | JWT  |
 | `POST`   | `/admin/calendar/booking`         | Создать запись из календаря            | JWT  |
+| `PUT`    | `/admin/calendar/booking/:id`     | Редактировать запись из календаря      | JWT  |
 | `DELETE` | `/admin/calendar/booking/:id`     | Отменить запись из календаря           | JWT  |
 | `POST`   | `/admin/calendar/schedule`        | Задать расписание на день              | JWT  |
 

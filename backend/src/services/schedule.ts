@@ -8,6 +8,8 @@ export {
   addDaySlots,
   findOverlappingBookings,
   bookRange,
+  updateBooking,
+  getBookingById,
   cancelBookingById,
   cancelBooking,
   clearDay,

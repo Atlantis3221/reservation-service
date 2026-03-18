@@ -50,6 +50,33 @@
   letter-spacing: -0.01em;
 }
 
+.gcal-today-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #4f46e5;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.gcal-today-btn:hover {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
+
+.gcal-today-btn--day {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
 /* Loading */
 
 .gcal-loading {
@@ -237,6 +264,7 @@
   gap: 2px;
   overflow: hidden;
   box-sizing: border-box;
+  z-index: 1;
 }
 
 .gcal-tl-block--booked {
@@ -365,6 +393,7 @@
   background: #ede9fe;
   color: #4f46e5;
   font-weight: 600;
+  box-shadow: 0 0 0 1.5px #c4b5fd;
 }
 
 .gcal-weeknav-day--past:not(.gcal-weeknav-day--selected) .gcal-weeknav-num {

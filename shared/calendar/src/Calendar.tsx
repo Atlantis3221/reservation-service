@@ -198,6 +198,11 @@ export default function Calendar({
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   }
 
+  function goToday(): void {
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    onSelectDate(todayKey);
+  }
+
   function handleDayClick(dateKey: string): void {
     onSelectDate(dateKey);
   }
@@ -281,6 +286,9 @@ export default function Calendar({
               );
             })}
           </div>
+          {selectedDate !== todayKey && (
+            <button className="gcal-today-btn gcal-today-btn--day" onClick={goToday}>Сегодня</button>
+          )}
         </div>
 
         {loadingDay ? (
@@ -317,41 +325,61 @@ export default function Calendar({
                   />
                 ))}
 
-                {bookedSlots.map((slot) => {
-                  let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
-                  let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
-                  if (endMin === 0) endMin = 24 * 60;
-                  if (endMin <= startMin) endMin += 24 * 60;
+                {(() => {
+                  const parsed = bookedSlots.map((slot) => {
+                    let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
+                    let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
+                    if (endMin === 0) endMin = 24 * 60;
+                    if (endMin <= startMin) endMin += 24 * 60;
+                    return { slot, startMin, endMin };
+                  });
 
-                  const top = Math.max(0, startMin - rangeStartMin);
-                  const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
-                  const height = Math.max(bottom - top, 20);
+                  const sorted = [...parsed].sort((a, b) => a.startMin - b.startMin);
+                  const columnOf = new Map<number, number>();
+                  const active: Array<{ id: number; endMin: number; col: number }> = [];
 
-                  const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
-                  const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
+                  for (const { slot, startMin, endMin } of sorted) {
+                    const still = active.filter((a) => a.endMin > startMin);
+                    const used = new Set(still.map((a) => a.col));
+                    let col = 0;
+                    while (used.has(col)) col++;
+                    columnOf.set(slot.id, col);
+                    active.length = 0;
+                    active.push(...still, { id: slot.id, endMin, col });
+                  }
 
                   const interactive = !!onSlotClick;
 
-                  return (
-                    <div
-                      key={slot.id}
-                      className={`gcal-tl-block gcal-tl-block--${slot.status}${interactive ? ' gcal-tl-block--interactive' : ''}`}
-                      style={{ top, height }}
-                      onClick={interactive ? (e) => { e.stopPropagation(); onSlotClick!(slot); } : undefined}
-                    >
-                      <span className="gcal-tl-block-time">
-                        {startTimeStr}–{endTimeStr}
-                      </span>
-                      {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
-                      {showClientInfo && slot.clientName && (
-                        <span className="gcal-tl-block-client">{slot.clientName}</span>
-                      )}
-                      {showClientInfo && slot.clientPhone && (
-                        <span className="gcal-tl-block-phone">{slot.clientPhone}</span>
-                      )}
-                    </div>
-                  );
-                })}
+                  return parsed.map(({ slot, startMin, endMin }) => {
+                    const top = Math.max(0, startMin - rangeStartMin);
+                    const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
+                    const height = Math.max(bottom - top, 20);
+                    const col = columnOf.get(slot.id) || 0;
+
+                    const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
+                    const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
+
+                    return (
+                      <div
+                        key={slot.id}
+                        className={`gcal-tl-block gcal-tl-block--${slot.status}${interactive ? ' gcal-tl-block--interactive' : ''}`}
+                        style={{ top, height, left: 6 + col * 16 }}
+                        onClick={interactive ? (e) => { e.stopPropagation(); onSlotClick!(slot); } : undefined}
+                      >
+                        <span className="gcal-tl-block-time">
+                          {startTimeStr}–{endTimeStr}
+                        </span>
+                        {slot.note && <span className="gcal-tl-block-note">{slot.note}</span>}
+                        {showClientInfo && slot.clientName && (
+                          <span className="gcal-tl-block-client">{slot.clientName}</span>
+                        )}
+                        {showClientInfo && slot.clientPhone && (
+                          <span className="gcal-tl-block-phone">{slot.clientPhone}</span>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
 
                 {pendingSlot && (() => {
                   const pStart = timeToMinutes(pendingSlot.startTime);
@@ -400,6 +428,7 @@ export default function Calendar({
         <h2 className="gcal-title">
           {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
         </h2>
+        <button className="gcal-today-btn" onClick={goToday}>Сегодня</button>
       </div>
 
       <div className="gcal-body">

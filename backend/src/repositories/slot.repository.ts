@@ -144,6 +144,62 @@ export function bookRange(
   return { id: Number(result.lastInsertRowid), count: 1 };
 }
 
+export function updateBooking(
+  slotId: number,
+  fields: {
+    dateKey?: string;
+    startTime?: string;
+    endTime?: string;
+    clientName?: string;
+    clientPhone?: string | null;
+    note?: string | null;
+  },
+): boolean {
+  const sets: string[] = [];
+  const values: any[] = [];
+
+  if (fields.dateKey !== undefined) { sets.push('date_key = ?'); values.push(fields.dateKey); }
+  if (fields.startTime !== undefined) { sets.push('start_time = ?'); values.push(fields.startTime); }
+  if (fields.endTime !== undefined) { sets.push('end_time = ?'); values.push(fields.endTime); }
+  if (fields.clientName !== undefined) { sets.push('client_name = ?'); values.push(fields.clientName); }
+  if (fields.clientPhone !== undefined) { sets.push('client_phone = ?'); values.push(fields.clientPhone); }
+  if (fields.note !== undefined) { sets.push('note = ?'); values.push(fields.note); }
+
+  if (sets.length === 0) return true;
+
+  values.push(slotId);
+  const result = getDb()
+    .prepare(`UPDATE slots SET ${sets.join(', ')} WHERE id = ? AND status = 'booked'`)
+    .run(...values);
+  return result.changes > 0;
+}
+
+export function getBookingById(slotId: number): {
+  id: number;
+  businessId: number;
+  dateKey: string;
+  startTime: string;
+  endTime: string;
+  clientName?: string;
+  clientPhone?: string;
+  note?: string;
+} | null {
+  const row = getDb()
+    .prepare("SELECT * FROM slots WHERE id = ? AND status = 'booked'")
+    .get(slotId) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    dateKey: row.date_key,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    clientName: row.client_name ?? undefined,
+    clientPhone: row.client_phone ?? undefined,
+    note: row.note ?? undefined,
+  };
+}
+
 export function cancelBookingById(slotId: number): {
   cancelled: number;
   clientName?: string;

@@ -158,6 +158,20 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateCalendarBooking: (id: number, data: {
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+    clientName?: string;
+    clientPhone?: string;
+    note?: string;
+    force?: boolean;
+  }) =>
+    request<{ ok?: boolean; conflict?: boolean; overlaps?: any[] }>(`/calendar/booking/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   cancelCalendarBooking: (id: number) =>
     request<{ ok: boolean }>(`/calendar/booking/${id}`, { method: 'DELETE' }),
 

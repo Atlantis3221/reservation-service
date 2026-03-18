@@ -7,12 +7,9 @@ import { getDb } from './db';
 const MONITOR_BOT_TOKEN = process.env.MONITOR_BOT_TOKEN;
 const RATE_LIMIT_MS = 60_000;
 const MAX_STACKTRACE_LEN = 1000;
-const DIGEST_HOUR_MSK = 9;
-
 let monitorBot: Telegraf | null = null;
 let monitorChatId: string | null = null;
 let lastAlertAt = 0;
-let digestTimer: ReturnType<typeof setTimeout> | null = null;
 const startedAt = Date.now();
 let unrecognizedCommands = 0;
 
@@ -154,68 +151,6 @@ function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
   );
 }
 
-function getBookingsLast24h(): number {
-  try {
-    const db = getDb();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateKey = yesterday.toISOString().split('T')[0];
-    const row = db
-      .prepare(
-        `SELECT COUNT(*) as cnt FROM slots
-         WHERE status = 'booked' AND date_key >= ?`
-      )
-      .get(dateKey) as any;
-    return row?.cnt ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
-function sendDailyDigest(): void {
-  const info = getHealthInfo();
-  const bookings24h = getBookingsLast24h();
-  const dockerPs = getDockerPs();
-
-  const text =
-    `📋 <b>Daily Digest</b>\n\n` +
-    `⏱ Uptime: ${info.uptime}\n` +
-    `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
-    `👤 Users: ${info.users}\n` +
-    `🏢 Businesses: ${info.businesses}\n` +
-    `🗄 DB: ${info.dbSizeMb} MB\n` +
-    `🔴 Bookings (24h): ${bookings24h}\n` +
-    `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
-    `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`;
-
-  sendTelegram(text);
-}
-
-function msUntilNextDigest(): number {
-  const now = new Date();
-  const mskOffset = 3 * 60;
-  const mskMinutes = now.getUTCHours() * 60 + now.getUTCMinutes() + mskOffset;
-  const targetMinutes = DIGEST_HOUR_MSK * 60;
-
-  let diffMinutes = targetMinutes - mskMinutes;
-  if (diffMinutes <= 0) diffMinutes += 24 * 60;
-
-  return diffMinutes * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
-}
-
-function startDailyDigest(): void {
-  function scheduleNext() {
-    const ms = msUntilNextDigest();
-    console.log(`[monitor] Next digest in ${Math.round(ms / 60_000)} minutes`);
-    digestTimer = setTimeout(() => {
-      sendDailyDigest();
-      scheduleNext();
-    }, ms);
-  }
-
-  scheduleNext();
-}
-
 export function initMonitor(): void {
   if (!MONITOR_BOT_TOKEN) {
     console.log('[monitor] MONITOR_BOT_TOKEN not set, skipping monitor init');
@@ -251,16 +186,10 @@ export function initMonitor(): void {
     }
   });
 
-  startDailyDigest();
-
   process.once('SIGINT', () => monitorBot?.stop('SIGINT'));
   process.once('SIGTERM', () => monitorBot?.stop('SIGTERM'));
 }
 
 export function stopMonitor(): void {
-  if (digestTimer) {
-    clearTimeout(digestTimer);
-    digestTimer = null;
-  }
   monitorBot?.stop();
 }

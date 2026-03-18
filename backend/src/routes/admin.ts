@@ -13,6 +13,8 @@ import {
   getSlotsForDateAdmin,
   findOverlappingBookings,
   bookRange,
+  updateBooking,
+  getBookingById,
   cancelBookingById,
   addDaySlots,
   getSlotBusinessId,
@@ -225,6 +227,58 @@ adminRouter.post('/calendar/booking', (req: AuthRequest, res: Response) => {
 
   const result = bookRange(businessId, date, startTime, endTime, note, clientName, clientPhone);
   res.json({ ok: true, id: result.id });
+});
+
+adminRouter.put('/calendar/booking/:id', (req: AuthRequest, res: Response) => {
+  const slotId = Number(req.params.id);
+  const booking = getBookingById(slotId);
+  if (!booking) {
+    res.status(404).json({ error: 'Запись не найдена' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, booking.businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  const { date, startTime, endTime, clientName, clientPhone, note, force } = req.body;
+  if (clientName !== undefined && !clientName.trim()) {
+    res.status(400).json({ error: 'Имя клиента обязательно' });
+    return;
+  }
+
+  const newDateKey = date || booking.dateKey;
+  const newStartTime = startTime || booking.startTime;
+  const newEndTime = endTime || booking.endTime;
+
+  const timeChanged = newDateKey !== booking.dateKey
+    || newStartTime !== booking.startTime
+    || newEndTime !== booking.endTime;
+
+  if (timeChanged && !force) {
+    const overlaps = findOverlappingBookings(booking.businessId, newDateKey, newStartTime, newEndTime)
+      .filter((o) => o.id !== slotId);
+    if (overlaps.length > 0) {
+      res.json({ conflict: true, overlaps });
+      return;
+    }
+  }
+
+  const fields: Record<string, any> = {};
+  if (date !== undefined) fields.dateKey = date;
+  if (startTime !== undefined) fields.startTime = startTime;
+  if (endTime !== undefined) fields.endTime = endTime;
+  if (clientName !== undefined) fields.clientName = clientName.trim();
+  if (clientPhone !== undefined) fields.clientPhone = clientPhone || null;
+  if (note !== undefined) fields.note = note || null;
+
+  const updated = updateBooking(slotId, fields);
+  if (!updated) {
+    res.status(404).json({ error: 'Запись не найдена или уже отменена' });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 adminRouter.delete('/calendar/booking/:id', (req: AuthRequest, res: Response) => {

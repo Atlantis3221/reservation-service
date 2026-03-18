@@ -2,7 +2,7 @@
 
 **Ветка:** `24-edit-booking`
 **Создана:** 2026-03-17
-**Статус:** уточнён
+**Статус:** реализовано
 
 ## Контекст
 
@@ -75,10 +75,10 @@
 
 ## Задачи
 
-- [ ] Добавить `updateBooking` в `slot.repository.ts` — UPDATE полей слота по id
-- [ ] Добавить реэкспорт `updateBooking` в `services/schedule.ts`
-- [ ] Добавить `PUT /admin/calendar/booking/:id` в `routes/admin.ts` с валидацией и проверкой конфликтов
-- [ ] Добавить `updateCalendarBooking` в `admin/src/api.ts`
-- [ ] Добавить состояние `edit-booking` в `SheetState` в `CalendarPage.tsx`
-- [ ] Реализовать UI редактирования в bottom sheet: кнопка «Редактировать» → редактируемые поля → «Сохранить» / «Отмена»
-- [ ] Обновить README (API-таблица)
+- [x] Добавить `updateBooking` в `slot.repository.ts` — UPDATE полей слота по id
+- [x] Добавить реэкспорт `updateBooking` в `services/schedule.ts`
+- [x] Добавить `PUT /admin/calendar/booking/:id` в `routes/admin.ts` с валидацией и проверкой конфликтов
+- [x] Добавить `updateCalendarBooking` в `admin/src/api.ts`
+- [x] Добавить состояние `edit-booking` в `SheetState` в `CalendarPage.tsx`
+- [x] Реализовать UI редактирования в bottom sheet: кнопка «Редактировать» → редактируемые поля → «Сохранить» / «Отмена»
+- [x] Обновить README (API-таблица)

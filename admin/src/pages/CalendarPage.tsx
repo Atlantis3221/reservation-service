@@ -19,6 +19,7 @@ type SheetState =
   | { type: 'none' }
   | { type: 'slot-detail'; slot: DaySlot }
   | { type: 'new-booking'; date: string }
+  | { type: 'edit-booking'; slot: DaySlot; originalDate: string }
   | { type: 'set-schedule'; date: string };
 
 export function CalendarPage({ businessId }: { businessId: number | null }) {
@@ -35,6 +36,8 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [note, setNote] = useState('');
+
+  const [editDate, setEditDate] = useState('');
 
   const [scheduleStart, setScheduleStart] = useState('10:00');
   const [scheduleEnd, setScheduleEnd] = useState('22:00');
@@ -109,6 +112,62 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
       if (result.conflict) {
         setShowConfirm(true);
         setError('На это время уже есть запись. Создать ещё одну?');
+        return;
+      }
+      closeSheet();
+      refresh();
+    } catch (err: any) {
+      setError(err.message || 'Ошибка');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleStartEdit(slot: DaySlot) {
+    const dateKey = slot.startDatetime.split('T')[0];
+    setStartTime(slot.startDatetime.split('T')[1].substring(0, 5));
+    setEndTime(slot.endDatetime.split('T')[1].substring(0, 5));
+    setClientName(slot.clientName || '');
+    setClientPhone(slot.clientPhone || '');
+    setNote(slot.note || '');
+    setEditDate(dateKey);
+    setError('');
+    setShowConfirm(false);
+    setSheet({ type: 'edit-booking', slot, originalDate: dateKey });
+  }
+
+  async function handleSaveEdit(force = false) {
+    if (sheet.type !== 'edit-booking') return;
+    if (!clientName.trim()) { setError('Укажите имя клиента'); return; }
+    if (!startTime || !endTime) { setError('Укажите время'); return; }
+
+    const orig = sheet.slot;
+    const origDate = sheet.originalDate;
+    const origStart = orig.startDatetime.split('T')[1].substring(0, 5);
+    const origEnd = orig.endDatetime.split('T')[1].substring(0, 5);
+
+    const changes: Record<string, any> = {};
+    if (editDate !== origDate) changes.date = editDate;
+    if (startTime !== origStart) changes.startTime = startTime;
+    if (endTime !== origEnd) changes.endTime = endTime;
+    if (clientName.trim() !== (orig.clientName || '')) changes.clientName = clientName.trim();
+    if (clientPhone.trim() !== (orig.clientPhone || '')) changes.clientPhone = clientPhone.trim();
+    if (note.trim() !== (orig.note || '')) changes.note = note.trim();
+
+    if (Object.keys(changes).length === 0) {
+      closeSheet();
+      return;
+    }
+
+    if (force) changes.force = true;
+
+    setSaving(true);
+    setError('');
+    try {
+      const result = await api.updateCalendarBooking(orig.id, changes);
+      if (result.conflict) {
+        setShowConfirm(true);
+        setError('На это время уже есть запись. Сохранить всё равно?');
         return;
       }
       closeSheet();
@@ -307,12 +366,86 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
                         <button className="btn-secondary" onClick={() => setConfirmCancel(false)}>Нет</button>
                       </>
                     ) : (
-                      <button className="btn-danger" onClick={() => setConfirmCancel(true)}>
-                        Отменить запись
-                      </button>
+                      <>
+                        <button className="btn-primary" onClick={() => handleStartEdit(sheet.slot)}>
+                          Редактировать
+                        </button>
+                        <button className="btn-danger" onClick={() => setConfirmCancel(true)}>
+                          Отменить запись
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {sheet.type === 'edit-booking' && (
+              <div className="sheet-content">
+                <h3 className="sheet-title">Редактирование записи</h3>
+                <div className="sheet-fields">
+                  <div className="sheet-row">
+                    <label>Дата</label>
+                    <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Начало</label>
+                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Конец</label>
+                    <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Имя клиента</label>
+                    <input
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Иванов Иван"
+                    />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Телефон</label>
+                    <input
+                      type="tel"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      placeholder="+7 900 123-45-67"
+                    />
+                  </div>
+                  <div className="sheet-row">
+                    <label>Описание</label>
+                    <textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Комментарий к записи"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+                {error && (
+                  <div className={`sheet-error${showConfirm ? ' sheet-error--warning' : ''}`}>
+                    {error}
+                  </div>
+                )}
+                <div className="sheet-actions">
+                  {showConfirm ? (
+                    <>
+                      <button className="btn-primary" onClick={() => handleSaveEdit(true)} disabled={saving}>
+                        Сохранить всё равно
+                      </button>
+                      <button className="btn-secondary" onClick={closeSheet}>Отмена</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn-primary" onClick={() => handleSaveEdit(false)} disabled={saving}>
+                        {saving ? 'Сохранение...' : 'Сохранить'}
+                      </button>
+                      <button className="btn-secondary" onClick={closeSheet}>Отмена</button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
