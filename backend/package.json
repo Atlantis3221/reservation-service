@@ -16,7 +16,8 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "vk-io": "^4.10.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

@@ -122,6 +122,13 @@ interface TelegramUser {
   createdAt: string;
 }
 
+interface RecentBusiness {
+  name: string;
+  slug: string;
+  ownerUsername: string | null;
+  createdAt: string;
+}
+
 interface AdminUser {
   email: string;
   createdAt: string;
@@ -135,6 +142,7 @@ export function getHealthInfo(): {
   dbSizeMb: number;
   unrecognizedCommands: number;
   telegramUsers: TelegramUser[];
+  recentBusinesses: RecentBusiness[];
   adminUsers: AdminUser[];
 } {
   const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
@@ -148,6 +156,7 @@ export function getHealthInfo(): {
 
   let businesses = 0;
   let telegramUsers: TelegramUser[] = [];
+  let recentBusinesses: RecentBusiness[] = [];
   let adminUsers: AdminUser[] = [];
   try {
     const db = getDb();
@@ -169,6 +178,17 @@ export function getHealthInfo(): {
       ORDER BY MIN(b.created_at) DESC
     `).all() as TelegramUser[];
 
+    recentBusinesses = db.prepare(`
+      SELECT
+        name,
+        slug,
+        telegram_username AS ownerUsername,
+        created_at AS createdAt
+      FROM businesses
+      ORDER BY created_at DESC
+      LIMIT 10
+    `).all() as RecentBusiness[];
+
     adminUsers = db.prepare(`
       SELECT email, created_at AS createdAt,
         CASE WHEN owner_chat_id IS NOT NULL THEN 1 ELSE 0 END AS linked
@@ -188,6 +208,7 @@ export function getHealthInfo(): {
     dbSizeMb: getDbSizeMb(),
     unrecognizedCommands,
     telegramUsers,
+    recentBusinesses,
     adminUsers,
   };
 }
@@ -200,6 +221,13 @@ function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
         const name = u.username ? `@${escapeHtml(u.username)}` : u.chatId;
         const phone = u.phone || '—';
         return `  ${i + 1}. ${name} | ${phone} | ${u.businessCount} точ. | ${u.msgCount} сообщ. | ${u.createdAt}`;
+      }).join('\n')
+    : '  нет';
+
+  const bizList = info.recentBusinesses.length
+    ? info.recentBusinesses.map((b, i) => {
+        const owner = b.ownerUsername ? `@${escapeHtml(b.ownerUsername)}` : '—';
+        return `  ${i + 1}. ${escapeHtml(b.name)} (<code>${escapeHtml(b.slug)}</code>) | ${owner} | ${b.createdAt}`;
       }).join('\n')
     : '  нет';
 
@@ -218,6 +246,7 @@ function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
     `🤖 <b>Telegram-пользователи (${info.telegramUsers.length}):</b>\n${tgTable}\n\n` +
+    `🏢 <b>Последние бизнесы (${info.recentBusinesses.length}):</b>\n${bizList}\n\n` +
     `🌐 <b>Админ-панель (${info.adminUsers.length}):</b>\n${adminList}\n\n` +
     `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`
   );

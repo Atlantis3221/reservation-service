@@ -4,6 +4,7 @@ import cors from 'cors';
 import { networkInterfaces } from 'os';
 import { initDb } from './services/db';
 import { initBot } from './bot';
+import { initVkBot } from './vk-bot';
 import { apiRouter } from './routes/api';
 import { adminRouter } from './routes/admin';
 import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
@@ -41,6 +42,7 @@ app.get('/health', (_req, res) => {
     dbSizeMb: info.dbSizeMb,
     unrecognizedCommands: info.unrecognizedCommands,
     telegramUsers: info.telegramUsers,
+    recentBusinesses: info.recentBusinesses,
     adminUsers: info.adminUsers,
   });
 });
@@ -73,6 +75,7 @@ app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`[server] Network:  http://${localIP}:${PORT}`);
   }
   initBot();
+  initVkBot();
   initMonitor();
   initDemo();
 });

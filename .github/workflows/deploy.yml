@@ -69,6 +69,22 @@ jobs:
             admin/dist/ \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/admin-dist/
 
+      - name: Generate backend .env
+        env:
+          ENV_CONTENT: |
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            PORT=3000
+            NODE_ENV=production
+            FRONTEND_URL=https://slotik.tech
+            ADMIN_URL=https://admin.slotik.tech
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            MONITOR_BOT_TOKEN=${{ secrets.MONITOR_BOT_TOKEN }}
+            VK_BOT_TOKEN=${{ secrets.VK_BOT_TOKEN }}
+            VK_GROUP_ID=${{ secrets.VK_GROUP_ID }}
+        run: |
+          printf '%s' "$ENV_CONTENT" | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cat > ${{ secrets.DEPLOY_PATH }}/backend/.env"
+
       - name: Restart containers
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \

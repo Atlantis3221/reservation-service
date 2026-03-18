@@ -1,10 +1,10 @@
 # Backend — reservation-service
 
-Express API + Telegram-бот для управления бронированиями.
+Express API + Telegram-бот + VK-бот для управления бронированиями.
 
 ## Архитектура
 
-Слоистая архитектура с разделением по ответственности. Два канала доступа (REST API и Telegram-бот) работают через общий слой сервисов и репозиториев.
+Слоистая архитектура с разделением по ответственности. Три канала доступа (REST API, Telegram-бот и VK-бот) работают через общий слой сервисов и репозиториев.
 
 ```mermaid
 graph TB
@@ -16,6 +16,7 @@ graph TB
         API[routes/api.ts<br/>REST API]
         ADMIN[routes/admin.ts<br/>Admin API + Calendar API]
         BOT[bot/<br/>Telegram-бот]
+        VKBOT[vk-bot/<br/>VK-бот]
         MON[services/monitor.ts<br/>Мониторинг-бот]
         DEMO[services/demo.ts<br/>Демо-баня + cron]
     end
@@ -43,6 +44,7 @@ graph TB
     EP --> API
     EP --> ADMIN
     EP --> BOT
+    EP --> VKBOT
     EP --> MON
     EP --> DEMO
 
@@ -55,6 +57,8 @@ graph TB
     API --> SCH
     BOT --> BIZ
     BOT --> SCH
+    VKBOT --> BIZ
+    VKBOT --> SCH
     SCH --> REPO
     REPO --> DB
     BIZ --> DB
@@ -62,6 +66,7 @@ graph TB
     DEMO --> BIZ
     DEMO --> REPO
     BOT --> UTIL
+    VKBOT --> UTIL
     REPO --> UTIL
 ```
 
@@ -135,6 +140,11 @@ backend/
 │   │       ├── formatters.test.ts
 │   │       └── parsers.test.ts
 │   │
+│   ├── vk-bot/                           # VK-бот (канал доступа, Long Poll)
+│   │   ├── index.ts                      # Инициализация VK, Long Poll
+│   │   ├── handlers.ts                   # Обработчики сообщений и callback-кнопок
+│   │   └── keyboard.ts                   # Адаптер клавиатур VK + stripFormatting
+│   │
 │   ├── routes/                           # REST API (каналы доступа)
 │   │   ├── api.ts                        # Express-роуты: /business/:slug/*
 │   │   └── admin.ts                      # Admin API: auth, command, link, calendar
@@ -178,7 +188,9 @@ backend/
 | Новый Admin-эндпоинт | `routes/admin.ts` | POST /admin/command, Calendar API |
 | Авторизация / JWT | `services/auth.ts` | Проверка токена, хеширование |
 | Команда чата (web) | `services/command.ts` | Обработка текстовой команды |
-| Новая команда бота | `bot/handlers.ts` | Обработка /report |
+| Новая команда Telegram-бота | `bot/handlers.ts` | Обработка /report |
+| Новая команда VK-бота | `vk-bot/handlers.ts` | Обработка новой команды в VK |
+| VK-клавиатура / утилиты | `vk-bot/keyboard.ts` | Адаптер кнопок для VK |
 | Парсинг текста пользователя | `bot/parsers.ts` | Распознавание "перенеси бронь" |
 | Форматирование ответа бота | `bot/formatters.ts` | Новый формат расписания |
 | Новый тип или интерфейс | `types.ts` | Тип для нового отчёта |
@@ -272,7 +284,8 @@ npx vitest run src/services/__tests__/business.test.ts
 | Runtime | Node.js 20 |
 | Framework | Express 4 |
 | DB | SQLite (better-sqlite3), WAL mode |
-| Bot | Telegraf 4 |
+| Bot (Telegram) | Telegraf 4 |
+| Bot (VK) | vk-io 4 |
 | Tests | Vitest 4 |
 | Dev | tsx (watch mode) |
 | Build | TypeScript 5 → CommonJS |
