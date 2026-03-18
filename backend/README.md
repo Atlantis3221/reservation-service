@@ -17,6 +17,7 @@ graph TB
         ADMIN[routes/admin.ts<br/>Admin API + Calendar API]
         BOT[bot/<br/>Telegram-бот]
         MON[services/monitor.ts<br/>Мониторинг-бот]
+        DEMO[services/demo.ts<br/>Демо-баня + cron]
     end
 
     subgraph "Авторизация"
@@ -43,6 +44,7 @@ graph TB
     EP --> ADMIN
     EP --> BOT
     EP --> MON
+    EP --> DEMO
 
     ADMIN --> AUTH
     ADMIN --> CMD
@@ -57,6 +59,8 @@ graph TB
     REPO --> DB
     BIZ --> DB
     ADMIN_REPO --> DB
+    DEMO --> BIZ
+    DEMO --> REPO
     BOT --> UTIL
     REPO --> UTIL
 ```
@@ -142,6 +146,7 @@ backend/
 │   │   ├── auth.ts                       # Регистрация, вход, JWT, bcrypt
 │   │   ├── command.ts                    # Выполнение команд (реюз из bot/)
 │   │   ├── monitor.ts                    # Мониторинг: алерты, /health, дайджест
+│   │   ├── demo.ts                       # Демо-баня: автосоздание + ежедневные записи (cron)
 │   │   └── __tests__/
 │   │       └── business.test.ts
 │   │

@@ -103,6 +103,7 @@ export function getHealthInfo(): {
   businesses: number;
   dbSizeMb: number;
   unrecognizedCommands: number;
+  recentUsers: { email: string; created_at: string }[];
 } {
   const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
   const hours = Math.floor(uptimeSec / 3600);
@@ -115,12 +116,16 @@ export function getHealthInfo(): {
 
   let businesses = 0;
   let users = 0;
+  let recentUsers: { email: string; created_at: string }[] = [];
   try {
     const db = getDb();
     const bizRow = db.prepare('SELECT COUNT(*) as cnt FROM businesses').get() as any;
     businesses = bizRow?.cnt ?? 0;
     const usersRow = db.prepare('SELECT COUNT(DISTINCT owner_chat_id) as cnt FROM businesses').get() as any;
     users = usersRow?.cnt ?? 0;
+    recentUsers = db.prepare(
+      'SELECT email, created_at FROM admin_users ORDER BY created_at DESC LIMIT 10'
+    ).all() as { email: string; created_at: string }[];
   } catch {}
 
   return {
@@ -134,11 +139,17 @@ export function getHealthInfo(): {
     businesses,
     dbSizeMb: getDbSizeMb(),
     unrecognizedCommands,
+    recentUsers,
   };
 }
 
 function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
   const dockerPs = getDockerPs();
+
+  const recentList = info.recentUsers.length
+    ? info.recentUsers.map((u, i) => `  ${i + 1}. ${escapeHtml(u.email)} (${u.created_at})`).join('\n')
+    : '  нет';
+
   return (
     `📊 <b>Server Health</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
@@ -147,6 +158,7 @@ function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
     `🏢 Businesses: ${info.businesses}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
+    `📋 <b>Последние регистрации:</b>\n${recentList}\n\n` +
     `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`
   );
 }

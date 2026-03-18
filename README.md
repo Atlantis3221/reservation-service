@@ -32,7 +32,8 @@ reservation-service/
 │   │   │   ├── schedule.ts           # реэкспорт из slot.repository
 │   │   │   ├── auth.ts               # регистрация, вход, JWT, bcrypt
 │   │   │   ├── command.ts            # выполнение команд (реюз из bot/)
-│   │   │   └── monitor.ts            # мониторинг: алерты, /health, дайджест
+│   │   │   ├── monitor.ts            # мониторинг: алерты, /health, дайджест
+│   │   │   └── demo.ts              # демо-баня: автосоздание + ежедневные записи (cron)
 │   │   ├── repositories/
 │   │   │   ├── slot.repository.ts    # слоты: CRUD, бронирование, статистика
 │   │   │   └── admin-user.repository.ts # admin_users, link_codes, reset_tokens

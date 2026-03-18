@@ -7,6 +7,7 @@ import { initBot } from './bot';
 import { apiRouter } from './routes/api';
 import { adminRouter } from './routes/admin';
 import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
+import { initDemo } from './services/demo';
 
 process.on('uncaughtException', (err) => {
   console.error('[fatal] Uncaught exception:', err);
@@ -40,6 +41,7 @@ app.get('/health', (_req, res) => {
     businesses: info.businesses,
     dbSizeMb: info.dbSizeMb,
     unrecognizedCommands: info.unrecognizedCommands,
+    recentUsers: info.recentUsers,
   });
 });
 
@@ -72,4 +74,5 @@ app.listen(Number(PORT), '0.0.0.0', () => {
   }
   initBot();
   initMonitor();
+  initDemo();
 });
