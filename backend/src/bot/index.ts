@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { registerHandlers } from './handlers';
+import { trackBotMessage } from '../services/monitor';
 
 let bot: Telegraf | null = null;
 
@@ -18,6 +19,7 @@ export function initBot(): void {
     if (update.message) {
       const m = update.message;
       console.log(`[bot] << message from=${m.from?.username || m.from?.id} chat=${m.chat?.id} text="${m.text}"`);
+      trackBotMessage(m.chat?.id);
     } else if (update.callback_query) {
       const cb = update.callback_query;
       console.log(`[bot] << callback from=${cb.from?.username || cb.from?.id} data="${cb.data}"`);

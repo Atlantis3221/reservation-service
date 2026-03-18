@@ -146,6 +146,14 @@ function migrate(): void {
       UNIQUE(business_id, type)
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bot_message_counts (
+      chat_id      TEXT PRIMARY KEY,
+      msg_count    INTEGER NOT NULL DEFAULT 0,
+      last_msg_at  TEXT
+    )
+  `);
 }
 
 function pad2(n: number): string {

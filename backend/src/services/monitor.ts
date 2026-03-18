@@ -17,6 +17,23 @@ export function trackUnrecognizedCommand(): void {
   unrecognizedCommands++;
 }
 
+let trackStmt: ReturnType<ReturnType<typeof getDb>['prepare']> | null = null;
+
+export function trackBotMessage(chatId: string | number): void {
+  try {
+    if (!trackStmt) {
+      trackStmt = getDb().prepare(`
+        INSERT INTO bot_message_counts (chat_id, msg_count, last_msg_at)
+        VALUES (?, 1, datetime('now'))
+        ON CONFLICT(chat_id) DO UPDATE SET
+          msg_count = msg_count + 1,
+          last_msg_at = datetime('now')
+      `);
+    }
+    trackStmt.run(String(chatId));
+  } catch {}
+}
+
 export function getUnrecognizedCount(): number {
   return unrecognizedCommands;
 }
@@ -96,14 +113,29 @@ function getDbSizeMb(): number {
   }
 }
 
+interface TelegramUser {
+  chatId: string;
+  username: string | null;
+  phone: string | null;
+  businessCount: number;
+  msgCount: number;
+  createdAt: string;
+}
+
+interface AdminUser {
+  email: string;
+  createdAt: string;
+  linked: boolean;
+}
+
 export function getHealthInfo(): {
   uptime: string;
   memoryMb: { rss: number; heapUsed: number; heapTotal: number };
-  users: number;
   businesses: number;
   dbSizeMb: number;
   unrecognizedCommands: number;
-  recentUsers: { email: string; created_at: string }[];
+  telegramUsers: TelegramUser[];
+  adminUsers: AdminUser[];
 } {
   const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
   const hours = Math.floor(uptimeSec / 3600);
@@ -115,17 +147,34 @@ export function getHealthInfo(): {
   const toMb = (bytes: number) => Math.round(bytes / 1024 / 1024 * 10) / 10;
 
   let businesses = 0;
-  let users = 0;
-  let recentUsers: { email: string; created_at: string }[] = [];
+  let telegramUsers: TelegramUser[] = [];
+  let adminUsers: AdminUser[] = [];
   try {
     const db = getDb();
     const bizRow = db.prepare('SELECT COUNT(*) as cnt FROM businesses').get() as any;
     businesses = bizRow?.cnt ?? 0;
-    const usersRow = db.prepare('SELECT COUNT(DISTINCT owner_chat_id) as cnt FROM businesses').get() as any;
-    users = usersRow?.cnt ?? 0;
-    recentUsers = db.prepare(
-      'SELECT email, created_at FROM admin_users ORDER BY created_at DESC LIMIT 10'
-    ).all() as { email: string; created_at: string }[];
+
+    telegramUsers = db.prepare(`
+      SELECT
+        b.owner_chat_id   AS chatId,
+        b.telegram_username AS username,
+        COALESCE(b.owner_phone, oa.phone) AS phone,
+        COUNT(DISTINCT b.id) AS businessCount,
+        COALESCE(mc.msg_count, 0) AS msgCount,
+        MIN(b.created_at)  AS createdAt
+      FROM businesses b
+      LEFT JOIN owner_agreements oa ON oa.owner_chat_id = b.owner_chat_id
+      LEFT JOIN bot_message_counts mc ON mc.chat_id = b.owner_chat_id
+      GROUP BY b.owner_chat_id
+      ORDER BY MIN(b.created_at) DESC
+    `).all() as TelegramUser[];
+
+    adminUsers = db.prepare(`
+      SELECT email, created_at AS createdAt,
+        CASE WHEN owner_chat_id IS NOT NULL THEN 1 ELSE 0 END AS linked
+      FROM admin_users ORDER BY created_at DESC LIMIT 10
+    `).all() as any[];
+    adminUsers = adminUsers.map((u: any) => ({ ...u, linked: !!u.linked }));
   } catch {}
 
   return {
@@ -135,30 +184,41 @@ export function getHealthInfo(): {
       heapUsed: toMb(mem.heapUsed),
       heapTotal: toMb(mem.heapTotal),
     },
-    users,
     businesses,
     dbSizeMb: getDbSizeMb(),
     unrecognizedCommands,
-    recentUsers,
+    telegramUsers,
+    adminUsers,
   };
 }
 
 function formatHealthMessage(info: ReturnType<typeof getHealthInfo>): string {
   const dockerPs = getDockerPs();
 
-  const recentList = info.recentUsers.length
-    ? info.recentUsers.map((u, i) => `  ${i + 1}. ${escapeHtml(u.email)} (${u.created_at})`).join('\n')
+  const tgTable = info.telegramUsers.length
+    ? info.telegramUsers.map((u, i) => {
+        const name = u.username ? `@${escapeHtml(u.username)}` : u.chatId;
+        const phone = u.phone || '—';
+        return `  ${i + 1}. ${name} | ${phone} | ${u.businessCount} точ. | ${u.msgCount} сообщ. | ${u.createdAt}`;
+      }).join('\n')
+    : '  нет';
+
+  const adminList = info.adminUsers.length
+    ? info.adminUsers.map((u, i) => {
+        const link = u.linked ? ' ✅' : '';
+        return `  ${i + 1}. ${escapeHtml(u.email)}${link} (${u.createdAt})`;
+      }).join('\n')
     : '  нет';
 
   return (
     `📊 <b>Server Health</b>\n\n` +
     `⏱ Uptime: ${info.uptime}\n` +
     `💾 RAM: ${info.memoryMb.rss} MB (heap ${info.memoryMb.heapUsed}/${info.memoryMb.heapTotal} MB)\n` +
-    `👤 Users: ${info.users}\n` +
     `🏢 Businesses: ${info.businesses}\n` +
     `🗄 DB: ${info.dbSizeMb} MB\n` +
     `❓ Unrecognized: ${info.unrecognizedCommands}\n\n` +
-    `📋 <b>Последние регистрации:</b>\n${recentList}\n\n` +
+    `🤖 <b>Telegram-пользователи (${info.telegramUsers.length}):</b>\n${tgTable}\n\n` +
+    `🌐 <b>Админ-панель (${info.adminUsers.length}):</b>\n${adminList}\n\n` +
     `🐳 <b>Docker:</b>\n<pre>${escapeHtml(dockerPs)}</pre>`
   );
 }
