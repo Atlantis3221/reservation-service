@@ -1,11 +1,13 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import cron from 'node-cron';
 
 const DB_DIR = process.env.DB_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'reservations.db');
 const BACKUP_DIR = path.join(DB_DIR, 'backups');
 const MAX_BACKUPS = 10;
+const SLOT_RETENTION_DAYS = 30;
 
 let db: Database.Database;
 
@@ -315,6 +317,36 @@ function migrationV1(d: Database.Database): void {
   }
 
   d.exec('CREATE INDEX IF NOT EXISTS idx_booking_requests_business ON booking_requests(business_id, status)');
+}
+
+// ---- Slot Cleanup ----
+
+function cleanupOldSlots(): void {
+  try {
+    const d = getDb();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - SLOT_RETENTION_DAYS);
+    const cutoffKey = cutoff.toISOString().slice(0, 10);
+
+    const result = d.prepare('DELETE FROM slots WHERE date_key < ?').run(cutoffKey);
+    if (result.changes > 0) {
+      console.log(`[db] Cleanup: deleted ${result.changes} old slot(s) before ${cutoffKey}`);
+    }
+  } catch (err) {
+    console.error('[db] Slot cleanup failed:', err);
+  }
+}
+
+export function initCleanup(): void {
+  cleanupOldSlots();
+
+  // 00:10 MSK (UTC+3) = 21:10 UTC — after demo cron at 21:05
+  cron.schedule('10 21 * * *', () => {
+    console.log('[db] Daily cleanup triggered');
+    cleanupOldSlots();
+  });
+
+  console.log('[db] Slot cleanup initialized, cron scheduled at 00:10 MSK');
 }
 
 // ---- Helpers ----
