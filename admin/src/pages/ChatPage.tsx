@@ -152,7 +152,7 @@ export function ChatPage() {
       setSelectedBizId(bizs[0].id);
     }
     setShowLink(false);
-    addAssistantMessages([{ text: `✅ Telegram привязан! Найдено заведений: ${bizs.length}` }]);
+    addAssistantMessages([{ text: `✅ Бот привязан! Найдено заведений: ${bizs.length}` }]);
   }
 
   return (
@@ -202,8 +202,8 @@ export function ChatPage() {
         open={burgerOpen}
         onClose={() => setBurgerOpen(false)}
         email={user?.email || ''}
-        telegramLinked={!!user?.ownerChatId}
-        onLinkTelegram={() => setShowLink(true)}
+        ownerChatId={user?.ownerChatId ?? null}
+        onLinkBot={() => setShowLink(true)}
         onLogout={logout}
       />
 

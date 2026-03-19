@@ -4,17 +4,22 @@ interface Props {
   open: boolean;
   onClose: () => void;
   email: string;
-  telegramLinked: boolean;
-  onLinkTelegram: () => void;
+  ownerChatId: string | null;
+  onLinkBot: () => void;
   onLogout: () => void;
+}
+
+function linkedPlatform(ownerChatId: string | null): string | null {
+  if (!ownerChatId) return null;
+  return ownerChatId.startsWith('vk:') ? 'VK' : 'Telegram';
 }
 
 export function BurgerMenu({
   open,
   onClose,
   email,
-  telegramLinked,
-  onLinkTelegram,
+  ownerChatId,
+  onLinkBot,
   onLogout,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -48,12 +53,14 @@ export function BurgerMenu({
         </div>
 
         <nav className="burger-nav">
-          <button className="burger-item" onClick={() => { onLinkTelegram(); onClose(); }}>
+          <button className="burger-item" onClick={() => { onLinkBot(); onClose(); }}>
             <span className="burger-item-icon">🔗</span>
             <div className="burger-item-content">
-              <span className="burger-item-label">Привязать Telegram</span>
+              <span className="burger-item-label">Привязать бота</span>
               <span className="burger-item-hint">
-                {telegramLinked ? '✅ Привязан' : 'Не привязан'}
+                {linkedPlatform(ownerChatId)
+                  ? `✅ ${linkedPlatform(ownerChatId)} привязан`
+                  : 'Не привязан'}
               </span>
             </div>
           </button>

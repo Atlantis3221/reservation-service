@@ -178,7 +178,7 @@ adminRouter.post('/link-telegram', (req: AuthRequest, res: Response) => {
 
   const existing = getAdminUserByOwnerChatId(ownerChatId);
   if (existing && existing.id !== req.adminUserId!) {
-    res.status(400).json({ error: 'Этот Telegram аккаунт уже привязан к другому пользователю' });
+    res.status(400).json({ error: 'Этот аккаунт уже привязан к другому пользователю' });
     return;
   }
 

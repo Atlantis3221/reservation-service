@@ -29,7 +29,7 @@ export function LinkTelegram({ onLinked, onClose }: Props) {
     <div className="link-panel">
       <div className="link-content">
         <p>
-          Отправьте <code>/link</code> Telegram-боту, чтобы получить 6-значный код.
+          Отправьте <code>/link</code> боту в Telegram или VK, чтобы получить 6-значный код.
           Введите его ниже для привязки заведений.
         </p>
         <form onSubmit={handleSubmit} className="link-form">
