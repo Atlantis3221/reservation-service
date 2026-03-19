@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { networkInterfaces } from 'os';
-import { initDb } from './services/db';
+import { initDb, checkDbIntegrity } from './services/db';
 import { initBot } from './bot';
 import { initVkBot } from './vk-bot';
 import { apiRouter } from './routes/api';
@@ -77,5 +77,6 @@ app.listen(Number(PORT), '0.0.0.0', () => {
   initBot();
   initVkBot();
   initMonitor();
+  checkDbIntegrity();
   initDemo();
 });

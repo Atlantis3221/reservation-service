@@ -150,7 +150,7 @@ backend/
 │   │   └── admin.ts                      # Admin API: auth, command, link, calendar
 │   │
 │   ├── services/                         # Бизнес-логика и инфраструктура
-│   │   ├── db.ts                         # SQLite init, миграции, getDb()
+│   │   ├── db.ts                         # SQLite init, бэкапы, версионированные миграции, getDb()
 │   │   ├── business.ts                   # CRUD бизнесов, slug, соглашения, контактные ссылки
 │   │   ├── schedule.ts                   # Реэкспорт из slot.repository
 │   │   ├── auth.ts                       # Регистрация, вход, JWT, bcrypt
@@ -159,7 +159,8 @@ backend/
 │   │   ├── monitor.ts                    # Мониторинг: алерты, /health, дайджест
 │   │   ├── demo.ts                       # Демо-баня: автосоздание + ежедневные записи (cron)
 │   │   └── __tests__/
-│   │       └── business.test.ts
+│   │       ├── business.test.ts
+│   │       └── db.test.ts
 │   │
 │   ├── repositories/                     # Доступ к данным (SQL-запросы)
 │   │   ├── slot.repository.ts            # Слоты: выборка, бронирование, отмена
@@ -174,7 +175,8 @@ backend/
 │           └── date.test.ts
 │
 ├── data/                                 # БД (создаётся автоматически)
-│   └── reservations.db
+│   ├── reservations.db
+│   └── backups/                          # Автоматические бэкапы (макс 10)
 ├── Dockerfile
 ├── package.json
 └── tsconfig.json

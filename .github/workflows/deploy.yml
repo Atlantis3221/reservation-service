@@ -85,6 +85,27 @@ jobs:
           printf '%s' "$ENV_CONTENT" | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cat > ${{ secrets.DEPLOY_PATH }}/backend/.env"
 
+      - name: Backup database before restart
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+            DB_FILE="$DEPLOY_PATH/data/reservations.db"
+            BACKUP_DIR="$DEPLOY_PATH/data/backups"
+
+            if [ -f "$DB_FILE" ]; then
+              mkdir -p "$BACKUP_DIR"
+              TIMESTAMP=$(date +%Y%m%d%H%M%S)
+              cp "$DB_FILE" "$BACKUP_DIR/reservations-deploy-$TIMESTAMP.db"
+              echo "Backup created: reservations-deploy-$TIMESTAMP.db"
+
+              # Keep only last 10 deploy backups
+              ls -1t "$BACKUP_DIR"/reservations-deploy-*.db 2>/dev/null | tail -n +11 | xargs -r rm -f
+              echo "Backup rotation done"
+            else
+              echo "No database file found, skipping backup"
+            fi
+          BACKUP_SCRIPT
+
       - name: Restart containers
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
