@@ -760,6 +760,377 @@ a:hover { text-decoration: underline; }
   padding: 4px 12px 8px; word-break: break-all;
 }
 
+/* ---- Tab badge ---- */
+
+.tab-bar-item {
+  position: relative;
+}
+
+.tab-bar-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 20px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--error);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ---- Requests page ---- */
+
+.requests-page {
+  padding: 16px;
+  max-width: var(--max-chat-width);
+  margin: 0 auto;
+}
+
+.requests-header {
+  margin-bottom: 16px;
+}
+
+.requests-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.requests-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.requests-filter-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.requests-filter-btn:hover {
+  background: var(--bg-hover);
+}
+
+.requests-filter-btn--active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.requests-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.request-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--bg);
+}
+
+.request-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.request-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border: 1px solid;
+  border-radius: 12px;
+}
+
+.request-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.request-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.request-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  gap: 12px;
+}
+
+.request-info-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.request-info-row a {
+  color: var(--accent-green);
+}
+
+.request-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---- Settings page ---- */
+
+.settings-page {
+  padding: 16px;
+  max-width: var(--max-chat-width);
+  margin: 0 auto;
+}
+
+.settings-header {
+  margin-bottom: 16px;
+}
+
+.settings-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.settings-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.settings-field input {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.settings-field input:focus {
+  border-color: var(--accent-green);
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.settings-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-toggle-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-toggle-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.settings-toggle {
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  border: none;
+  background: var(--border);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.settings-toggle--on {
+  background: var(--accent-green);
+}
+
+.settings-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.settings-toggle--on .settings-toggle-thumb {
+  transform: translateX(20px);
+}
+
+.settings-message {
+  padding: 10px 14px;
+  background: rgba(16, 163, 127, 0.08);
+  color: var(--accent-green);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.settings-message--error {
+  background: #fef2f2;
+  color: var(--error);
+}
+
+.settings-save {
+  width: 100%;
+}
+
+/* Working hours */
+
+.settings-working-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-wh-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.settings-wh-row--disabled {
+  opacity: 0.5;
+}
+
+.settings-toggle--sm {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+}
+
+.settings-toggle--sm .settings-toggle-thumb {
+  width: 16px;
+  height: 16px;
+  top: 2px;
+  left: 2px;
+}
+
+.settings-toggle--sm.settings-toggle--on .settings-toggle-thumb {
+  transform: translateX(16px);
+}
+
+.settings-wh-day {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 100px;
+  color: var(--text);
+}
+
+.settings-wh-times {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.settings-wh-times input[type="time"] {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 14px;
+  width: 90px;
+}
+
+.settings-wh-sep {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.settings-wh-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 640px) {
   .chat-messages { padding: 16px 12px 12px; }

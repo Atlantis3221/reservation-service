@@ -89,6 +89,46 @@ export interface CalendarSlot {
   clientPhone?: string;
 }
 
+export interface BookingRequest {
+  id: number;
+  businessId: number;
+  clientName: string;
+  clientPhone: string;
+  description: string | null;
+  preferredDate: string;
+  preferredStartTime: string;
+  preferredEndTime: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CalendarBookingRequest {
+  id: number;
+  clientName: string;
+  clientPhone: string;
+  description: string | null;
+  preferredStartTime: string;
+  preferredEndTime: string;
+  status: 'pending' | 'approved';
+}
+
+export interface DayWorkingHours {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+export type WorkingHoursConfig = Record<string, DayWorkingHours>;
+
+export interface BusinessSettings {
+  name: string;
+  slug: string;
+  bookingRequestsEnabled: boolean;
+  workingHours: WorkingHoursConfig | null;
+  contactLinks: Array<{ type: 'telegram' | 'vk' | 'max'; url: string }>;
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<AuthResult>('/auth/register', {
@@ -140,8 +180,7 @@ export const api = {
       .then((r) => r.dates),
 
   getCalendarSlots: (businessId: number, date: string) =>
-    request<{ slots: CalendarSlot[] }>(`/calendar/slots?businessId=${businessId}&date=${date}`)
-      .then((r) => r.slots),
+    request<{ slots: CalendarSlot[]; bookingRequests?: CalendarBookingRequest[] }>(`/calendar/slots?businessId=${businessId}&date=${date}`),
 
   createCalendarBooking: (data: {
     businessId: number;
@@ -184,5 +223,59 @@ export const api = {
     request<{ ok: boolean }>('/calendar/schedule', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  getBookingRequests: (businessId: number, status?: string) => {
+    let url = `/booking-requests?businessId=${businessId}`;
+    if (status) url += `&status=${status}`;
+    return request<{ requests: BookingRequest[]; pendingCount: number }>(url);
+  },
+
+  pollBookingRequests: (businessId: number, lastCount: number, signal?: AbortSignal) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const base = import.meta.env.VITE_API_URL || '/admin';
+    return fetch(
+      `${base}/booking-requests/poll?businessId=${businessId}&lastCount=${lastCount}`,
+      { headers, signal },
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error('poll error');
+        return res.json() as Promise<{ pendingCount: number }>;
+      });
+  },
+
+  updateBookingRequest: (id: number, data: {
+    status?: 'pending' | 'approved' | 'rejected';
+    preferredDate?: string;
+    preferredStartTime?: string;
+    preferredEndTime?: string;
+  }) =>
+    request<{ ok: boolean }>(`/booking-requests/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  getSettings: (businessId: number) =>
+    request<BusinessSettings>(`/settings?businessId=${businessId}`),
+
+  updateSettings: (data: {
+    businessId: number;
+    name?: string;
+    slug?: string;
+    bookingRequestsEnabled?: boolean;
+    workingHours?: WorkingHoursConfig;
+    contactLinks?: Array<{ type: string; url: string | null }>;
+  }) =>
+    request<{ ok: boolean }>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  applySchedule: (businessId: number, week: 'this' | 'next') =>
+    request<{ ok: boolean; daysCreated: number }>('/settings/apply-schedule', {
+      method: 'POST',
+      body: JSON.stringify({ businessId, week }),
     }),
 };

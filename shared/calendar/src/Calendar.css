@@ -267,6 +267,11 @@
   z-index: 1;
 }
 
+.gcal-tl-block--col {
+  left: auto;
+  right: auto;
+}
+
 .gcal-tl-block--booked {
   background: linear-gradient(135deg, #fef2f2, #fee2e2);
   color: #dc2626;
@@ -444,6 +449,26 @@
 @keyframes gcal-pending-pulse {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
+}
+
+/* Booking request blocks */
+
+.gcal-tl-block--request {
+  border: 2px dashed #f59e0b;
+  background: rgba(245, 158, 11, 0.10);
+  color: #92400e;
+}
+
+.gcal-tl-block--request-pending {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.10);
+  color: #92400e;
+}
+
+.gcal-tl-block--request-approved {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.10);
+  color: #065f46;
 }
 
 /* Interactive mode (admin) */

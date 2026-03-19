@@ -1,5 +1,13 @@
 // ---- Бизнесы (мультитенант) ----
 
+export interface DayWorkingHours {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+export type WorkingHoursConfig = Record<string, DayWorkingHours>;
+
 export interface Business {
   id: number;
   slug: string;
@@ -7,6 +15,8 @@ export interface Business {
   ownerChatId: string;
   telegramUsername: string | null;
   ownerPhone: string | null;
+  bookingRequestsEnabled: boolean;
+  workingHours: WorkingHoursConfig | null;
   createdAt: string;
 }
 
@@ -34,4 +44,22 @@ export type ContactLinkType = 'telegram' | 'vk' | 'max';
 export interface ContactLink {
   type: ContactLinkType;
   url: string;
+}
+
+// ---- Заявки на бронирование ----
+
+export type BookingRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface BookingRequest {
+  id: number;
+  businessId: number;
+  clientName: string;
+  clientPhone: string;
+  description: string | null;
+  preferredDate: string;
+  preferredStartTime: string;
+  preferredEndTime: string;
+  status: BookingRequestStatus;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -16,6 +16,7 @@ interface BusinessInfo {
   slug: string;
   telegramUsername: string | null;
   contactLinks: ContactLink[];
+  bookingRequestsEnabled: boolean;
 }
 
 function getSlugFromPath(): string | null {
@@ -94,6 +95,186 @@ function ContactIcon({ type }: { type: string }) {
   return null;
 }
 
+function BookingModal({
+  business,
+  selectedDate,
+  apiBase,
+  onClose,
+}: {
+  business: BusinessInfo;
+  selectedDate: string;
+  apiBase: string;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  const contactLinks = business.contactLinks || [];
+  const showForm = business.bookingRequestsEnabled;
+
+  const dateStr = (() => {
+    const d = new Date(selectedDate + 'T00:00:00');
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  })();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim() || !startTime || !endTime) return;
+
+    setSubmitting(true);
+    setError('');
+
+    fetch(`${apiBase}/booking-requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientName: name.trim(),
+        clientPhone: phone.trim(),
+        preferredDate: selectedDate,
+        preferredStartTime: startTime,
+        preferredEndTime: endTime,
+        description: description.trim() || undefined,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) return res.json().then((d) => { throw new Error(d.error); });
+        setSubmitted(true);
+      })
+      .catch((err) => setError(err.message || 'Ошибка отправки'))
+      .finally(() => setSubmitting(false));
+  }
+
+  function handleMessenger(link: ContactLink) {
+    const message = `Здравствуйте! Хочу забронировать на ${dateStr}.`;
+    const textarea = document.createElement('textarea');
+    textarea.value = message;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    window.open(link.url, '_blank');
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-handle" />
+        <div className="modal-content">
+          {submitted ? (
+            <div className="modal-success">
+              <div className="modal-success-icon">✓</div>
+              <h3>Заявка отправлена</h3>
+              <p>С вами свяжутся в ближайшее время</p>
+              <button className="modal-btn modal-btn--primary" onClick={onClose}>
+                Закрыть
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3 className="modal-title">Забронировать</h3>
+              <p className="modal-subtitle">{dateStr}</p>
+
+              {contactLinks.length > 0 && (
+                <div className="modal-section">
+                  <p className="modal-section-label">Написать напрямую</p>
+                  <div className="modal-links">
+                    {contactLinks.map((link) => (
+                      <button
+                        key={link.type}
+                        className={`modal-link-btn modal-link-btn--${link.type}`}
+                        onClick={() => handleMessenger(link)}
+                      >
+                        <ContactIcon type={link.type} />
+                        {CONTACT_LABELS[link.type]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showForm && contactLinks.length > 0 && (
+                <div className="modal-divider">
+                  <span>или оставьте заявку</span>
+                </div>
+              )}
+
+              {showForm && (
+                <form className="modal-form" onSubmit={handleSubmit}>
+                  {error && <div className="modal-error">{error}</div>}
+                  <div className="modal-field">
+                    <label>Имя *</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Как вас зовут"
+                      required
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Телефон *</label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+7 (999) 123-45-67"
+                      required
+                    />
+                  </div>
+                  <div className="modal-field modal-field--row">
+                    <div className="modal-field--half">
+                      <label>Начало *</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="modal-field--half">
+                      <label>Конец *</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-field">
+                    <label>Описание</label>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Пожелания, количество гостей и т.д."
+                      rows={2}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="modal-btn modal-btn--primary"
+                    disabled={!name.trim() || !phone.trim() || !startTime || !endTime || submitting}
+                  >
+                    {submitting ? 'Отправка...' : 'Отправить заявку'}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BusinessPage({ slug }: { slug: string }) {
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -102,7 +283,7 @@ function BusinessPage({ slug }: { slug: string }) {
     const params = new URLSearchParams(window.location.search);
     return params.get('date') || null;
   });
-  const [copied, setCopied] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -176,35 +357,6 @@ function BusinessPage({ slug }: { slug: string }) {
     });
   }
 
-  function buildMessage(): string {
-    if (!selectedDate) return '';
-    const dateStr = formatDateStr(selectedDate);
-    return `Здравствуйте! Хочу забронировать баню на ${dateStr}.`;
-  }
-
-  function copyToClipboard(text: string): void {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-  }
-
-  function handleBook(link: ContactLink): void {
-    if (!selectedDate) return;
-
-    const message = buildMessage();
-    copyToClipboard(message);
-
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
-
-    window.open(link.url, '_blank');
-  }
-
   if (loading) {
     return (
       <div className="app">
@@ -249,31 +401,31 @@ function BusinessPage({ slug }: { slug: string }) {
         />
       </main>
 
-      {selectedDate && contactLinks.length > 0 && (
+      {selectedDate && (contactLinks.length > 0 || business?.bookingRequestsEnabled) && (
         <div className="booking-bar">
-          {contactLinks.map((link) => (
-            <button
-              key={link.type}
-              className={`booking-bar-btn booking-bar-btn--${link.type}`}
-              onClick={() => handleBook(link)}
-            >
-              <ContactIcon type={link.type} />
-              {copied ? 'Скопировано! Откройте чат' : `Забронировать в ${CONTACT_LABELS[link.type]}`}
-            </button>
-          ))}
-          <span className="booking-bar-hint">
-            {copied
-              ? 'Вставьте сообщение в чат и отправьте'
-              : 'Сообщение скопируется автоматически'}
+          <button
+            className="booking-bar-btn"
+            onClick={() => setShowModal(true)}
+          >
+            Забронировать
+          </button>
+        </div>
+      )}
+      {selectedDate && contactLinks.length === 0 && !business?.bookingRequestsEnabled && (
+        <div className="booking-bar">
+          <span className="booking-bar-hint booking-bar-hint--no-links">
+            Свяжитесь с владельцем для бронирования
           </span>
         </div>
       )}
-      {selectedDate && contactLinks.length === 0 && (
-        <div className="booking-bar">
-          <span className="booking-bar-hint booking-bar-hint--no-links">
-            Свяжитесь с владельцем бани для бронирования
-          </span>
-        </div>
+
+      {showModal && business && selectedDate && (
+        <BookingModal
+          business={business}
+          selectedDate={selectedDate}
+          apiBase={apiBase}
+          onClose={() => setShowModal(false)}
+        />
       )}
     </div>
   );

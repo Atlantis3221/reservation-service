@@ -7,7 +7,29 @@ import {
   getAdminUserByOwnerChatId,
   consumeResetToken,
 } from '../repositories/admin-user.repository';
-import { getBusinessesByOwner, getBusinessById } from '../services/business';
+import {
+  getBusinessesByOwner,
+  getBusinessById,
+  getContactLinks,
+  upsertContactLink,
+  deleteContactLink,
+  updateBusinessName,
+  updateBusinessSlug,
+  updateBookingRequestsEnabled,
+  updateWorkingHours,
+  isValidSlug,
+  isSlugTaken,
+} from '../services/business';
+import {
+  getBookingRequestsByBusiness,
+  getBookingRequestsByDate,
+  getBookingRequestById,
+  updateBookingRequestStatus,
+  updateBookingRequestDateTime,
+  countPendingRequests,
+} from '../repositories/booking-request.repository';
+import type { BookingRequestStatus } from '../types';
+import { waitForBookingRequest } from '../services/booking-events';
 import {
   getAllDateKeys,
   getSlotsForDateAdmin,
@@ -17,6 +39,7 @@ import {
   getBookingById,
   cancelBookingById,
   addDaySlots,
+  clearDay,
   getSlotBusinessId,
 } from '../services/schedule';
 
@@ -204,7 +227,16 @@ adminRouter.get('/calendar/slots', (req: AuthRequest, res: Response) => {
     return;
   }
   const slots = getSlotsForDateAdmin(businessId, date);
-  res.json({ slots });
+  const bookingRequests = getBookingRequestsByDate(businessId, date).map((r) => ({
+    id: r.id,
+    clientName: r.clientName,
+    clientPhone: r.clientPhone,
+    description: r.description,
+    preferredStartTime: r.preferredStartTime,
+    preferredEndTime: r.preferredEndTime,
+    status: r.status,
+  }));
+  res.json({ slots, bookingRequests });
 });
 
 adminRouter.post('/calendar/booking', (req: AuthRequest, res: Response) => {
@@ -314,4 +346,215 @@ adminRouter.post('/calendar/schedule', (req: AuthRequest, res: Response) => {
   }
   const slots = addDaySlots(businessId, date, startHour, endHour);
   res.json({ ok: true, slots });
+});
+
+// ---- Booking Requests API ----
+
+adminRouter.get('/booking-requests', (req: AuthRequest, res: Response) => {
+  const businessId = Number(req.query.businessId);
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const status = req.query.status as BookingRequestStatus | undefined;
+  const requests = getBookingRequestsByBusiness(businessId, status);
+  const pendingCount = countPendingRequests(businessId);
+  res.json({ requests, pendingCount });
+});
+
+adminRouter.get('/booking-requests/poll', async (req: AuthRequest, res: Response) => {
+  const businessId = Number(req.query.businessId);
+  const lastCount = Number(req.query.lastCount) || 0;
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  const currentCount = countPendingRequests(businessId);
+  if (currentCount !== lastCount) {
+    res.json({ pendingCount: currentCount });
+    return;
+  }
+
+  const changed = await waitForBookingRequest(businessId, 30_000);
+  const newCount = changed ? countPendingRequests(businessId) : currentCount;
+  res.json({ pendingCount: newCount });
+});
+
+adminRouter.put('/booking-requests/:id', (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  const bookingReq = getBookingRequestById(id);
+  if (!bookingReq) {
+    res.status(404).json({ error: 'Заявка не найдена' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, bookingReq.businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  const { status, preferredDate, preferredStartTime, preferredEndTime } = req.body;
+
+  if (preferredDate && preferredStartTime && preferredEndTime) {
+    updateBookingRequestDateTime(id, preferredDate, preferredStartTime, preferredEndTime);
+  }
+
+  if (status) {
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      res.status(400).json({ error: 'Статус должен быть pending, approved или rejected' });
+      return;
+    }
+    updateBookingRequestStatus(id, status);
+
+    if (status === 'approved') {
+      const fresh = getBookingRequestById(id)!;
+      bookRange(
+        fresh.businessId,
+        fresh.preferredDate,
+        fresh.preferredStartTime,
+        fresh.preferredEndTime,
+        fresh.description || 'Заявка с сайта',
+        fresh.clientName,
+        fresh.clientPhone,
+      );
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+// ---- Settings API ----
+
+adminRouter.get('/settings', (req: AuthRequest, res: Response) => {
+  const businessId = Number(req.query.businessId);
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+  const business = getBusinessById(businessId)!;
+  const contactLinksList = getContactLinks(businessId);
+  res.json({
+    name: business.name,
+    slug: business.slug,
+    bookingRequestsEnabled: business.bookingRequestsEnabled,
+    workingHours: business.workingHours,
+    contactLinks: contactLinksList,
+  });
+});
+
+adminRouter.put('/settings', (req: AuthRequest, res: Response) => {
+  const { businessId, name, slug, bookingRequestsEnabled, workingHours: whUpdate, contactLinks: linksUpdate } = req.body;
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  if (name !== undefined) {
+    if (!name.trim()) {
+      res.status(400).json({ error: 'Название не может быть пустым' });
+      return;
+    }
+    updateBusinessName(businessId, name.trim());
+  }
+
+  if (slug !== undefined) {
+    if (!isValidSlug(slug)) {
+      res.status(400).json({ error: 'Slug: только латиница, цифры и дефис (мин. 3 символа)' });
+      return;
+    }
+    if (isSlugTaken(slug) && getBusinessById(businessId)?.slug !== slug) {
+      res.status(400).json({ error: `Slug «${slug}» уже занят` });
+      return;
+    }
+    updateBusinessSlug(businessId, slug);
+  }
+
+  if (bookingRequestsEnabled !== undefined) {
+    updateBookingRequestsEnabled(businessId, !!bookingRequestsEnabled);
+  }
+
+  if (whUpdate !== undefined) {
+    updateWorkingHours(businessId, whUpdate);
+  }
+
+  if (linksUpdate) {
+    for (const link of linksUpdate) {
+      if (link.url) {
+        upsertContactLink(businessId, link.type, link.url);
+      } else {
+        deleteContactLink(businessId, link.type);
+      }
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+adminRouter.post('/settings/apply-schedule', (req: AuthRequest, res: Response) => {
+  const { businessId, week } = req.body;
+  if (!businessId) {
+    res.status(400).json({ error: 'businessId обязателен' });
+    return;
+  }
+  const access = verifyBusinessAccess(req, businessId);
+  if (!access.ok) {
+    res.status(403).json({ error: access.error });
+    return;
+  }
+
+  const business = getBusinessById(businessId)!;
+  const wh = business.workingHours;
+  if (!wh) {
+    res.status(400).json({ error: 'Рабочие часы не настроены' });
+    return;
+  }
+
+  const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const monday = new Date(now);
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  monday.setDate(now.getDate() + diff + (week === 'next' ? 7 : 0));
+  monday.setHours(0, 0, 0, 0);
+
+  let created = 0;
+  for (let i = 0; i < 7; i++) {
+    const dayConfig = wh[dayKeys[i]];
+    if (!dayConfig || !dayConfig.enabled) continue;
+
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    const dateKey = date.toISOString().split('T')[0];
+
+    clearDay(businessId, dateKey);
+
+    const startHour = parseInt(dayConfig.start.split(':')[0]);
+    const endHour = parseInt(dayConfig.end.split(':')[0]);
+    const actualEnd = endHour === 0 ? 24 : endHour;
+    addDaySlots(businessId, dateKey, startHour, actualEnd);
+    created++;
+  }
+
+  res.json({ ok: true, daysCreated: created });
 });

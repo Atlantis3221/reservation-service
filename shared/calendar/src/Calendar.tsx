@@ -16,6 +16,16 @@ export interface PendingSlot {
   endTime: string;
 }
 
+export interface BookingRequestBlock {
+  id: number;
+  startTime: string;
+  endTime: string;
+  clientName: string;
+  clientPhone?: string;
+  description?: string | null;
+  status: 'pending' | 'approved';
+}
+
 export interface CalendarProps {
   fetchAvailableDates: () => Promise<string[]>;
   fetchDaySlots: (date: string) => Promise<DaySlot[]>;
@@ -24,10 +34,12 @@ export interface CalendarProps {
   onBack?: () => void;
   onSlotClick?: (slot: DaySlot) => void;
   onTimeClick?: (date: string, minutes: number) => void;
+  onRequestClick?: (request: BookingRequestBlock) => void;
   showClientInfo?: boolean;
   emptyDayContent?: ReactNode;
   refreshTrigger?: unknown;
   pendingSlot?: PendingSlot | null;
+  bookingRequests?: BookingRequestBlock[];
 }
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -68,6 +80,8 @@ export default function Calendar({
   emptyDayContent,
   refreshTrigger,
   pendingSlot,
+  bookingRequests,
+  onRequestClick,
 }: CalendarProps) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -336,6 +350,7 @@ export default function Calendar({
 
                   const sorted = [...parsed].sort((a, b) => a.startMin - b.startMin);
                   const columnOf = new Map<number, number>();
+                  const totalColsOf = new Map<number, number>();
                   const active: Array<{ id: number; endMin: number; col: number }> = [];
 
                   for (const { slot, startMin, endMin } of sorted) {
@@ -346,15 +361,24 @@ export default function Calendar({
                     columnOf.set(slot.id, col);
                     active.length = 0;
                     active.push(...still, { id: slot.id, endMin, col });
+                    const concurrentCount = active.length;
+                    for (const a of active) {
+                      totalColsOf.set(a.id, Math.max(totalColsOf.get(a.id) || 0, concurrentCount));
+                    }
                   }
 
                   const interactive = !!onSlotClick;
+                  const rightGutterPct = onTimeClick ? 15 : 0;
+                  const usableWidthPct = 100 - rightGutterPct;
 
                   return parsed.map(({ slot, startMin, endMin }) => {
                     const top = Math.max(0, startMin - rangeStartMin);
                     const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
                     const height = Math.max(bottom - top, 20);
                     const col = columnOf.get(slot.id) || 0;
+                    const totalCols = totalColsOf.get(slot.id) || 1;
+                    const blockWidthPct = usableWidthPct / totalCols;
+                    const blockLeftPct = col * blockWidthPct;
 
                     const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
                     const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
@@ -362,8 +386,13 @@ export default function Calendar({
                     return (
                       <div
                         key={slot.id}
-                        className={`gcal-tl-block gcal-tl-block--${slot.status}${interactive ? ' gcal-tl-block--interactive' : ''}`}
-                        style={{ top, height, left: 6 + col * 16 }}
+                        className={`gcal-tl-block gcal-tl-block--col gcal-tl-block--${slot.status}${interactive ? ' gcal-tl-block--interactive' : ''}`}
+                        style={{
+                          top,
+                          height,
+                          left: `${blockLeftPct}%`,
+                          width: `calc(${blockWidthPct}% - 4px)`,
+                        }}
                         onClick={interactive ? (e) => { e.stopPropagation(); onSlotClick!(slot); } : undefined}
                       >
                         <span className="gcal-tl-block-time">
@@ -389,8 +418,8 @@ export default function Calendar({
                   const pHeight = Math.max(pBottom - pTop, 20);
                   return (
                     <div
-                      className="gcal-tl-block gcal-tl-block--pending"
-                      style={{ top: pTop, height: pHeight }}
+                      className="gcal-tl-block gcal-tl-block--col gcal-tl-block--pending"
+                      style={{ top: pTop, height: pHeight, left: 0, width: '85%' }}
                     >
                       <span className="gcal-tl-block-time">
                         {pendingSlot.startTime}–{pendingSlot.endTime}
@@ -399,6 +428,33 @@ export default function Calendar({
                     </div>
                   );
                 })()}
+
+                {bookingRequests && bookingRequests.map((req) => {
+                  const rStart = timeToMinutes(req.startTime);
+                  let rEnd = timeToMinutes(req.endTime);
+                  if (rEnd === 0) rEnd = 24 * 60;
+                  if (rEnd <= rStart) rEnd += 24 * 60;
+                  const rTop = Math.max(0, rStart - rangeStartMin);
+                  const rBottom = Math.min(totalMinutes, rEnd - rangeStartMin);
+                  const rHeight = Math.max(rBottom - rTop, 20);
+                  const reqInteractive = !!onRequestClick;
+                  return (
+                    <div
+                      key={`req-${req.id}`}
+                      className={`gcal-tl-block gcal-tl-block--col gcal-tl-block--request gcal-tl-block--request-${req.status}${reqInteractive ? ' gcal-tl-block--interactive' : ''}`}
+                      style={{ top: rTop, height: rHeight, left: 0, width: 'calc(85% - 4px)' }}
+                      onClick={reqInteractive ? (e) => { e.stopPropagation(); onRequestClick!(req); } : undefined}
+                    >
+                      <span className="gcal-tl-block-time">
+                        {req.startTime}–{req.endTime}
+                      </span>
+                      <span className="gcal-tl-block-note">
+                        {req.status === 'pending' ? '⏳ Заявка' : '✅ Одобрена'}
+                      </span>
+                      <span className="gcal-tl-block-client">{req.clientName}</span>
+                    </div>
+                  );
+                })}
 
                 {selectedDate === todayKey && nowMinutes >= rangeStartMin && nowMinutes <= rangeEndMin && (
                   <div

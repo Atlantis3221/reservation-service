@@ -155,6 +155,7 @@ backend/
 │   │   ├── schedule.ts                   # Реэкспорт из slot.repository
 │   │   ├── auth.ts                       # Регистрация, вход, JWT, bcrypt
 │   │   ├── command.ts                    # Выполнение команд (реюз из bot/)
+│   │   ├── booking-notifications.ts      # Уведомления в TG/VK о новых заявках на бронирование
 │   │   ├── monitor.ts                    # Мониторинг: алерты, /health, дайджест
 │   │   ├── demo.ts                       # Демо-баня: автосоздание + ежедневные записи (cron)
 │   │   └── __tests__/
@@ -163,6 +164,7 @@ backend/
 │   ├── repositories/                     # Доступ к данным (SQL-запросы)
 │   │   ├── slot.repository.ts            # Слоты: выборка, бронирование, отмена
 │   │   ├── admin-user.repository.ts      # Admin users, link codes, reset tokens
+│   │   ├── booking-request.repository.ts # CRUD заявок на бронирование
 │   │   └── __tests__/
 │   │       └── slot.repository.test.ts
 │   │
@@ -177,6 +179,50 @@ backend/
 ├── package.json
 └── tsconfig.json
 ```
+
+## База данных
+
+Полная схема — в корневом [`README.md`](../README.md#база-данных). Новые сущности в рамках заявок на бронирование:
+
+### Таблица `booking_requests`
+
+| Колонка          | Тип          | Описание                                 |
+|------------------|--------------|------------------------------------------|
+| `id`             | INTEGER, PK  | Автоинкремент                            |
+| `business_id`    | INTEGER, FK  | Ссылка на `businesses.id`                |
+| `client_name`    | TEXT         | Имя клиента                              |
+| `client_phone`   | TEXT         | Телефон клиента                          |
+| `description`    | TEXT         | Описание заявки                          |
+| `preferred_date` | TEXT         | Желаемая дата (YYYY-MM-DD)               |
+| `preferred_time` | TEXT         | Желаемое время                           |
+| `status`         | TEXT         | `pending` / `approved` / `rejected`      |
+| `created_at`     | TEXT         | Дата создания                            |
+| `updated_at`     | TEXT         | Дата обновления                          |
+
+### Таблица `businesses` — новая колонка
+
+| Колонка                    | Тип          | Описание                                 |
+|----------------------------|--------------|------------------------------------------|
+| `booking_requests_enabled` | BOOLEAN      | Включены ли заявки на бронирование (DEFAULT 0) |
+
+## API
+
+Новые эндпоинты (полный список — в корневом [`README.md`](../README.md#api)):
+
+### Клиентский API
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/business/:slug/booking-requests` | Создать заявку на бронирование |
+
+### Admin API
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET`    | `/admin/booking-requests?businessId=&status=` | Список заявок на бронирование |
+| `PUT`    | `/admin/booking-requests/:id` | Обновить заявку (статус, перенос) |
+| `GET`    | `/admin/settings?businessId=` | Настройки бизнеса |
+| `PUT`    | `/admin/settings` | Обновить настройки бизнеса |
 
 ## Куда класть новый код
 

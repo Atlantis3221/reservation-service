@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Calendar, type DaySlot, type PendingSlot } from '@shared/calendar';
-import { api } from '../api';
+import { Calendar, type DaySlot, type PendingSlot, type BookingRequestBlock } from '@shared/calendar';
+import { api, type CalendarBookingRequest } from '../api';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -22,8 +22,12 @@ type SheetState =
   | { type: 'edit-booking'; slot: DaySlot; originalDate: string }
   | { type: 'set-schedule'; date: string };
 
+const STORAGE_KEY = 'calendar_selected_date';
+
 export function CalendarPage({ businessId }: { businessId: number | null }) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    return localStorage.getItem(STORAGE_KEY) || null;
+  });
   const [refreshKey, setRefreshKey] = useState(0);
   const [sheet, setSheet] = useState<SheetState>({ type: 'none' });
   const [saving, setSaving] = useState(false);
@@ -41,6 +45,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
 
   const [scheduleStart, setScheduleStart] = useState('10:00');
   const [scheduleEnd, setScheduleEnd] = useState('22:00');
+  const [calRequests, setCalRequests] = useState<BookingRequestBlock[]>([]);
 
   const fetchDates = useCallback(
     () => businessId ? api.getCalendarDates(businessId) : Promise.resolve([]),
@@ -48,9 +53,36 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
   );
 
   const fetchSlots = useCallback(
-    (date: string) => businessId ? api.getCalendarSlots(businessId, date) : Promise.resolve([]),
+    (date: string) => {
+      if (!businessId) return Promise.resolve([]);
+      return api.getCalendarSlots(businessId, date).then((data) => {
+        if (data.bookingRequests) {
+          setCalRequests(data.bookingRequests.map((r: CalendarBookingRequest) => ({
+            id: r.id,
+            startTime: r.preferredStartTime,
+            endTime: r.preferredEndTime,
+            clientName: r.clientName,
+            clientPhone: r.clientPhone,
+            description: r.description,
+            status: r.status,
+          })));
+        } else {
+          setCalRequests([]);
+        }
+        return data.slots;
+      });
+    },
     [businessId],
   );
+
+  const handleSelectDate = useCallback((date: string | null) => {
+    setSelectedDate(date);
+    if (date) {
+      localStorage.setItem(STORAGE_KEY, date);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, []);
 
   function closeSheet() {
     setSheet({ type: 'none' });
@@ -239,12 +271,13 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
         fetchAvailableDates={fetchDates}
         fetchDaySlots={fetchSlots}
         selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
-        onBack={() => setSelectedDate(null)}
+        onSelectDate={handleSelectDate}
+        onBack={() => handleSelectDate(null)}
         onSlotClick={handleSlotClick}
         onTimeClick={handleTimeClick}
         showClientInfo
         pendingSlot={pendingSlot}
+        bookingRequests={calRequests}
         emptyDayContent={
           <div className="cal-empty-day">
             <p>Расписание на этот день не задано</p>

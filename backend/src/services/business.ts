@@ -54,6 +54,10 @@ export function isSlugTaken(slug: string): boolean {
 }
 
 function rowToBusiness(row: any): Business {
+  let workingHours = null;
+  if (row.working_hours) {
+    try { workingHours = JSON.parse(row.working_hours); } catch {}
+  }
   return {
     id: row.id,
     slug: row.slug,
@@ -61,6 +65,8 @@ function rowToBusiness(row: any): Business {
     ownerChatId: row.owner_chat_id,
     telegramUsername: row.telegram_username,
     ownerPhone: row.owner_phone ?? null,
+    bookingRequestsEnabled: !!row.booking_requests_enabled,
+    workingHours,
     createdAt: row.created_at,
   };
 }
@@ -89,6 +95,8 @@ export function createBusiness(
     ownerChatId,
     telegramUsername: telegramUsername ?? null,
     ownerPhone: phone,
+    bookingRequestsEnabled: false,
+    workingHours: null,
     createdAt: new Date().toISOString(),
   };
 }
@@ -223,4 +231,16 @@ export function updateOwnerPhone(chatId: string | number, phone: string): void {
     .run(phone, String(chatId));
   db.prepare('UPDATE businesses SET owner_phone = ? WHERE owner_chat_id = ?')
     .run(phone, String(chatId));
+}
+
+export function updateBookingRequestsEnabled(businessId: number, enabled: boolean): void {
+  getDb()
+    .prepare('UPDATE businesses SET booking_requests_enabled = ? WHERE id = ?')
+    .run(enabled ? 1 : 0, businessId);
+}
+
+export function updateWorkingHours(businessId: number, workingHours: Record<string, any>): void {
+  getDb()
+    .prepare('UPDATE businesses SET working_hours = ? WHERE id = ?')
+    .run(JSON.stringify(workingHours), businessId);
 }

@@ -30,7 +30,12 @@ import {
   getContactLinks,
   upsertContactLink,
   deleteContactLink,
+  updateBookingRequestsEnabled,
 } from '../services/business';
+import {
+  getBookingRequestById,
+  updateBookingRequestStatus,
+} from '../repositories/booking-request.repository';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
 import { trackUnrecognizedCommand } from '../services/monitor';
 import { createLinkCode, getAdminUserByOwnerChatId, createResetToken } from '../repositories/admin-user.repository';
@@ -143,13 +148,15 @@ function handleInfo(reply: ReplyFn, businesses: Business[]): void {
 }
 
 function handleSettings(reply: ReplyFn, biz: Business): void {
-  const url = getFrontendUrl(biz.slug);
-  const links = getContactLinks(biz.id);
+  const freshBiz = getBusinessById(biz.id) || biz;
+  const url = getFrontendUrl(freshBiz.slug);
+  const links = getContactLinks(freshBiz.id);
 
   let text =
-    `⚙️ Настройки — ${biz.name}\n\n` +
-    `Название: ${biz.name}\n` +
-    `Slug: ${biz.slug}`;
+    `⚙️ Настройки — ${freshBiz.name}\n\n` +
+    `Название: ${freshBiz.name}\n` +
+    `Slug: ${freshBiz.slug}\n` +
+    `Форма заявок: ${freshBiz.bookingRequestsEnabled ? '✅ Включена' : '❌ Выключена'}`;
 
   if (url) text += `\n🔗 ${url}`;
 
@@ -160,10 +167,15 @@ function handleSettings(reply: ReplyFn, biz: Business): void {
     }
   }
 
+  const toggleLabel = freshBiz.bookingRequestsEnabled
+    ? '📋 Выключить форму заявок'
+    : '📋 Включить форму заявок';
+
   reply(text, buildKeyboard([
     [{ label: '✏️ Изменить название', action: `settings_name:${biz.id}` }],
     [{ label: '🔗 Изменить slug', action: `settings_slug:${biz.id}` }],
     [{ label: '📞 Ссылки для связи', action: `contact_links:${biz.id}` }],
+    [{ label: toggleLabel, action: `toggle_requests:${biz.id}` }],
   ]));
 }
 
@@ -930,6 +942,55 @@ export function registerHandlers(vk: VK): void {
       const bizId = Number(delContactMatch[2]);
       deleteContactLink(bizId, type);
       reply(`✅ Ссылка ${CONTACT_TYPE_LABELS[type]} удалена.`);
+      return;
+    }
+
+    // Toggle booking requests
+    const toggleRequestsMatch = action.match(/^toggle_requests:(\d+)$/);
+    if (toggleRequestsMatch) {
+      const bizId = Number(toggleRequestsMatch[1]);
+      const biz = getBusinessById(bizId);
+      if (!biz || biz.ownerChatId !== ownerId) return;
+      const newVal = !biz.bookingRequestsEnabled;
+      updateBookingRequestsEnabled(bizId, newVal);
+      reply(newVal ? '✅ Форма заявок включена' : '❌ Форма заявок выключена');
+      return;
+    }
+
+    // Approve booking request
+    const approveRequestMatch = action.match(/^approve_request:(\d+)$/);
+    if (approveRequestMatch) {
+      const reqId = Number(approveRequestMatch[1]);
+      const bookingReq = getBookingRequestById(reqId);
+      if (!bookingReq) {
+        reply('Заявка не найдена.');
+        return;
+      }
+      updateBookingRequestStatus(reqId, 'approved');
+      bookRange(
+        bookingReq.businessId,
+        bookingReq.preferredDate,
+        bookingReq.preferredStartTime,
+        bookingReq.preferredEndTime,
+        bookingReq.description || 'Заявка с сайта',
+        bookingReq.clientName,
+        bookingReq.clientPhone,
+      );
+      reply('✅ Заявка подтверждена');
+      return;
+    }
+
+    // Reject booking request
+    const rejectRequestMatch = action.match(/^reject_request:(\d+)$/);
+    if (rejectRequestMatch) {
+      const reqId = Number(rejectRequestMatch[1]);
+      const bookingReq = getBookingRequestById(reqId);
+      if (!bookingReq) {
+        reply('Заявка не найдена.');
+        return;
+      }
+      updateBookingRequestStatus(reqId, 'rejected');
+      reply('❌ Заявка отклонена');
       return;
     }
   });

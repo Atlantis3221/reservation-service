@@ -154,6 +154,38 @@ function migrate(): void {
       last_msg_at  TEXT
     )
   `);
+
+  if (!bizCols.some((c: any) => c.name === 'booking_requests_enabled')) {
+    db.exec('ALTER TABLE businesses ADD COLUMN booking_requests_enabled INTEGER NOT NULL DEFAULT 0');
+  }
+
+  if (!bizCols.some((c: any) => c.name === 'working_hours')) {
+    db.exec("ALTER TABLE businesses ADD COLUMN working_hours TEXT");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS booking_requests (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id      INTEGER NOT NULL,
+      client_name      TEXT    NOT NULL,
+      client_phone     TEXT    NOT NULL,
+      description      TEXT,
+      preferred_date   TEXT    NOT NULL,
+      preferred_time   TEXT    NOT NULL,
+      preferred_end_time TEXT,
+      status           TEXT    NOT NULL DEFAULT 'pending',
+      created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (business_id) REFERENCES businesses(id)
+    )
+  `);
+
+  const brCols = db.prepare("PRAGMA table_info(booking_requests)").all() as any[];
+  if (brCols.length > 0 && !brCols.some((c: any) => c.name === 'preferred_end_time')) {
+    db.exec('ALTER TABLE booking_requests ADD COLUMN preferred_end_time TEXT');
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_booking_requests_business ON booking_requests(business_id, status)');
 }
 
 function pad2(n: number): string {

@@ -226,44 +226,6 @@ function executeBusinessCommand(
     return handleInfo(biz);
   }
 
-  if (textLower === '/settings' || textLower === 'настройки') {
-    return handleSettings(biz);
-  }
-
-  if (textLower.startsWith('/schedule')) {
-    const arg = textLower.replace(/^\/schedule\s*/i, '').trim();
-    return handleDaySchedule(biz, arg || 'сегодня');
-  }
-
-  const scheduleMatch = textLower.match(/расписание\s+на\s+(\S+)/);
-  if (scheduleMatch) {
-    return handleDaySchedule(biz, scheduleMatch[1]);
-  }
-
-  if (textLower.includes('покажи') && textLower.includes('расписание')) {
-    return handleShowSchedule(biz);
-  }
-
-  const flexCmd = parseFlexibleSchedule(textLower);
-  if (flexCmd) {
-    return handleFlexibleSchedule(biz, flexCmd);
-  }
-
-  const cancelCmd = parseCancelCommand(textLower);
-  if (cancelCmd) {
-    return handleCancelCommand(biz, cancelCmd);
-  }
-
-  const bookingRangeCmd = parseBookingRange(textLower);
-  if (bookingRangeCmd) {
-    return handleBookingCmd(adminUserId, biz, bookingRangeCmd);
-  }
-
-  const bookingCmd = parseBookingCommand(textLower);
-  if (bookingCmd) {
-    return handleBookingCmd(adminUserId, biz, bookingCmd);
-  }
-
   if (textLower === '/add' || textLower === 'добавить заведение') {
     conversations.set(adminUserId, { step: 'awaiting_name', data: {} });
     return { messages: [{ text: 'Как называется новое заведение?' }] };
@@ -271,10 +233,6 @@ function executeBusinessCommand(
 
   if (textLower.startsWith('/del') || textLower.startsWith('удалить ')) {
     return handleDelete(biz, textLower);
-  }
-
-  if (textLower === '/list' || textLower === 'список') {
-    return handleList(biz.ownerChatId);
   }
 
   return {
@@ -388,11 +346,7 @@ function handleInfo(biz: Business): CommandResult {
     `- расписание на сегодня\n` +
     `- расписание на пятницу\n` +
     `- покажи расписание\n\n` +
-    `Время работы\n` +
-    `- на этой неделе ПН-ПТ c 10 до 23, ПТ-СБ c 12 до 03\n\n` +
     `Управление\n` +
-    `- настройки\n` +
-    `- список\n` +
     `- добавить заведение\n`;
 
   if (url) {
@@ -711,16 +665,8 @@ function handleList(ownerChatId: string): CommandResult {
 
 export const AVAILABLE_COMMANDS = [
   {
-    category: 'Время работы',
-    commands: [
-      { command: 'на этой неделе пн-пт с 10 до 23, пт-сб с 12 до 03', description: 'Задать расписание на неделю' },
-    ],
-  },
-  {
     category: 'Управление',
     commands: [
-      { command: 'настройки', description: 'Настройки заведения' },
-      { command: 'список', description: 'Список заведений' },
       { command: 'добавить заведение', description: 'Создать новое заведение' },
     ],
   },

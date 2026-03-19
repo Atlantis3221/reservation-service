@@ -33,7 +33,12 @@ import {
   getContactLinks,
   upsertContactLink,
   deleteContactLink,
+  updateBookingRequestsEnabled,
 } from '../services/business';
+import {
+  getBookingRequestById,
+  updateBookingRequestStatus,
+} from '../repositories/booking-request.repository';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
 import { trackUnrecognizedCommand } from '../services/monitor';
 import { createLinkCode, getAdminUserByOwnerChatId, createResetToken } from '../repositories/admin-user.repository';
@@ -184,13 +189,15 @@ const CONTACT_TYPE_LABELS: Record<ContactLinkType, string> = {
 };
 
 function handleSettings(ctx: any, biz: Business): void {
-  const url = getFrontendUrl(biz.slug);
-  const links = getContactLinks(biz.id);
+  const freshBiz = getBusinessById(biz.id) || biz;
+  const url = getFrontendUrl(freshBiz.slug);
+  const links = getContactLinks(freshBiz.id);
 
   let text =
-    `⚙️ <b>Настройки — ${biz.name}</b>\n\n` +
-    `Название: <b>${biz.name}</b>\n` +
-    `Slug: <b>${biz.slug}</b>`;
+    `⚙️ <b>Настройки — ${freshBiz.name}</b>\n\n` +
+    `Название: <b>${freshBiz.name}</b>\n` +
+    `Slug: <b>${freshBiz.slug}</b>\n` +
+    `Форма заявок: <b>${freshBiz.bookingRequestsEnabled ? '✅ Включена' : '❌ Выключена'}</b>`;
 
   if (url) text += `\n🔗 ${url}`;
 
@@ -201,12 +208,17 @@ function handleSettings(ctx: any, biz: Business): void {
     }
   }
 
+  const toggleLabel = freshBiz.bookingRequestsEnabled
+    ? '📋 Выключить форму заявок'
+    : '📋 Включить форму заявок';
+
   ctx.reply(text, {
     parse_mode: 'HTML',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('✏️ Изменить название', `settings_name:${biz.id}`)],
       [Markup.button.callback('🔗 Изменить slug', `settings_slug:${biz.id}`)],
       [Markup.button.callback('📞 Ссылки для связи', `contact_links:${biz.id}`)],
+      [Markup.button.callback(toggleLabel, `toggle_requests:${biz.id}`)],
     ]),
   });
 }
@@ -1067,6 +1079,55 @@ export function registerHandlers(bot: Telegraf): void {
     if (!biz) return;
     deleteContactLink(bizId, type);
     ctx.reply(`✅ Ссылка ${CONTACT_TYPE_LABELS[type]} удалена.`);
+  });
+
+  // ---- Форма заявок ----
+
+  bot.action(/^toggle_requests:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const bizId = Number(ctx.match[1]);
+    const biz = getBusinessById(bizId);
+    if (!biz || biz.ownerChatId !== String(ctx.chat!.id)) return;
+    const newVal = !biz.bookingRequestsEnabled;
+    updateBookingRequestsEnabled(bizId, newVal);
+    ctx.reply(newVal ? '✅ Форма заявок включена' : '❌ Форма заявок выключена');
+  });
+
+  bot.action(/^approve_request:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const reqId = Number(ctx.match[1]);
+    const bookingReq = getBookingRequestById(reqId);
+    if (!bookingReq) {
+      ctx.reply('Заявка не найдена.');
+      return;
+    }
+    updateBookingRequestStatus(reqId, 'approved');
+    bookRange(
+      bookingReq.businessId,
+      bookingReq.preferredDate,
+      bookingReq.preferredStartTime,
+      bookingReq.preferredEndTime,
+      bookingReq.description || 'Заявка с сайта',
+      bookingReq.clientName,
+      bookingReq.clientPhone,
+    );
+    ctx.editMessageText(
+      (ctx.callbackQuery as any).message?.text + '\n\n✅ Заявка подтверждена'
+    );
+  });
+
+  bot.action(/^reject_request:(\d+)$/, (ctx) => {
+    ctx.answerCbQuery();
+    const reqId = Number(ctx.match[1]);
+    const bookingReq = getBookingRequestById(reqId);
+    if (!bookingReq) {
+      ctx.reply('Заявка не найдена.');
+      return;
+    }
+    updateBookingRequestStatus(reqId, 'rejected');
+    ctx.editMessageText(
+      (ctx.callbackQuery as any).message?.text + '\n\n❌ Заявка отклонена'
+    );
   });
 
   // ---- Контакт ----
