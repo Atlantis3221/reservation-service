@@ -145,13 +145,13 @@ describe('getSlotsForDate', () => {
 // ---- getSlotsForDateFull ----
 
 describe('getSlotsForDateFull', () => {
-  it('returns slots without clientName', () => {
+  it('returns slots without note and clientName', () => {
     const bizId = insertBusiness();
     bookRange(bizId, '2026-03-16', '14:00', '18:00', 'Note', 'Client');
 
     const full = getSlotsForDateFull(bizId, '2026-03-16');
     expect(full).toHaveLength(1);
-    expect(full[0].note).toBe('Note');
+    expect((full[0] as any).note).toBeUndefined();
     expect((full[0] as any).clientName).toBeUndefined();
   });
 });

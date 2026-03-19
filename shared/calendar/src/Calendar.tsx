@@ -245,11 +245,17 @@ export default function Calendar({
       );
       const ends = availableSlots.map((s) => {
         const m = timeToMinutes(s.endDatetime.split('T')[1].substring(0, 5));
-        return m === 0 ? 24 * 60 : m;
+        const endDate = s.endDatetime.split('T')[0];
+        const startDate = s.startDatetime.split('T')[0];
+        if (endDate !== startDate) return m + 24 * 60;
+        if (m === 0) return 24 * 60;
+        return m;
       });
       rangeStartMin = Math.min(...starts);
       rangeEndMin = Math.max(...ends);
     }
+
+    const isCrossMidnight = rangeEndMin > 24 * 60;
 
     const rangeStartHour = Math.floor(rangeStartMin / 60);
     const rangeEndHour = Math.ceil(rangeEndMin / 60);
@@ -265,7 +271,8 @@ export default function Calendar({
       const rect = e.currentTarget.getBoundingClientRect();
       const y = e.clientY - rect.top;
       const minutesInRange = (y / rect.height) * totalMinutes;
-      const absMinutes = Math.round((minutesInRange + rangeStartMin) / 5) * 5;
+      let absMinutes = Math.round((minutesInRange + rangeStartMin) / 5) * 5;
+      if (absMinutes >= 24 * 60) absMinutes -= 24 * 60;
       onTimeClick(selectedDate, absMinutes);
     }
 
@@ -343,8 +350,13 @@ export default function Calendar({
                   const parsed = bookedSlots.map((slot) => {
                     let startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
                     let endMin = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
-                    if (endMin === 0) endMin = 24 * 60;
-                    if (endMin <= startMin) endMin += 24 * 60;
+                    if (isCrossMidnight && startMin < rangeStartMin) {
+                      startMin += 24 * 60;
+                      endMin += 24 * 60;
+                    } else {
+                      if (endMin === 0) endMin = 24 * 60;
+                      if (endMin <= startMin) endMin += 24 * 60;
+                    }
                     return { slot, startMin, endMin };
                   });
 
@@ -410,9 +422,28 @@ export default function Calendar({
                   });
                 })()}
 
+                {isCrossMidnight && (() => {
+                  const midnightTop = 24 * 60 - rangeStartMin;
+                  const nextDay = new Date(selectedDate + 'T00:00:00');
+                  nextDay.setDate(nextDay.getDate() + 1);
+                  const label = nextDay.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+                  return (
+                    <div className="gcal-tl-midnight" style={{ top: midnightTop }}>
+                      <span className="gcal-tl-midnight-label">{label}</span>
+                    </div>
+                  );
+                })()}
+
                 {pendingSlot && (() => {
-                  const pStart = timeToMinutes(pendingSlot.startTime);
-                  const pEnd = timeToMinutes(pendingSlot.endTime);
+                  let pStart = timeToMinutes(pendingSlot.startTime);
+                  let pEnd = timeToMinutes(pendingSlot.endTime);
+                  if (isCrossMidnight && pStart < rangeStartMin) {
+                    pStart += 24 * 60;
+                    pEnd += 24 * 60;
+                  } else {
+                    if (pEnd === 0) pEnd = 24 * 60;
+                    if (pEnd <= pStart) pEnd += 24 * 60;
+                  }
                   const pTop = Math.max(0, pStart - rangeStartMin);
                   const pBottom = Math.min(totalMinutes, pEnd - rangeStartMin);
                   const pHeight = Math.max(pBottom - pTop, 20);
@@ -430,10 +461,15 @@ export default function Calendar({
                 })()}
 
                 {bookingRequests && bookingRequests.map((req) => {
-                  const rStart = timeToMinutes(req.startTime);
+                  let rStart = timeToMinutes(req.startTime);
                   let rEnd = timeToMinutes(req.endTime);
-                  if (rEnd === 0) rEnd = 24 * 60;
-                  if (rEnd <= rStart) rEnd += 24 * 60;
+                  if (isCrossMidnight && rStart < rangeStartMin) {
+                    rStart += 24 * 60;
+                    rEnd += 24 * 60;
+                  } else {
+                    if (rEnd === 0) rEnd = 24 * 60;
+                    if (rEnd <= rStart) rEnd += 24 * 60;
+                  }
                   const rTop = Math.max(0, rStart - rangeStartMin);
                   const rBottom = Math.min(totalMinutes, rEnd - rangeStartMin);
                   const rHeight = Math.max(rBottom - rTop, 20);
@@ -456,12 +492,19 @@ export default function Calendar({
                   );
                 })}
 
-                {selectedDate === todayKey && nowMinutes >= rangeStartMin && nowMinutes <= rangeEndMin && (
-                  <div
-                    className="gcal-tl-now"
-                    style={{ top: nowMinutes - rangeStartMin }}
-                  />
-                )}
+                {selectedDate === todayKey && (() => {
+                  let nm = nowMinutes;
+                  if (isCrossMidnight && nm < rangeStartMin) nm += 24 * 60;
+                  if (nm >= rangeStartMin && nm <= rangeEndMin) {
+                    return (
+                      <div
+                        className="gcal-tl-now"
+                        style={{ top: nm - rangeStartMin }}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
           </div>

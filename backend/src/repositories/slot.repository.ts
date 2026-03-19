@@ -44,7 +44,6 @@ export function getSlotsForDateFull(businessId: number, dateKey: string): Array<
   startDatetime: string;
   endDatetime: string;
   status: SlotStatus;
-  note?: string;
 }> {
   const rows = getDb()
     .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY start_time')
@@ -57,7 +56,6 @@ export function getSlotsForDateFull(businessId: number, dateKey: string): Array<
       startDatetime: `${row.date_key}T${row.start_time}:00`,
       endDatetime: `${endDK}T${row.end_time}:00`,
       status: row.status as SlotStatus,
-      note: row.note ?? undefined,
     };
   });
 }
@@ -82,7 +80,7 @@ export function getAllSlots(businessId: number): Array<{ dateKey: string; slots:
 
 export function addDaySlots(businessId: number, dateKey: string, startHour: number, endHour: number): TimeSlot[] {
   const startTime = `${pad2(startHour)}:00`;
-  const endTime = endHour === 24 ? '00:00' : `${pad2(endHour)}:00`;
+  const endTime = endHour >= 24 ? `${pad2(endHour - 24)}:00` : `${pad2(endHour)}:00`;
 
   const result = getDb()
     .prepare(

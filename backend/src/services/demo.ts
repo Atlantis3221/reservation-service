@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { getDb } from './db';
-import { getBusinessBySlug, upsertContactLink } from './business';
+import { getBusinessBySlug, upsertContactLink, updateBookingRequestsEnabled } from './business';
 import { addDaySlots, bookRange } from '../repositories/slot.repository';
 import { toDateKey } from '../utils/date';
 
@@ -9,7 +9,7 @@ const DEMO_NAME = 'Демо Баня';
 const DEMO_OWNER_CHAT_ID = 'demo';
 const SCHEDULE_DAYS = 7;
 const SCHEDULE_START_HOUR = 10;
-const SCHEDULE_END_HOUR = 24;
+const SCHEDULE_END_HOUR = 27;
 
 const DEMO_CONTACTS = [
   { type: 'telegram' as const, url: 'https://t.me/ndrwbv' },
@@ -22,6 +22,7 @@ const DEMO_BOOKINGS = [
   { start: '16:00', end: '18:00', clientName: 'Дмитрий Козлов', note: 'С вениками' },
   { start: '19:00', end: '21:00', clientName: 'Елена Волкова', note: 'Корпоратив' },
   { start: '22:00', end: '00:00', clientName: 'Сергей Морозов', note: null },
+  { start: '00:30', end: '02:30', clientName: 'Алексей Громов', note: 'Ночная сессия, 4 человека' },
 ];
 
 function ensureDemoBusiness(): number {
@@ -40,6 +41,8 @@ function ensureDemoBusiness(): number {
   for (const link of DEMO_CONTACTS) {
     upsertContactLink(businessId, link.type, link.url);
   }
+
+  updateBookingRequestsEnabled(businessId, true);
 
   console.log(`[demo] Created demo business "${DEMO_NAME}" (id=${businessId})`);
   return businessId;
