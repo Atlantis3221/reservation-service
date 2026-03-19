@@ -1,12 +1,15 @@
 import cron from 'node-cron';
 import { getDb } from './db';
 import { getBusinessBySlug, upsertContactLink } from './business';
-import { bookRange } from '../repositories/slot.repository';
+import { addDaySlots, bookRange } from '../repositories/slot.repository';
 import { toDateKey } from '../utils/date';
 
 const DEMO_SLUG = 'demo-banya';
 const DEMO_NAME = 'Демо Баня';
 const DEMO_OWNER_CHAT_ID = 'demo';
+const SCHEDULE_DAYS = 7;
+const SCHEDULE_START_HOUR = 10;
+const SCHEDULE_END_HOUR = 24;
 
 const DEMO_CONTACTS = [
   { type: 'telegram' as const, url: 'https://t.me/ndrwbv' },
@@ -42,25 +45,45 @@ function ensureDemoBusiness(): number {
   return businessId;
 }
 
-function hasTodayBookings(businessId: number, dateKey: string): boolean {
-  const row = getDb()
-    .prepare(
-      `SELECT 1 FROM slots WHERE business_id = ? AND date_key = ? AND status = 'booked' LIMIT 1`
-    )
-    .get(businessId, dateKey);
-  return !!row;
+function dateKeyOffset(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return toDateKey(d);
 }
 
-function cleanOldBookings(businessId: number, todayKey: string): void {
+function hasSlots(businessId: number, dateKey: string, status?: string): boolean {
+  const sql = status
+    ? `SELECT 1 FROM slots WHERE business_id = ? AND date_key = ? AND status = ? LIMIT 1`
+    : `SELECT 1 FROM slots WHERE business_id = ? AND date_key = ? LIMIT 1`;
+  const params = status ? [businessId, dateKey, status] : [businessId, dateKey];
+  return !!getDb().prepare(sql).get(...params);
+}
+
+function cleanOldSlots(businessId: number, yesterdayKey: string): void {
   const result = getDb()
     .prepare('DELETE FROM slots WHERE business_id = ? AND date_key < ?')
-    .run(businessId, todayKey);
+    .run(businessId, yesterdayKey);
   if (result.changes > 0) {
     console.log(`[demo] Cleaned ${result.changes} old slot(s)`);
   }
 }
 
-function seedTodayBookings(businessId: number, dateKey: string): void {
+function seedSchedule(businessId: number): void {
+  let created = 0;
+  for (let i = 0; i < SCHEDULE_DAYS; i++) {
+    const dk = dateKeyOffset(i);
+    if (!hasSlots(businessId, dk, 'available')) {
+      addDaySlots(businessId, dk, SCHEDULE_START_HOUR, SCHEDULE_END_HOUR);
+      created++;
+    }
+  }
+  if (created > 0) {
+    console.log(`[demo] Created schedule for ${created} day(s)`);
+  }
+}
+
+function seedBookings(businessId: number, dateKey: string): void {
+  if (hasSlots(businessId, dateKey, 'booked')) return;
   for (const b of DEMO_BOOKINGS) {
     bookRange(businessId, dateKey, b.start, b.end, b.note ?? undefined, b.clientName);
   }
@@ -69,13 +92,13 @@ function seedTodayBookings(businessId: number, dateKey: string): void {
 
 function refreshDemo(): void {
   const businessId = ensureDemoBusiness();
+  const yesterdayKey = dateKeyOffset(-1);
   const todayKey = toDateKey(new Date());
 
-  cleanOldBookings(businessId, todayKey);
-
-  if (!hasTodayBookings(businessId, todayKey)) {
-    seedTodayBookings(businessId, todayKey);
-  }
+  cleanOldSlots(businessId, yesterdayKey);
+  seedSchedule(businessId);
+  seedBookings(businessId, yesterdayKey);
+  seedBookings(businessId, todayKey);
 }
 
 export function initDemo(): void {
