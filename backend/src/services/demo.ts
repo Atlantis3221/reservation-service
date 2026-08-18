@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { getDb } from './db';
 import { getBusinessBySlug, upsertContactLink, updateBookingRequestsEnabled } from './business';
 import { addDaySlots, bookRange } from '../repositories/slot.repository';
+import { createBookingRequest } from '../repositories/booking-request.repository';
 import { toDateKey } from '../utils/date';
 
 const DEMO_SLUG = 'demo-banya';
@@ -14,6 +15,23 @@ const SCHEDULE_END_HOUR = 27;
 const DEMO_CONTACTS = [
   { type: 'telegram' as const, url: 'https://t.me/ndrwbv' },
   { type: 'vk' as const, url: 'https://vk.com/ndrwbv' },
+];
+
+const DEMO_REQUESTS = [
+  {
+    clientName: 'Марина Ковалёва',
+    clientPhone: '+7 916 402-18-77',
+    start: '15:00',
+    end: '17:00',
+    description: 'Хотим на двоих, можно с вениками',
+  },
+  {
+    clientName: 'Артём Лебедев',
+    clientPhone: '+7 903 771-55-02',
+    start: '20:00',
+    end: '22:00',
+    description: 'Компания 5 человек, нужен мангал',
+  },
 ];
 
 const DEMO_BOOKINGS = [
@@ -41,8 +59,6 @@ function ensureDemoBusiness(): number {
   for (const link of DEMO_CONTACTS) {
     upsertContactLink(businessId, link.type, link.url);
   }
-
-  updateBookingRequestsEnabled(businessId, true);
 
   console.log(`[demo] Created demo business "${DEMO_NAME}" (id=${businessId})`);
   return businessId;
@@ -85,6 +101,37 @@ function seedSchedule(businessId: number): void {
   }
 }
 
+function hasRequests(businessId: number, dateKey: string): boolean {
+  return !!getDb()
+    .prepare('SELECT 1 FROM booking_requests WHERE business_id = ? AND preferred_date = ? LIMIT 1')
+    .get(businessId, dateKey);
+}
+
+function cleanOldRequests(businessId: number, yesterdayKey: string): void {
+  const result = getDb()
+    .prepare('DELETE FROM booking_requests WHERE business_id = ? AND preferred_date < ?')
+    .run(businessId, yesterdayKey);
+  if (result.changes > 0) {
+    console.log(`[demo] Cleaned ${result.changes} old request(s)`);
+  }
+}
+
+function seedRequests(businessId: number, dateKey: string): void {
+  if (hasRequests(businessId, dateKey)) return;
+  for (const r of DEMO_REQUESTS) {
+    createBookingRequest(
+      businessId,
+      r.clientName,
+      r.clientPhone,
+      dateKey,
+      r.start,
+      r.end,
+      r.description,
+    );
+  }
+  console.log(`[demo] Created ${DEMO_REQUESTS.length} booking request(s) for ${dateKey}`);
+}
+
 function seedBookings(businessId: number, dateKey: string): void {
   if (hasSlots(businessId, dateKey, 'booked')) return;
   for (const b of DEMO_BOOKINGS) {
@@ -98,10 +145,16 @@ function refreshDemo(): void {
   const yesterdayKey = dateKeyOffset(-1);
   const todayKey = toDateKey(new Date());
 
+  // Идемпотентно: раньше стояло только при создании бизнеса, поэтому у давно
+  // созданного демо форма заявок так и оставалась выключенной.
+  updateBookingRequestsEnabled(businessId, true);
+
   cleanOldSlots(businessId, yesterdayKey);
+  cleanOldRequests(businessId, yesterdayKey);
   seedSchedule(businessId);
   seedBookings(businessId, yesterdayKey);
   seedBookings(businessId, todayKey);
+  seedRequests(businessId, dateKeyOffset(1));
 }
 
 export function initDemo(): void {

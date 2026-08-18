@@ -81,6 +81,7 @@ jobs:
             MONITOR_BOT_TOKEN=${{ secrets.MONITOR_BOT_TOKEN }}
             VK_BOT_TOKEN=${{ secrets.VK_BOT_TOKEN }}
             VK_GROUP_ID=${{ secrets.VK_GROUP_ID }}
+            CLIENTS_PASSWORD=${{ secrets.CLIENTS_PASSWORD }}
         run: |
           printf '%s' "$ENV_CONTENT" | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cat > ${{ secrets.DEPLOY_PATH }}/backend/.env"

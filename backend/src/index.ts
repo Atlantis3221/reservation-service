@@ -7,7 +7,8 @@ import { initBot } from './bot';
 import { initVkBot } from './vk-bot';
 import { apiRouter } from './routes/api';
 import { adminRouter } from './routes/admin';
-import { notifyError, getHealthInfo, initMonitor } from './services/monitor';
+import { notifyError, getPublicHealth, initMonitor } from './services/monitor';
+import { clientsRouter } from './routes/clients';
 import { initDemo } from './services/demo';
 
 process.on('uncaughtException', (err) => {
@@ -29,21 +30,21 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', apiRouter);
+// Регистрируется до adminRouter: у того свой JWT-мидлвар, а этой странице нужен
+// только пароль из CLIENTS_PASSWORD.
+app.use('/admin/clients', clientsRouter);
 app.use('/admin', adminRouter);
 
+// Публичный health отдаёт только состояние процесса. До этого он без всякой
+// авторизации возвращал email'ы всех клиентов, названия заведений и chat_id.
+// Подробности теперь на /admin/clients под паролем и в /health монитор-бота.
 app.get('/health', (_req, res) => {
-  const info = getHealthInfo();
+  const info = getPublicHealth();
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: info.uptime,
     memory: info.memoryMb,
-    businesses: info.businesses,
-    dbSizeMb: info.dbSizeMb,
-    unrecognizedCommands: info.unrecognizedCommands,
-    telegramUsers: info.telegramUsers,
-    recentBusinesses: info.recentBusinesses,
-    adminUsers: info.adminUsers,
   });
 });
 

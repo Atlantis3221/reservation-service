@@ -135,6 +135,32 @@ interface AdminUser {
   linked: boolean;
 }
 
+/**
+ * Лёгкая сводка для публичного /health: только состояние процесса, без запросов
+ * к БД и без данных клиентов.
+ */
+export function getPublicHealth(): {
+  uptime: string;
+  memoryMb: { rss: number; heapUsed: number; heapTotal: number };
+} {
+  const uptimeSec = Math.floor((Date.now() - startedAt) / 1000);
+  const hours = Math.floor(uptimeSec / 3600);
+  const minutes = Math.floor((uptimeSec % 3600) / 60);
+  const seconds = uptimeSec % 60;
+
+  const mem = process.memoryUsage();
+  const toMb = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;
+
+  return {
+    uptime: `${hours}h ${minutes}m ${seconds}s`,
+    memoryMb: {
+      rss: toMb(mem.rss),
+      heapUsed: toMb(mem.heapUsed),
+      heapTotal: toMb(mem.heapTotal),
+    },
+  };
+}
+
 export function getHealthInfo(): {
   uptime: string;
   memoryMb: { rss: number; heapUsed: number; heapTotal: number };
