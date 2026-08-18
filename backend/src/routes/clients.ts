@@ -40,7 +40,12 @@ function requirePassword(req: Request, res: Response, next: NextFunction): void 
   const header = req.headers.authorization;
   const challenge = (): void => {
     // Браузер сам покажет окно ввода пароля.
-    res.set('WWW-Authenticate', 'Basic realm="Slotik — клиенты", charset="UTF-8"');
+    //
+    // realm обязан быть ASCII. Node бросает ERR_INVALID_CHAR на значениях
+    // заголовков вне latin1, и тогда вместо 401 с окном пароля клиент получает
+    // 500 — то есть ломается ровно первый заход, когда учётных данных ещё нет.
+    // Русский текст можно отдавать только в теле ответа.
+    res.set('WWW-Authenticate', 'Basic realm="Slotik clients", charset="UTF-8"');
     res.status(401).type('text/plain; charset=utf-8').send('Требуется пароль');
   };
 
