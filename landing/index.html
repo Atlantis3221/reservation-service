@@ -11,9 +11,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://slotik.tech">
   <link rel="canonical" href="https://slotik.tech">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="media/fonts/inter-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
 
   <script type="application/ld+json">
@@ -57,7 +55,7 @@
         "name": "Сколько стоит система онлайн-записи slotik?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Нисколько. Полностью бесплатно — без скрытых платежей, подписок, комиссий и пробных периодов."
+          "text": "Сейчас — нисколько. Платных тарифов пока нет, все функции открыты. Если появятся — предупредим заранее."
         }
       },
       {
@@ -66,6 +64,14 @@
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "Около двух минут. Регистрация, название бизнеса, рабочие часы — и ваша страница с онлайн-записью готова. Без установок, без анкет, без договоров."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Что делать, если клиенту не подходит ни один свободный слот?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Клиент оставляет заявку: указывает удобное ему время, телефон и комментарий. Заявка приходит вам в панель управления и в Telegram — вы подтверждаете её или предлагаете другое время. Так вы не теряете клиента, даже когда нужного слота в расписании нет."
         }
       },
       {
@@ -98,7 +104,7 @@
       <div class="hero-content">
         <div class="hero-pill">
           <span class="dot"></span>
-          Бесплатно и без комиссий
+          Бесплатно на этапе запуска
         </div>
         <h1>Онлайн-запись для бани, глемпинга и аренды — <em>прямо с&nbsp;телефона</em></h1>
         <p class="hero-sub">Клиенты сами выбирают свободное время и бронируют на вашей странице. Вы управляете расписанием из&nbsp;браузера — без приложений, без тетрадей, без пропущенных звонков.</p>
@@ -115,7 +121,7 @@
       <div class="hero-media">
         <div class="phone-mockup">
           <div class="phone-notch"></div>
-          <img src="media/screen-calendar.png" alt="Панель управления бронированием — календарь записей">
+          <img src="media/screen-calendar.png" alt="Панель управления бронированием — календарь записей" width="578" height="1024" fetchpriority="high" decoding="async">
         </div>
       </div>
     </div>
@@ -190,10 +196,10 @@
         </div>
         <div class="benefit-card">
           <div class="benefit-icon benefit-icon--teal">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
           </div>
-          <h3>Полностью бесплатно — навсегда</h3>
-          <p>Без подписок, без комиссий с каждого бронирования, без «пробного периода, а потом платите». Просто бесплатно.</p>
+          <h3>Заявка, если нужное время занято</h3>
+          <p>Не нашлось подходящего слота — клиент оставляет заявку со своим временем и телефоном. Вы видите её в панели и подтверждаете одним нажатием или предлагаете другое время.</p>
         </div>
       </div>
     </div>
@@ -203,16 +209,16 @@
   <section class="screenshots">
     <div class="container">
       <span class="section-label">Интерфейс</span>
-      <h2 class="section-title">Как выглядит панель управления записями</h2>
-      <p class="section-desc">Визуальный календарь со всеми бронями и удобный чат для быстрого управления — всё в браузере, с любого устройства.</p>
+      <h2 class="section-title">Как это выглядит</h2>
+      <p class="section-desc">Слева — ваша панель со всеми бронями. Справа — то, что видит клиент по ссылке: свободные слоты и форма заявки.</p>
       <div class="screenshots-grid">
         <div class="screenshot-card">
-          <img src="media/screen-calendar.png" alt="Календарь онлайн-записи — все брони на одном экране" loading="lazy">
-          <p class="screenshot-caption">Календарь — все записи и свободные слоты на одном экране</p>
+          <img src="media/screen-calendar.png" alt="Календарь онлайн-записи — все брони на одном экране" loading="lazy" width="578" height="1024" decoding="async">
+          <p class="screenshot-caption">Ваша панель — записи и свободные слоты на одном экране</p>
         </div>
         <div class="screenshot-card">
-          <img src="media/screen-timeslots.png" alt="Управление бронированием через чат-интерфейс" loading="lazy">
-          <p class="screenshot-caption">Чат — управление записями текстовыми командами</p>
+          <img src="media/screen-booking-request.png" alt="Страница клиента — свободные слоты и форма заявки на бронирование" loading="lazy" width="578" height="1024" decoding="async">
+          <p class="screenshot-caption">Страница клиента — выбор слота и форма заявки</p>
         </div>
       </div>
     </div>
@@ -274,7 +280,7 @@
             <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="faq-answer">
-            <p class="faq-answer-inner">Нисколько. Полностью бесплатно — без скрытых платежей, подписок, комиссий и пробных периодов.</p>
+            <p class="faq-answer-inner">Сейчас — нисколько. Платных тарифов пока нет, все функции открыты. Если появятся — предупредим заранее.</p>
           </div>
         </div>
         <div class="faq-item">
@@ -284,6 +290,15 @@
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Около двух минут. Регистрация, название бизнеса, рабочие часы — и ваша страница с онлайн-записью готова. Без установок, без анкет, без договоров.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+            <span>Что делать, если клиенту не подходит ни один свободный слот?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p class="faq-answer-inner">Клиент оставляет заявку: указывает удобное ему время, телефон и комментарий. Заявка приходит вам в панель управления и в Telegram — вы подтверждаете её или предлагаете другое время. Так клиент не уходит, даже когда нужного слота в расписании нет.</p>
           </div>
         </div>
         <div class="faq-item">

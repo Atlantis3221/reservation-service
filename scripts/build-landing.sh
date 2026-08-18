@@ -30,7 +30,11 @@ fi
 rm -f "$OUT_DIR/index.html.bak"
 
 if [ -d "$SRC_DIR/media" ]; then
-  cp -r "$SRC_DIR/media" "$OUT_DIR/media"
+  # `cp -r src/media dst/media` при уже существующей dst/media вкладывает копию
+  # внутрь — получалось dist/media/media/. Поэтому чистим и копируем содержимое.
+  rm -rf "$OUT_DIR/media"
+  mkdir -p "$OUT_DIR/media"
+  cp -a "$SRC_DIR/media/." "$OUT_DIR/media/"
   echo "  media/ copied"
 fi
 
