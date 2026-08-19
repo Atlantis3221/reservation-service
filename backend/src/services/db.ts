@@ -358,8 +358,8 @@ function migrationV2(d: Database.Database): void {
 
   if (orphans.length > 0) {
     console.log(
-      `[db] v2: привязано ${orphans.length} веб-аккаунт(ов), ` +
-      `восстановлено ${relinked} потерянных заведений`,
+      `[db] v2: привязано веб-аккаунтов: ${orphans.length}, ` +
+      `возвращено владельцам заведений: ${relinked}`,
     );
   }
 }
