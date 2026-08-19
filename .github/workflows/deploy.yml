@@ -102,6 +102,11 @@ jobs:
             VK_BOT_TOKEN=${{ secrets.VK_BOT_TOKEN }}
             VK_GROUP_ID=${{ secrets.VK_GROUP_ID }}
             CLIENTS_PASSWORD=${{ secrets.CLIENTS_PASSWORD }}
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASS=${{ secrets.SMTP_PASS }}
+            MAIL_FROM=${{ secrets.MAIL_FROM }}
         run: |
           printf '%s' "$ENV_CONTENT" | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cat > ${{ secrets.DEPLOY_PATH }}/backend/.env"
