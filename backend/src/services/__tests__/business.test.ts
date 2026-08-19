@@ -38,6 +38,9 @@ function createSchema(db: Database.Database): void {
       telegram_username TEXT,
       owner_phone       TEXT,
       agreement_accepted_at TEXT,
+      booking_requests_enabled INTEGER NOT NULL DEFAULT 0,
+      working_hours     TEXT,
+      slot_duration_minutes INTEGER NOT NULL DEFAULT 120,
       created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `);
@@ -133,8 +136,9 @@ describe('generateSlug', () => {
   });
 
   it('adds suffix for very short names', () => {
+    // Суффикс нейтральный, а не «-banya»: сервис используют не только бани
     const slug = generateSlug('Ба');
-    expect(slug).toContain('banya');
+    expect(slug).toBe('ba-mesto');
   });
 
   it('handles collision by appending number', () => {
@@ -333,5 +337,21 @@ describe('owner phone', () => {
 
   it('getOwnerPhone returns null when not set', () => {
     expect(getOwnerPhone('999')).toBeNull();
+  });
+});
+
+describe('зарезервированные адреса', () => {
+  it('не принимает slug, занятый страницами сервиса', () => {
+    expect(isValidSlug('privacy')).toBe(false);
+    expect(isValidSlug('admin')).toBe(false);
+    expect(isValidSlug('api')).toBe(false);
+  });
+
+  it('обычные адреса остаются валидными', () => {
+    expect(isValidSlug('banya-na-prudu')).toBe(true);
+  });
+
+  it('генерация уводит от зарезервированного адреса', () => {
+    expect(generateSlug('Privacy')).toBe('privacy-mesto');
   });
 });

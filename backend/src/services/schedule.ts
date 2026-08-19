@@ -6,6 +6,8 @@ export {
   getAllSlots,
   getAllDateKeys,
   addDaySlots,
+  addDaySlotRange,
+  clearAvailableSlots,
   findOverlappingBookings,
   bookRange,
   updateBooking,

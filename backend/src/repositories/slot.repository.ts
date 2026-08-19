@@ -101,6 +101,47 @@ export function addDaySlots(businessId: number, dateKey: string, startHour: numb
   }];
 }
 
+/**
+ * Публикует смену по точным границам HH:MM.
+ * addDaySlots работает с целыми часами и молча терял «10:30».
+ */
+export function addDaySlotRange(
+  businessId: number,
+  dateKey: string,
+  startTime: string,
+  endTime: string,
+): TimeSlot {
+  const result = getDb()
+    .prepare(
+      `INSERT INTO slots (business_id, date_key, start_time, end_time, status)
+       VALUES (?, ?, ?, ?, 'available')`
+    )
+    .run(businessId, dateKey, startTime, endTime);
+
+  const id = Number(result.lastInsertRowid);
+  const crossesMidnight = endTime <= startTime;
+  const endDK = crossesMidnight ? nextDateKey(dateKey) : dateKey;
+
+  return {
+    id,
+    startDatetime: `${dateKey}T${startTime}:00`,
+    endDatetime: `${endDK}T${endTime}:00`,
+    status: 'available',
+  };
+}
+
+/**
+ * Убирает только опубликованное свободное время, не трогая брони.
+ * clearDay удаляет всё подряд — при перепубликации расписания это стирало
+ * записи живых клиентов.
+ */
+export function clearAvailableSlots(businessId: number, dateKey: string): number {
+  const result = getDb()
+    .prepare("DELETE FROM slots WHERE business_id = ? AND date_key = ? AND status = 'available'")
+    .run(businessId, dateKey);
+  return result.changes;
+}
+
 export function findOverlappingBookings(
   businessId: number,
   dateKey: string,

@@ -5,6 +5,10 @@ export interface DayTimeRange {
   endDay: number;
   startHour: number;
   endHour: number;
+  /** Минуты начала — для смен вида «с 10:30» */
+  startMinute?: number;
+  /** Минуты конца */
+  endMinute?: number;
 }
 
 export interface FlexibleScheduleCommand {
@@ -12,32 +16,47 @@ export interface FlexibleScheduleCommand {
   ranges: DayTimeRange[];
 }
 
+/**
+ * «эту неделю пн-пт с 10 до 22», «на этой неделе сб с 10:30 до 23».
+ * Поддерживает диапазон дней и одиночный день, целые часы и получас —
+ * раньше «сб с 10 до 22» и «10:30» молча не распознавались.
+ */
 export function parseFlexibleSchedule(text: string): FlexibleScheduleCommand | null {
   const lower = text.toLowerCase();
 
   let week: 'this' | 'next';
-  if (/эт(?:ой|у|а)\s+недел/.test(lower)) {
+  if (/(?:на\s+)?эт(?:ой|у|а)\s+недел/.test(lower)) {
     week = 'this';
-  } else if (/следующ\S*\s+недел/.test(lower)) {
+  } else if (/(?:на\s+)?следующ\S*\s+недел/.test(lower)) {
     week = 'next';
   } else {
     return null;
   }
 
-  const rangeRegex = /(?:с\s+)?(пн|вт|ср|чт|пт|сб|вс)\s*(?:[-–]\s*|\s+по\s+)(пн|вт|ср|чт|пт|сб|вс)\s+[сc]\s+(\d{1,2})(?::00)?\s+до\s+(\d{1,2})(?::00)?/g;
+  const DAY = '(пн|вт|ср|чт|пт|сб|вс)';
+  const TIME = '(\\d{1,2})(?::(\\d{2}))?';
+  const rangeRegex = new RegExp(
+    `(?:с\\s+)?${DAY}(?:\\s*(?:[-–—]\\s*|\\s+по\\s+)${DAY})?` +
+    `\\s+[сc]\\s+${TIME}\\s+(?:до|по)\\s+${TIME}`,
+    'g',
+  );
 
   const ranges: DayTimeRange[] = [];
   let match;
   while ((match = rangeRegex.exec(lower)) !== null) {
     const startDay = DAY_ABBREV[match[1]];
-    const endDay = DAY_ABBREV[match[2]];
+    // День не указан вторым — значит смена на один день
+    const endDay = match[2] ? DAY_ABBREV[match[2]] : startDay;
     const startHour = Number(match[3]);
-    const endHour = Number(match[4]);
+    const startMinute = Number(match[4] ?? '0');
+    const endHour = Number(match[5]);
+    const endMinute = Number(match[6] ?? '0');
 
     if (startDay === undefined || endDay === undefined) continue;
-    if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23) continue;
+    if (startHour > 23 || endHour > 24) continue;
+    if (startMinute > 59 || endMinute > 59) continue;
 
-    ranges.push({ startDay, endDay, startHour, endHour });
+    ranges.push({ startDay, endDay, startHour, endHour, startMinute, endMinute });
   }
 
   if (ranges.length === 0) return null;
@@ -89,6 +108,42 @@ export function parseBookingRange(text: string): { dayName: string; startTime: s
 
   return { dayName, startTime, endTime, clientName };
 }
+
+/**
+ * «запиши Иванова на субботу в 15:00» — без указания длительности.
+ * Длительность берётся из настроек заведения (длительность сеанса).
+ */
+export function parseBookingAt(text: string): { dayName: string; startTime: string; clientName?: string } | null {
+  // «отмени бронь на субботу 15:00» — это отмена, а не запись
+  if (/^\s*отмени/i.test(text)) return null;
+
+  const match = text.match(
+    /(?:запиши|запись|бронь)\s+(?:([а-яё\s.-]+?)\s+)?(?:на|в)\s+([а-яё]+)\s+(?:в\s+)?(\d{1,2})(?::(\d{2}))?(?!\s*(?::|до|по|-))/i,
+  );
+  if (!match) return null;
+
+  const rawName = match[1]?.trim();
+  const dayName = match[2];
+  const hour = Number(match[3]);
+  const minutes = Number(match[4] || '0');
+
+  if (hour > 23 || minutes > 59) return null;
+  if (DAY_WORDS.has(rawName ?? '')) return null;
+
+  const clientName = rawName
+    ? rawName.charAt(0).toUpperCase() + rawName.slice(1)
+    : undefined;
+
+  return { dayName, startTime: `${pad2(hour)}:${pad2(minutes)}`, clientName };
+}
+
+/** Слова-дни, которые нельзя принять за имя клиента */
+const DAY_WORDS = new Set([
+  'сегодня', 'завтра', 'послезавтра',
+  'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье',
+  'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу', 'воскресенье',
+  'пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс',
+]);
 
 export function parseCancelCommand(text: string): { dayName: string; startTime: string } | null {
   const match = text.match(/отмени\s+бронь\s+(?:на\s+)?(\S+)\s+(\d{1,2})(?::(\d{2}))?/i);

@@ -129,6 +129,7 @@ type MigrationFn = (d: Database.Database) => void;
 
 export const migrations: MigrationFn[] = [
   migrationV1,
+  migrationV2,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -317,6 +318,50 @@ function migrationV1(d: Database.Database): void {
   }
 
   d.exec('CREATE INDEX IF NOT EXISTS idx_booking_requests_business ON booking_requests(business_id, status)');
+}
+
+// ---- Migration V2: длительность сеанса + починка связи аккаунт ↔ заведение ----
+//
+// До v2 веб-регистрация оставляла admin_users.owner_chat_id = NULL, а созданное
+// через чат заведение получало owner_chat_id = String(adminUserId). /init и /me
+// искали заведения по NULL и всегда возвращали пустой список — владелец терял
+// заведение сразу после создания. Теперь у веб-аккаунта всегда есть собственный
+// owner_chat_id в отдельном namespace `web:<id>`, который не может пересечься
+// с chat_id из Telegram или VK.
+
+export const WEB_OWNER_PREFIX = 'web:';
+
+export function webOwnerChatId(adminUserId: number): string {
+  return `${WEB_OWNER_PREFIX}${adminUserId}`;
+}
+
+function migrationV2(d: Database.Database): void {
+  if (!columnExists(d, 'businesses', 'slot_duration_minutes')) {
+    d.exec('ALTER TABLE businesses ADD COLUMN slot_duration_minutes INTEGER NOT NULL DEFAULT 120');
+  }
+
+  const orphans = d
+    .prepare('SELECT id FROM admin_users WHERE owner_chat_id IS NULL')
+    .all() as Array<{ id: number }>;
+
+  const setOwner = d.prepare('UPDATE admin_users SET owner_chat_id = ? WHERE id = ?');
+  const repoint = d.prepare('UPDATE businesses SET owner_chat_id = ? WHERE owner_chat_id = ?');
+
+  let relinked = 0;
+  for (const { id } of orphans) {
+    const newOwner = webOwnerChatId(id);
+    // Заведения, созданные из веб-чата, лежат под owner_chat_id = String(adminUserId).
+    const moved = repoint.run(newOwner, String(id));
+    setOwner.run(newOwner, id);
+    if (moved.changes > 0) relinked += moved.changes;
+  }
+
+  if (orphans.length > 0) {
+    console.log(
+      `[db] v2: привязано ${orphans.length} веб-аккаунт(ов), ` +
+      `восстановлено ${relinked} потерянных заведений`,
+    );
+  }
 }
 
 // ---- Slot Cleanup ----

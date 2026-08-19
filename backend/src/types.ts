@@ -17,12 +17,24 @@ export interface Business {
   ownerPhone: string | null;
   bookingRequestsEnabled: boolean;
   workingHours: WorkingHoursConfig | null;
+  /** Длительность одного сеанса в минутах — шаг сетки бронирования */
+  slotDurationMinutes: number;
   createdAt: string;
 }
 
 // ---- Расписание (управляется владельцем бани) ----
 
 export type SlotStatus = 'available' | 'booked' | 'blocked';
+
+/** Свободный интервал, который клиент может забронировать одним нажатием */
+export interface FreeSlot {
+  /** HH:MM начала */
+  startTime: string;
+  /** HH:MM конца (может быть на следующий день) */
+  endTime: string;
+  /** true, если интервал заканчивается после полуночи */
+  crossesMidnight: boolean;
+}
 
 export interface TimeSlot {
   id: number;

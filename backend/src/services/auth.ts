@@ -4,8 +4,10 @@ import {
   createAdminUser,
   getAdminUserByEmail,
   getAdminUserById,
+  setOwnerChatId,
   updatePassword,
 } from '../repositories/admin-user.repository';
+import { webOwnerChatId } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const JWT_EXPIRES_IN = '7d';
@@ -33,10 +35,15 @@ export function register(email: string, password: string): AuthResult {
   const hash = bcrypt.hashSync(password, SALT_ROUNDS);
   const user = createAdminUser(email.toLowerCase(), hash);
 
+  // Сразу выдаём аккаунту собственный owner_chat_id. Без этого заведения,
+  // созданные из веба, оказываются никому не принадлежащими и пропадают из панели.
+  const ownerChatId = webOwnerChatId(user.id);
+  setOwnerChatId(user.id, ownerChatId);
+
   const token = signToken(user.id);
   return {
     token,
-    user: { id: user.id, email: user.email, ownerChatId: user.owner_chat_id },
+    user: { id: user.id, email: user.email, ownerChatId },
   };
 }
 

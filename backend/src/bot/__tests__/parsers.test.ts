@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseFlexibleSchedule, parseBookingCommand, parseBookingRange, parseCancelCommand } from '../parsers';
+import { parseFlexibleSchedule, parseBookingCommand, parseBookingRange, parseCancelCommand,
+  parseBookingAt,
+} from '../parsers';
 
 describe('parseFlexibleSchedule', () => {
   it('parses "this week" with single range', () => {
@@ -7,7 +9,7 @@ describe('parseFlexibleSchedule', () => {
     expect(result).not.toBeNull();
     expect(result!.week).toBe('this');
     expect(result!.ranges).toHaveLength(1);
-    expect(result!.ranges[0]).toEqual({ startDay: 1, endDay: 5, startHour: 10, endHour: 22 });
+    expect(result!.ranges[0]).toEqual({ startDay: 1, endDay: 5, startHour: 10, endHour: 22, startMinute: 0, endMinute: 0 });
   });
 
   it('parses "next week" with single range', () => {
@@ -21,14 +23,14 @@ describe('parseFlexibleSchedule', () => {
     const result = parseFlexibleSchedule('на этой неделе с пн по пт с 10 до 22, с сб по вс с 12 до 20');
     expect(result).not.toBeNull();
     expect(result!.ranges).toHaveLength(2);
-    expect(result!.ranges[0]).toEqual({ startDay: 1, endDay: 5, startHour: 10, endHour: 22 });
-    expect(result!.ranges[1]).toEqual({ startDay: 6, endDay: 7, startHour: 12, endHour: 20 });
+    expect(result!.ranges[0]).toEqual({ startDay: 1, endDay: 5, startHour: 10, endHour: 22, startMinute: 0, endMinute: 0 });
+    expect(result!.ranges[1]).toEqual({ startDay: 6, endDay: 7, startHour: 12, endHour: 20, startMinute: 0, endMinute: 0 });
   });
 
   it('parses night range (12→03)', () => {
     const result = parseFlexibleSchedule('на этой неделе с пт по сб с 12 до 03');
     expect(result).not.toBeNull();
-    expect(result!.ranges[0]).toEqual({ startDay: 5, endDay: 6, startHour: 12, endHour: 3 });
+    expect(result!.ranges[0]).toEqual({ startDay: 5, endDay: 6, startHour: 12, endHour: 3, startMinute: 0, endMinute: 0 });
   });
 
   it('returns null without week mention', () => {
@@ -139,5 +141,62 @@ describe('parseCancelCommand', () => {
 
   it('returns null for non-matching text', () => {
     expect(parseCancelCommand('привет')).toBeNull();
+  });
+});
+
+describe('parseFlexibleSchedule — расширенные формы', () => {
+  it('понимает одиночный день', () => {
+    const result = parseFlexibleSchedule('эту неделю сб с 12 до 20');
+    expect(result).not.toBeNull();
+    expect(result!.ranges).toEqual([
+      { startDay: 6, endDay: 6, startHour: 12, endHour: 20, startMinute: 0, endMinute: 0 },
+    ]);
+  });
+
+  it('понимает получасовые границы', () => {
+    const result = parseFlexibleSchedule('эту неделю пн-пт с 10:30 до 22:15');
+    expect(result!.ranges[0]).toMatchObject({
+      startHour: 10, startMinute: 30, endHour: 22, endMinute: 15,
+    });
+  });
+
+  it('понимает «на этой неделе»', () => {
+    expect(parseFlexibleSchedule('на этой неделе пн-пт с 10 до 22')?.week).toBe('this');
+  });
+
+  it('понимает «по» вместо «до»', () => {
+    expect(parseFlexibleSchedule('эту неделю пн-пт с 10 по 22')).not.toBeNull();
+  });
+
+  it('не принимает команду без указания недели', () => {
+    expect(parseFlexibleSchedule('работаю с 10 до 22')).toBeNull();
+  });
+});
+
+describe('parseBookingAt', () => {
+  it('понимает запись без длительности', () => {
+    expect(parseBookingAt('запиши Иванова на субботу 15:00')).toEqual({
+      dayName: 'субботу', startTime: '15:00', clientName: 'Иванова',
+    });
+  });
+
+  it('понимает форму с предлогом «в»', () => {
+    expect(parseBookingAt('запиши Иванова на субботу в 15:00')).toMatchObject({
+      startTime: '15:00', clientName: 'Иванова',
+    });
+  });
+
+  it('работает без имени клиента', () => {
+    expect(parseBookingAt('запиши на субботу в 15:00')).toMatchObject({
+      dayName: 'субботу', startTime: '15:00', clientName: undefined,
+    });
+  });
+
+  it('не перехватывает отмену брони', () => {
+    expect(parseBookingAt('отмени бронь на субботу 15:00')).toBeNull();
+  });
+
+  it('отклоняет некорректное время', () => {
+    expect(parseBookingAt('запиши Иванова на субботу в 25:00')).toBeNull();
   });
 });

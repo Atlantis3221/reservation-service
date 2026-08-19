@@ -24,7 +24,8 @@ export function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 
-  if (slug.length < 3) slug = slug + '-banya';
+  if (slug.length < 3) slug = slug + '-mesto';
+  if (isReservedSlug(slug)) slug = `${slug}-mesto`;
 
   const existing = getDb()
     .prepare('SELECT slug FROM businesses WHERE slug = ?')
@@ -43,7 +44,21 @@ export function generateSlug(name: string): string {
   return `${slug}-${Date.now()}`;
 }
 
+/**
+ * Адреса, занятые самим сервисом. Заведение с таким slug перекрыло бы
+ * страницу сервиса — например, политику обработки данных.
+ */
+export const RESERVED_SLUGS = new Set([
+  'privacy', 'admin', 'api', 'health', 'login', 'register', 'reset', 'forgot',
+  'about', 'help', 'support', 'terms', 'static', 'assets', 'media', 'fonts',
+]);
+
+export function isReservedSlug(slug: string): boolean {
+  return RESERVED_SLUGS.has(slug);
+}
+
 export function isValidSlug(slug: string): boolean {
+  if (isReservedSlug(slug)) return false;
   return /^[a-z0-9][a-z0-9-]{1,}[a-z0-9]$/.test(slug) && slug.length >= 3;
 }
 
@@ -52,6 +67,8 @@ export function isSlugTaken(slug: string): boolean {
     .prepare('SELECT 1 FROM businesses WHERE slug = ?')
     .get(slug);
 }
+
+export const DEFAULT_SLOT_DURATION_MINUTES = 120;
 
 function rowToBusiness(row: any): Business {
   let workingHours = null;
@@ -67,6 +84,7 @@ function rowToBusiness(row: any): Business {
     ownerPhone: row.owner_phone ?? null,
     bookingRequestsEnabled: !!row.booking_requests_enabled,
     workingHours,
+    slotDurationMinutes: row.slot_duration_minutes ?? DEFAULT_SLOT_DURATION_MINUTES,
     createdAt: row.created_at,
   };
 }
@@ -79,12 +97,15 @@ export function createBusiness(
 ): Business {
   const phone = getOwnerPhone(ownerChatId);
 
+  // booking_requests_enabled = 1 по умолчанию: иначе страница нового заведения
+  // выглядит для клиента как тупик («свяжитесь с владельцем» без контактов).
   const result = getDb()
     .prepare(
-      `INSERT INTO businesses (slug, name, owner_chat_id, telegram_username, owner_phone)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO businesses (slug, name, owner_chat_id, telegram_username, owner_phone,
+                               booking_requests_enabled, slot_duration_minutes)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`
     )
-    .run(slug, name, ownerChatId, telegramUsername ?? null, phone);
+    .run(slug, name, ownerChatId, telegramUsername ?? null, phone, DEFAULT_SLOT_DURATION_MINUTES);
 
   notifyNewBusiness(name, slug);
 
@@ -95,10 +116,24 @@ export function createBusiness(
     ownerChatId,
     telegramUsername: telegramUsername ?? null,
     ownerPhone: phone,
-    bookingRequestsEnabled: false,
+    bookingRequestsEnabled: true,
     workingHours: null,
+    slotDurationMinutes: DEFAULT_SLOT_DURATION_MINUTES,
     createdAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Переносит все заведения с одного owner_chat_id на другой.
+ * Нужно при привязке Telegram к веб-аккаунту: иначе заведения, созданные
+ * до привязки под `web:<id>`, снова становятся невидимыми для владельца.
+ */
+export function moveBusinessesToOwner(fromChatId: string, toChatId: string): number {
+  if (!fromChatId || fromChatId === toChatId) return 0;
+  const result = getDb()
+    .prepare('UPDATE businesses SET owner_chat_id = ? WHERE owner_chat_id = ?')
+    .run(toChatId, fromChatId);
+  return result.changes;
 }
 
 export function getBusinessesByOwner(chatId: string | number): Business[] {
@@ -243,4 +278,10 @@ export function updateWorkingHours(businessId: number, workingHours: Record<stri
   getDb()
     .prepare('UPDATE businesses SET working_hours = ? WHERE id = ?')
     .run(JSON.stringify(workingHours), businessId);
+}
+
+export function updateSlotDuration(businessId: number, minutes: number): void {
+  getDb()
+    .prepare('UPDATE businesses SET slot_duration_minutes = ? WHERE id = ?')
+    .run(minutes, businessId);
 }

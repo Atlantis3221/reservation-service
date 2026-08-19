@@ -4,9 +4,10 @@ import type { FlexibleScheduleCommand } from './parsers';
 import { formatDayScheduleText, formatStatsText, formatScheduleCreated, formatBookingConfirmation } from './formatters';
 import {
   addDaySlots,
+  addDaySlotRange,
+  clearAvailableSlots,
   cancelBooking,
   cancelBookingById,
-  clearDay,
   findOverlappingBookings,
   getScheduledDays,
   getSlotsForDate,
@@ -259,28 +260,24 @@ function handleFlexibleSchedule(ctx: any, biz: Business, cmd: FlexibleScheduleCo
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    clearDay(biz.id, toDateKey(d));
+    // Только свободное время: clearDay стирал вместе с ним брони клиентов
+    clearAvailableSlots(biz.id, toDateKey(d));
   }
 
   const daysInfo = new Map<string, string>();
 
   for (const range of cmd.ranges) {
+    const startTime = fmtHm(range.startHour, range.startMinute ?? 0);
+    const endTime = fmtHm(range.endHour, range.endMinute ?? 0);
+
     let dayNum = range.startDay;
     while (true) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + (dayNum - 1));
       const dateKey = toDateKey(date);
 
-      if (range.endHour > range.startHour) {
-        addDaySlots(biz.id, dateKey, range.startHour, range.endHour);
-        daysInfo.set(dateKey, `${range.startHour}:00–${range.endHour}:00`);
-      } else {
-        addDaySlots(biz.id, dateKey, range.startHour, 24);
-        const nextDate = new Date(date);
-        nextDate.setDate(date.getDate() + 1);
-        addDaySlots(biz.id, toDateKey(nextDate), 0, range.endHour);
-        daysInfo.set(dateKey, `${range.startHour}:00–${String(range.endHour).padStart(2, '0')}:00`);
-      }
+      addDaySlotRange(biz.id, dateKey, startTime, endTime);
+      daysInfo.set(dateKey, `${startTime}–${endTime}`);
 
       if (dayNum === range.endDay) break;
       dayNum = dayNum >= 7 ? 1 : dayNum + 1;
@@ -295,6 +292,11 @@ function handleFlexibleSchedule(ctx: any, biz: Business, cmd: FlexibleScheduleCo
       [Markup.button.callback('✏️ Редактировать слоты', `edit_slots:${biz.id}`)],
     ]),
   });
+}
+
+function fmtHm(hour: number, minute: number): string {
+  const h = hour >= 24 ? hour - 24 : hour;
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function handleEditSlots(ctx: any, biz: Business): void {

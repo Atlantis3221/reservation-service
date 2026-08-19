@@ -1,11 +1,18 @@
-import { parseFlexibleSchedule, parseBookingCommand, parseBookingRange, parseCancelCommand } from '../bot/parsers';
+import {
+  parseFlexibleSchedule,
+  parseBookingCommand,
+  parseBookingRange,
+  parseBookingAt,
+  parseCancelCommand,
+} from '../bot/parsers';
 import type { FlexibleScheduleCommand } from '../bot/parsers';
 import { formatDayScheduleText, formatStatsText, formatScheduleCreated, formatBookingConfirmation } from '../bot/formatters';
 import {
   addDaySlots,
+  addDaySlotRange,
+  clearAvailableSlots,
   cancelBooking,
   cancelBookingById,
-  clearDay,
   findOverlappingBookings,
   getScheduledDays,
   getSlotsForDate,
@@ -53,7 +60,14 @@ type ConversationStep =
 
 interface ConversationState {
   step: ConversationStep;
-  data: { name?: string; slug?: string; businessId?: number; linkType?: ContactLinkType };
+  data: {
+    name?: string;
+    slug?: string;
+    businessId?: number;
+    linkType?: ContactLinkType;
+    /** Владелец, на которого записывать новое заведение */
+    ownerChatId?: string;
+  };
 }
 
 interface PendingBooking {
@@ -88,19 +102,13 @@ export function executeCommand(
     return handleConversation(adminUserId, conv, text);
   }
 
-  if (!business && !ownerChatId) {
-    conversations.set(adminUserId, { step: 'awaiting_name', data: {} });
-    return {
-      messages: [{
-        text: 'Привет! Давайте зарегистрируем ваше заведение.\n\nКак оно называется?',
-      }],
-    };
-  }
-
   if (!business) {
     const businesses = ownerChatId ? getBusinessesByOwner(ownerChatId) : [];
     if (businesses.length === 0) {
-      conversations.set(adminUserId, { step: 'awaiting_name', data: {} });
+      conversations.set(adminUserId, {
+        step: 'awaiting_name',
+        data: { ownerChatId: ownerChatId ?? String(adminUserId) },
+      });
       return {
         messages: [{
           text: 'У вас пока нет заведений. Давайте создадим первое.\n\nКак оно называется?',
@@ -204,10 +212,12 @@ export function getInitialMessages(
   const businesses = ownerChatId ? getBusinessesByOwner(ownerChatId) : [];
 
   if (businesses.length === 0) {
-    conversations.set(adminUserId, { step: 'awaiting_name', data: {} });
+    // Заведение теперь создаётся в онбординге панели, а не в чате: чат для
+    // холодного пользователя оказался тупиком. Здесь только подсказка.
     return {
       messages: [{
-        text: 'Привет! Давайте зарегистрируем ваше заведение.\n\nКак оно называется?',
+        text: 'У вас пока нет заведений. Нажмите «Создать заведение» на главном экране — ' +
+              'это займёт минуту.',
       }],
     };
   }
@@ -235,10 +245,97 @@ function executeBusinessCommand(
     return handleDelete(biz, textLower);
   }
 
+  // Команды расписания и броней. Раньше обработчики существовали, но в веб-чате
+  // не вызывались: панель отвечала «не понял» на любую команду из своего же списка.
+  const flexCmd = parseFlexibleSchedule(textLower);
+  if (flexCmd) {
+    return handleFlexibleSchedule(biz, flexCmd);
+  }
+
+  const cancelCmd = parseCancelCommand(textLower);
+  if (cancelCmd) {
+    return handleCancelByCommand(biz, cancelCmd);
+  }
+
+  const rangeCmd = parseBookingRange(textLower);
+  if (rangeCmd) {
+    return handleBookByRange(biz, rangeCmd.dayName, rangeCmd.startTime, rangeCmd.endTime, rangeCmd.clientName);
+  }
+
+  const durationCmd = parseBookingCommand(textLower);
+  if (durationCmd) {
+    return handleBookByRange(biz, durationCmd.dayName, durationCmd.startTime, durationCmd.endTime, durationCmd.clientName);
+  }
+
+  const atCmd = parseBookingAt(text.trim());
+  if (atCmd) {
+    // Длительность не указана — берём длительность сеанса заведения
+    const endTime = addMinutes(atCmd.startTime, biz.slotDurationMinutes);
+    return handleBookByRange(biz, atCmd.dayName, atCmd.startTime, endTime, atCmd.clientName);
+  }
+
   return {
     messages: [{
-      text: 'Не понял команду. Нажмите кнопку «Команды» для списка доступных команд.',
+      text: 'Не понял команду. Нажмите кнопку «Команды» — там примеры того, что я понимаю.',
     }],
+  };
+}
+
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = (h * 60 + m + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function handleBookByRange(
+  biz: Business,
+  dayName: string,
+  startTime: string,
+  endTime: string,
+  clientName?: string,
+): CommandResult {
+  const date = resolveDay(dayName);
+  if (!date) {
+    return { messages: [{ text: `Не понял день «${dayName}». Например: сегодня, завтра, субботу.` }] };
+  }
+
+  const dateKey = toDateKey(date);
+  const overlaps = findOverlappingBookings(biz.id, dateKey, startTime, endTime);
+  if (overlaps.length > 0) {
+    const list = overlaps
+      .map((o) => `• ${o.startTime}–${o.endTime}${o.clientName ? ` (${o.clientName})` : ''}`)
+      .join('\n');
+    return {
+      messages: [{
+        text: `На ${fmtDate(dateKey)} это время уже занято:\n${list}\n\nВыберите другое время.`,
+      }],
+    };
+  }
+
+  bookRange(biz.id, dateKey, startTime, endTime, undefined, clientName);
+  const who = clientName ? ` — ${clientName}` : '';
+  return {
+    messages: [{ text: `✅ Записал на ${fmtDate(dateKey)}, ${startTime}–${endTime}${who}` }],
+  };
+}
+
+function handleCancelByCommand(
+  biz: Business,
+  cmd: { dayName: string; startTime: string },
+): CommandResult {
+  const date = resolveDay(cmd.dayName);
+  if (!date) {
+    return { messages: [{ text: `Не понял день «${cmd.dayName}».` }] };
+  }
+
+  const result = cancelBooking(biz.id, toDateKey(date), cmd.startTime);
+  if (result.cancelled === 0) {
+    return { messages: [{ text: `На ${fmtDate(toDateKey(date))} в ${cmd.startTime} брони нет.` }] };
+  }
+
+  const who = result.clientName ? ` (${result.clientName})` : '';
+  return {
+    messages: [{ text: `✅ Бронь ${fmtDate(toDateKey(date))} ${cmd.startTime}${who} отменена.` }],
   };
 }
 
@@ -249,7 +346,7 @@ function handleConversation(adminUserId: number, conv: ConversationState, text: 
       const slug = generateSlug(name);
       conversations.set(adminUserId, {
         step: 'awaiting_slug_confirm',
-        data: { name, slug },
+        data: { ...conv.data, name, slug },
       });
       return {
         messages: [{
@@ -261,12 +358,15 @@ function handleConversation(adminUserId: number, conv: ConversationState, text: 
     case 'awaiting_slug_confirm': {
       const lower = text.toLowerCase().trim();
       if (lower === 'да' || lower === 'ok' || lower === 'ок') {
-        const biz = createBusiness(conv.data.slug!, conv.data.name!, String(adminUserId));
+        const biz = createBusiness(
+          conv.data.slug!, conv.data.name!, conv.data.ownerChatId ?? String(adminUserId),
+        );
         conversations.delete(adminUserId);
         const url = getFrontendUrl(biz.slug);
         let reply = `✅ «${biz.name}» зарегистрировано!\n\nSlug: ${biz.slug}`;
         if (url) reply += `\n🔗 ${url}`;
-        reply += '\n\nТеперь вы можете управлять расписанием.';
+        reply += '\n\nОсталось открыть запись: вкладка «Настройки» → рабочие часы → ' +
+                 '«Открыть запись». Пока расписание не опубликовано, клиенты видят пустой календарь.';
         return { messages: [{ text: reply }] };
       }
 
@@ -277,12 +377,15 @@ function handleConversation(adminUserId: number, conv: ConversationState, text: 
       if (isSlugTaken(customSlug)) {
         return { messages: [{ text: `Slug «${customSlug}» уже занят. Попробуйте другой:` }] };
       }
-      const biz = createBusiness(customSlug, conv.data.name!, String(adminUserId));
+      const biz = createBusiness(
+        customSlug, conv.data.name!, conv.data.ownerChatId ?? String(adminUserId),
+      );
       conversations.delete(adminUserId);
       const url = getFrontendUrl(biz.slug);
       let reply = `✅ «${biz.name}» зарегистрировано!\n\nSlug: ${biz.slug}`;
       if (url) reply += `\n🔗 ${url}`;
-      reply += '\n\nТеперь вы можете управлять расписанием.';
+      reply += '\n\nОсталось открыть запись: вкладка «Настройки» → рабочие часы → ' +
+               '«Открыть запись». Пока расписание не опубликовано, клиенты видят пустой календарь.';
       return { messages: [{ text: reply }] };
     }
 
@@ -459,28 +562,31 @@ function handleFlexibleSchedule(biz: Business, cmd: FlexibleScheduleCommand): Co
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    clearDay(biz.id, toDateKey(d));
+    // Только свободное время: clearDay стирал вместе с ним брони клиентов.
+    clearAvailableSlots(biz.id, toDateKey(d));
   }
 
   const daysInfo = new Map<string, string>();
 
   for (const range of cmd.ranges) {
+    const startTime = fmtTime(range.startHour, range.startMinute ?? 0);
+    const endTime = fmtTime(range.endHour, range.endMinute ?? 0);
+    const startMinutes = range.startHour * 60 + (range.startMinute ?? 0);
+    const endMinutes = range.endHour * 60 + (range.endMinute ?? 0);
+
     let dayNum = range.startDay;
     while (true) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + (dayNum - 1));
       const dateKey = toDateKey(date);
 
-      if (range.endHour > range.startHour) {
-        addDaySlots(biz.id, dateKey, range.startHour, range.endHour);
-        daysInfo.set(dateKey, `${range.startHour}:00–${range.endHour}:00`);
+      if (endMinutes > startMinutes) {
+        addDaySlotRange(biz.id, dateKey, startTime, endTime);
       } else {
-        addDaySlots(biz.id, dateKey, range.startHour, 24);
-        const nextDate = new Date(date);
-        nextDate.setDate(date.getDate() + 1);
-        addDaySlots(biz.id, toDateKey(nextDate), 0, range.endHour);
-        daysInfo.set(dateKey, `${range.startHour}:00–${String(range.endHour).padStart(2, '0')}:00`);
+        // Смена через полночь пишется одной записью: слой слотов это поддерживает
+        addDaySlotRange(biz.id, dateKey, startTime, endTime);
       }
+      daysInfo.set(dateKey, `${startTime}–${endTime}`);
 
       if (dayNum === range.endDay) break;
       dayNum = dayNum >= 7 ? 1 : dayNum + 1;
@@ -498,6 +604,11 @@ function handleFlexibleSchedule(biz: Business, cmd: FlexibleScheduleCommand): Co
       ],
     }],
   };
+}
+
+function fmtTime(hour: number, minute: number): string {
+  const h = hour >= 24 ? hour - 24 : hour;
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function handleEditSlots(biz: Business): CommandResult {
@@ -665,9 +776,44 @@ function handleList(ownerChatId: string): CommandResult {
 
 export const AVAILABLE_COMMANDS = [
   {
+    category: 'Расписание',
+    commands: [
+      {
+        command: 'эту неделю пн-пт с 10 до 22',
+        description: 'Открыть запись на неделю по этим часам',
+      },
+      {
+        command: 'следующую неделю сб-вс с 10:30 до 23',
+        description: 'То же на следующую неделю, можно получас',
+      },
+      {
+        command: 'эту неделю сб с 12 до 20',
+        description: 'Один день недели',
+      },
+    ],
+  },
+  {
+    category: 'Брони',
+    commands: [
+      {
+        command: 'запиши Иванова на субботу в 15:00',
+        description: 'Бронь длиной в один сеанс',
+      },
+      {
+        command: 'в субботу бронь с 15 до 18 Иванов',
+        description: 'Бронь на конкретный интервал',
+      },
+      {
+        command: 'отмени бронь на субботу 15:00',
+        description: 'Отменить бронь',
+      },
+    ],
+  },
+  {
     category: 'Управление',
     commands: [
       { command: 'добавить заведение', description: 'Создать новое заведение' },
+      { command: '/info', description: 'Информация о заведении и ссылка' },
     ],
   },
 ];

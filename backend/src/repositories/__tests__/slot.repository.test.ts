@@ -32,6 +32,9 @@ function createSchema(db: Database.Database): void {
       telegram_username TEXT,
       owner_phone       TEXT,
       agreement_accepted_at TEXT,
+      booking_requests_enabled INTEGER NOT NULL DEFAULT 0,
+      working_hours     TEXT,
+      slot_duration_minutes INTEGER NOT NULL DEFAULT 120,
       created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `);

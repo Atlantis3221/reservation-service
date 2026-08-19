@@ -1,16 +1,22 @@
 import cron from 'node-cron';
 import { getDb } from './db';
-import { getBusinessBySlug, upsertContactLink, updateBookingRequestsEnabled } from './business';
-import { addDaySlots, bookRange } from '../repositories/slot.repository';
+import {
+  getBusinessBySlug,
+  upsertContactLink,
+  updateBookingRequestsEnabled,
+  updateSlotDuration,
+} from './business';
+import { addDaySlotRange, bookRange, clearAvailableSlots } from '../repositories/slot.repository';
 import { createBookingRequest } from '../repositories/booking-request.repository';
 import { toDateKey } from '../utils/date';
 
 const DEMO_SLUG = 'demo-banya';
 const DEMO_NAME = 'Демо Баня';
 const DEMO_OWNER_CHAT_ID = 'demo';
-const SCHEDULE_DAYS = 7;
-const SCHEDULE_START_HOUR = 10;
-const SCHEDULE_END_HOUR = 27;
+const SCHEDULE_DAYS = 14;
+const SCHEDULE_START = '10:00';
+const SCHEDULE_END = '02:00';
+const SLOT_DURATION_MINUTES = 120;
 
 const DEMO_CONTACTS = [
   { type: 'telegram' as const, url: 'https://t.me/ndrwbv' },
@@ -25,22 +31,30 @@ const DEMO_REQUESTS = [
     end: '17:00',
     description: 'Хотим на двоих, можно с вениками',
   },
-  {
-    clientName: 'Артём Лебедев',
-    clientPhone: '+7 903 771-55-02',
-    start: '20:00',
-    end: '22:00',
-    description: 'Компания 5 человек, нужен мангал',
-  },
 ];
 
-const DEMO_BOOKINGS = [
-  { start: '10:00', end: '12:00', clientName: 'Иван Петров', note: 'Постоянный клиент' },
-  { start: '13:00', end: '15:00', clientName: 'Анна Смирнова', note: 'День рождения, компания 6 человек' },
-  { start: '16:00', end: '18:00', clientName: 'Дмитрий Козлов', note: 'С вениками' },
-  { start: '19:00', end: '21:00', clientName: 'Елена Волкова', note: 'Корпоратив' },
-  { start: '22:00', end: '00:00', clientName: 'Сергей Морозов', note: null },
-  { start: '00:30', end: '02:30', clientName: 'Алексей Громов', note: 'Ночная сессия, 4 человека' },
+/**
+ * Демо должно выглядеть как живая баня: часть времени занята, часть свободна.
+ * Занимаем разные интервалы в зависимости от дня, чтобы каждый день выглядел
+ * по-своему и при этом всегда оставалось что забронировать.
+ */
+const BOOKING_PATTERNS: Array<Array<{ start: string; end: string; clientName: string; note: string | null }>> = [
+  [
+    { start: '12:00', end: '14:00', clientName: 'Иван Петров', note: 'Постоянный клиент' },
+    { start: '18:00', end: '20:00', clientName: 'Анна Смирнова', note: 'День рождения, 6 человек' },
+  ],
+  [
+    { start: '10:00', end: '12:00', clientName: 'Дмитрий Козлов', note: 'С вениками' },
+    { start: '16:00', end: '18:00', clientName: 'Елена Волкова', note: 'Корпоратив' },
+    { start: '22:00', end: '00:00', clientName: 'Сергей Морозов', note: null },
+  ],
+  [
+    { start: '14:00', end: '16:00', clientName: 'Ольга Никитина', note: 'Семья с детьми' },
+  ],
+  [
+    { start: '12:00', end: '14:00', clientName: 'Павел Ершов', note: null },
+    { start: '20:00', end: '22:00', clientName: 'Марина Ковалёва', note: 'Двое, с вениками' },
+  ],
 ];
 
 function ensureDemoBusiness(): number {
@@ -87,20 +101,6 @@ function cleanOldSlots(businessId: number, yesterdayKey: string): void {
   }
 }
 
-function seedSchedule(businessId: number): void {
-  let created = 0;
-  for (let i = 0; i < SCHEDULE_DAYS; i++) {
-    const dk = dateKeyOffset(i);
-    if (!hasSlots(businessId, dk, 'available')) {
-      addDaySlots(businessId, dk, SCHEDULE_START_HOUR, SCHEDULE_END_HOUR);
-      created++;
-    }
-  }
-  if (created > 0) {
-    console.log(`[demo] Created schedule for ${created} day(s)`);
-  }
-}
-
 function hasRequests(businessId: number, dateKey: string): boolean {
   return !!getDb()
     .prepare('SELECT 1 FROM booking_requests WHERE business_id = ? AND preferred_date = ? LIMIT 1')
@@ -132,39 +132,54 @@ function seedRequests(businessId: number, dateKey: string): void {
   console.log(`[demo] Created ${DEMO_REQUESTS.length} booking request(s) for ${dateKey}`);
 }
 
-function seedBookings(businessId: number, dateKey: string): void {
+/**
+ * Один день демо: смена на весь день плюс несколько броней.
+ * Идемпотентно — повторный вызов ничего не дублирует.
+ */
+function seedDay(businessId: number, dayOffset: number): void {
+  const dateKey = dateKeyOffset(dayOffset);
+
+  if (!hasSlots(businessId, dateKey, 'available')) {
+    clearAvailableSlots(businessId, dateKey);
+    addDaySlotRange(businessId, dateKey, SCHEDULE_START, SCHEDULE_END);
+  }
+
   if (hasSlots(businessId, dateKey, 'booked')) return;
-  for (const b of DEMO_BOOKINGS) {
+
+  const pattern = BOOKING_PATTERNS[Math.abs(dayOffset) % BOOKING_PATTERNS.length];
+  for (const b of pattern) {
     bookRange(businessId, dateKey, b.start, b.end, b.note ?? undefined, b.clientName);
   }
-  console.log(`[demo] Created ${DEMO_BOOKINGS.length} bookings for ${dateKey}`);
 }
 
 function refreshDemo(): void {
   const businessId = ensureDemoBusiness();
   const yesterdayKey = dateKeyOffset(-1);
-  const todayKey = toDateKey(new Date());
 
-  // Идемпотентно: раньше стояло только при создании бизнеса, поэтому у давно
-  // созданного демо форма заявок так и оставалась выключенной.
   updateBookingRequestsEnabled(businessId, true);
+  updateSlotDuration(businessId, SLOT_DURATION_MINUTES);
 
   cleanOldSlots(businessId, yesterdayKey);
   cleanOldRequests(businessId, yesterdayKey);
-  seedSchedule(businessId);
-  seedBookings(businessId, yesterdayKey);
-  seedBookings(businessId, todayKey);
+
+  // Сеем каждый день горизонта, а не только «вчера/сегодня»: иначе посетитель,
+  // открывший демо, попадает на пустой день и не видит ничего.
+  for (let i = 0; i < SCHEDULE_DAYS; i++) {
+    seedDay(businessId, i);
+  }
+
   seedRequests(businessId, dateKeyOffset(1));
 }
 
 export function initDemo(): void {
   refreshDemo();
 
-  // 00:05 MSK (UTC+3) = 21:05 UTC
-  cron.schedule('5 21 * * *', () => {
-    console.log('[demo] Daily cron triggered');
+  // Каждые 6 часов, а не раз в сутки: так демо не зависит от часового пояса
+  // контейнера и восстанавливается само, если ночной запуск был пропущен.
+  cron.schedule('7 */6 * * *', () => {
+    console.log('[demo] Refresh triggered');
     refreshDemo();
   });
 
-  console.log('[demo] Initialized, cron scheduled at 00:05 MSK');
+  console.log('[demo] Initialized, refresh every 6 hours');
 }
