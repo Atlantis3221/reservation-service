@@ -7,6 +7,7 @@ import { ShareLink } from '../components/ShareLink';
 import {
   WorkingHoursForm,
   defaultWorkingHours,
+  durationHint,
   DAY_KEYS,
   SLOT_DURATIONS,
 } from '../components/WorkingHoursForm';
@@ -134,9 +135,7 @@ export function OnboardingPage() {
                   <option key={d.minutes} value={d.minutes}>{d.label}</option>
                 ))}
               </select>
-              <span className="onb-hint">
-                На такие интервалы разобьётся день: клиент выбирает один из них.
-              </span>
+              <span className="onb-hint">{durationHint(duration)}</span>
             </div>
 
             {error && <div className="onb-error">{error}</div>}

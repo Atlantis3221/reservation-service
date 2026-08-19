@@ -4,6 +4,17 @@ import type { FreeSlot } from '../types';
 
 const MINUTES_IN_DAY = 24 * 60;
 
+/**
+ * Длительность «сутки» и больше означает другую единицу бронирования:
+ * не интервал внутри дня, а весь опубликованный день целиком.
+ * Так сдаются дома, глемпинги и бани с проживанием.
+ */
+export const FULL_DAY_MINUTES = MINUTES_IN_DAY;
+
+export function isFullDayDuration(durationMinutes: number): boolean {
+  return durationMinutes >= FULL_DAY_MINUTES;
+}
+
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
@@ -86,7 +97,6 @@ export function getFreeSlots(
 
   const free = subtract(windows, busy);
 
-  const step = Math.max(15, durationMinutes);
   const nowKey = toDateKey(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   // Для вчерашней смены, уходящей за полночь, «сейчас» тоже сдвигается на сутки.
@@ -94,6 +104,27 @@ export function getFreeSlots(
     dateKey === nowKey ? nowMinutes
     : nextDateKey(dateKey) === nowKey ? nowMinutes + MINUTES_IN_DAY
     : -Infinity;
+
+  // Сутки: день продаётся целиком. Либо он свободен полностью, либо занят —
+  // «половины суток» не бывает, поэтому нарезать нечего.
+  if (isFullDayDuration(durationMinutes)) {
+    const dayStart = Math.min(...windows.map((w) => w.start));
+    const dayEnd = Math.max(...windows.map((w) => w.end));
+    const wholeDayFree = free.some((gap) => gap.start <= dayStart && gap.end >= dayEnd);
+
+    if (!wholeDayFree || dayStart < cutoff) return [];
+
+    return [{
+      startTime: minutesToTime(dayStart),
+      endTime: minutesToTime(dayEnd),
+      crossesMidnight: dayEnd > MINUTES_IN_DAY,
+      fullDay: true,
+      startMinutes: dayStart,
+      endMinutes: dayEnd,
+    }];
+  }
+
+  const step = Math.max(15, durationMinutes);
 
   const slots: FreeSlot[] = [];
   for (const gap of free) {
@@ -103,6 +134,8 @@ export function getFreeSlots(
         startTime: minutesToTime(start),
         endTime: minutesToTime(start + step),
         crossesMidnight: start + step > MINUTES_IN_DAY,
+        startMinutes: start,
+        endMinutes: start + step,
       });
     }
   }

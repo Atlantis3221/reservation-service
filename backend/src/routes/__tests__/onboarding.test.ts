@@ -307,3 +307,74 @@ describe('путь холодного пользователя', () => {
     expect(init.body.businesses).toHaveLength(1);
   });
 });
+
+describe('сутки как длительность сеанса', () => {
+  it('день продаётся целиком и исчезает после брони', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Глемпинг Сутки' });
+
+    // Заезд 14:00, выезд 12:00 следующего дня — смена через полночь
+    await call('PUT', '/admin/settings', {
+      businessId: business.id,
+      workingHours: allWeekHours('14:00', '12:00'),
+      slotDurationMinutes: 1440,
+    });
+    const published = await call('POST', '/admin/settings/apply-schedule', {
+      businessId: business.id,
+      days: 5,
+    });
+    expect(published.body.daysCreated).toBe(5);
+
+    const dates = await call('GET', `/api/business/${business.slug}/available-dates`);
+    const day = dates.body.dates[dates.body.dates.length - 1];
+
+    const free = await call('GET', `/api/business/${business.slug}/free-slots?date=${day}`);
+    expect(free.body.slots).toHaveLength(1);
+    expect(free.body.slots[0]).toMatchObject({
+      startTime: '14:00', endTime: '12:00', fullDay: true,
+    });
+
+    const booked = await call('POST', `/api/business/${business.slug}/book`, {
+      date: day,
+      startTime: '14:00',
+      endTime: '12:00',
+      clientName: 'Гость',
+      clientPhone: '+7 900 000-00-77',
+      consent: true,
+    });
+    expect(booked.status).toBe(200);
+
+    // Занятый день больше не предлагается — «половины суток» не бывает
+    const after = await call('GET', `/api/business/${business.slug}/free-slots?date=${day}`);
+    expect(after.body.slots).toEqual([]);
+
+    const stillListed = await call('GET', `/api/business/${business.slug}/available-dates`);
+    expect(stillListed.body.dates).not.toContain(day);
+  });
+
+  it('принимает круглосуточную смену 00:00–00:00', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Дом Сутки' });
+    await call('PUT', '/admin/settings', {
+      businessId: business.id,
+      workingHours: allWeekHours('00:00', '00:00'),
+      slotDurationMinutes: 1440,
+    });
+    const published = await call('POST', '/admin/settings/apply-schedule', {
+      businessId: business.id,
+      days: 4,
+    });
+    expect(published.body.daysCreated).toBe(4);
+    expect(published.body.freeSlots).toBeGreaterThan(0);
+  });
+
+  it('отклоняет длительность вне списка', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Проверка' });
+    const res = await call('PUT', '/admin/settings', {
+      businessId: business.id,
+      slotDurationMinutes: 777,
+    });
+    expect(res.status).toBe(400);
+  });
+});

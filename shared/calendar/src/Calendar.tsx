@@ -39,6 +39,8 @@ export interface CalendarProps {
   emptyDayContent?: ReactNode;
   /** Блок под таймлайном дня — сюда клиентская страница кладёт выбор слота */
   dayFooter?: ReactNode;
+  /** Блок сразу под переключателем дней — например, выбор режима просмотра */
+  dayHeader?: ReactNode;
   /** Показывать свободное время зелёными блоками (страница клиента) */
   showAvailable?: boolean;
   /**
@@ -89,6 +91,7 @@ export default function Calendar({
   showClientInfo,
   emptyDayContent,
   dayFooter,
+  dayHeader,
   showAvailable,
   variant = 'timeline',
   refreshTrigger,
@@ -324,6 +327,8 @@ export default function Calendar({
             <button className="gcal-today-btn gcal-today-btn--day" onClick={goToday}>Сегодня</button>
           )}
         </div>
+
+        {dayHeader}
 
         {variant === 'compact' ? (
           <div className="gcal-compact-day">{dayFooter}</div>

@@ -91,7 +91,9 @@ export function BookingSheet({ business, date, slot, onClose, onBooked }: Props)
             <h3>{done === 'booked' ? 'Готово, вы записаны' : 'Заявка отправлена'}</h3>
             <p>
               {done === 'booked'
-                ? `${formatDate(date)}, ${slot?.startTime}–${slot?.endTime}. Мы передали вашу запись «${business.name}».`
+                ? slot?.fullDay
+                  ? `${formatDate(date)}, сутки с ${slot.startTime}. Мы передали вашу запись «${business.name}».`
+                  : `${formatDate(date)}, ${slot?.startTime}–${slot?.endTime}. Мы передали вашу запись «${business.name}».`
                 : 'Владелец свяжется с вами, чтобы подтвердить время.'}
             </p>
             <button className="sheet-btn" onClick={onClose} type="button">Закрыть</button>
@@ -104,7 +106,9 @@ export function BookingSheet({ business, date, slot, onClose, onBooked }: Props)
             <p className="sheet-sub">
               {isRequest
                 ? `${formatDate(date)} — укажите удобное время, владелец подтвердит`
-                : `${formatDate(date)}, ${slot!.startTime}–${slot!.endTime}`}
+                : slot!.fullDay
+                  ? `${formatDate(date)} — сутки, заезд ${slot!.startTime}, выезд ${slot!.endTime}`
+                  : `${formatDate(date)}, ${slot!.startTime}–${slot!.endTime}`}
             </p>
 
             {isRequest && (

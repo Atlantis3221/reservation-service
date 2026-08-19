@@ -138,6 +138,47 @@ describe('getFreeSlots', () => {
   });
 });
 
+describe('сутки: день бронируется целиком', () => {
+  const DAY_MINUTES = 24 * 60;
+
+  it('отдаёт одну бронь на весь опубликованный день', () => {
+    addSlot('available', '14:00', '12:00');
+    const slots = getFreeSlots(BIZ, DAY, DAY_MINUTES, LONG_BEFORE);
+    expect(slots).toHaveLength(1);
+    expect(slots[0]).toMatchObject({ startTime: '14:00', endTime: '12:00', fullDay: true });
+  });
+
+  it('поддерживает круглосуточную смену 00:00–00:00', () => {
+    addSlot('available', '00:00', '00:00');
+    const slots = getFreeSlots(BIZ, DAY, DAY_MINUTES, LONG_BEFORE);
+    expect(slots).toHaveLength(1);
+    expect(slots[0]).toMatchObject({ startTime: '00:00', endTime: '00:00', fullDay: true });
+  });
+
+  it('не отдаёт день, если он частично занят', () => {
+    addSlot('available', '14:00', '12:00');
+    addSlot('booked', '18:00', '20:00');
+    expect(getFreeSlots(BIZ, DAY, DAY_MINUTES, LONG_BEFORE)).toEqual([]);
+  });
+
+  it('не отдаёт день, который уже начался', () => {
+    addSlot('available', '10:00', '22:00');
+    const midday = new Date(`${DAY}T12:00:00`);
+    expect(getFreeSlots(BIZ, DAY, DAY_MINUTES, midday)).toEqual([]);
+  });
+
+  it('без расписания суток тоже нет', () => {
+    expect(getFreeSlots(BIZ, DAY, DAY_MINUTES, LONG_BEFORE)).toEqual([]);
+  });
+
+  it('обычная длительность по-прежнему нарезает день', () => {
+    addSlot('available', '10:00', '14:00');
+    expect(times(getFreeSlots(BIZ, DAY, 120, LONG_BEFORE))).toEqual([
+      '10:00-12:00', '12:00-14:00',
+    ]);
+  });
+});
+
 describe('isRangeBookable', () => {
   beforeEach(() => {
     addSlot('available', '10:00', '18:00');
@@ -162,5 +203,32 @@ describe('isRangeBookable', () => {
 
   it('отклоняет день без расписания', () => {
     expect(isRangeBookable(BIZ, '2026-09-11', '10:00', '12:00')).toBe(false);
+  });
+});
+
+describe('абсолютные минуты для клиента', () => {
+  it('отдаёт минуты от полуночи, не сбрасывая их за полночь', () => {
+    addSlot('available', '22:00', '04:00');
+    const slots = getFreeSlots(BIZ, DAY, 120, LONG_BEFORE);
+    expect(slots.map((s) => [s.startMinutes, s.endMinutes])).toEqual([
+      [22 * 60, 24 * 60],
+      [24 * 60, 26 * 60],
+      [26 * 60, 28 * 60],
+    ]);
+  });
+
+  it('для суток минуты покрывают всю смену', () => {
+    addSlot('available', '14:00', '12:00');
+    const [slot] = getFreeSlots(BIZ, DAY, 24 * 60, LONG_BEFORE);
+    expect([slot.startMinutes, slot.endMinutes]).toEqual([14 * 60, 36 * 60]);
+  });
+
+  it('минуты согласованы со временем в обычном дне', () => {
+    addSlot('available', '10:30', '14:30');
+    const slots = getFreeSlots(BIZ, DAY, 120, LONG_BEFORE);
+    expect(slots.map((s) => [s.startTime, s.startMinutes])).toEqual([
+      ['10:30', 630],
+      ['12:30', 750],
+    ]);
   });
 });

@@ -602,3 +602,85 @@
   font-style: normal;
   opacity: 0.7;
 }
+
+/* ---- Переключатель «слоты / календарь дня» ---- */
+
+.dayview {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 16px 12px;
+  border-radius: 12px;
+  background: #f3f4f6;
+}
+
+.dayview-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #6b7280;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dayview-btn--on {
+  background: #fff;
+  color: #1e1e2e;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.dayview-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.dayview-btn--on .dayview-count {
+  background: #ecfdf5;
+}
+
+@media (max-width: 500px) {
+  .dayview {
+    margin: 0 12px 10px;
+  }
+
+  .dayview-btn {
+    font-size: 0.8125rem;
+    padding: 9px 4px;
+  }
+}
+
+/* Сутки — одна крупная кнопка, а не сетка коротких интервалов */
+.picker-grid--day {
+  grid-template-columns: 1fr;
+}
+
+.picker-slot--day {
+  min-height: 72px;
+  gap: 4px;
+}
+
+.picker-slot--day .picker-slot-start {
+  font-size: 1rem;
+}
+
+.picker-slot--day .picker-slot-end {
+  font-size: 0.8125rem;
+}

@@ -18,6 +18,11 @@ export interface FreeSlot {
   startTime: string;
   endTime: string;
   crossesMidnight: boolean;
+  /** Бронируется весь день целиком — длительность сеанса «сутки» */
+  fullDay?: boolean;
+  /** Абсолютные минуты от полуночи дня; за полночь больше 1440 */
+  startMinutes: number;
+  endMinutes: number;
 }
 
 export interface DaySlot {

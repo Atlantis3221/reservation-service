@@ -5,6 +5,7 @@ import {
   DAY_LABELS_FULL as DAY_LABELS,
   SLOT_DURATIONS,
   defaultWorkingHours,
+  durationHint,
 } from '../components/WorkingHoursForm';
 import { reachGoal } from '../lib/metrika';
 
@@ -242,9 +243,7 @@ export function SettingsPage({ businessId, onChanged }: Props) {
                 <option key={d.minutes} value={d.minutes}>{d.label}</option>
               ))}
             </select>
-            <span className="settings-field-hint">
-              На такие интервалы разбивается день — клиент выбирает один из них
-            </span>
+            <span className="settings-field-hint">{durationHint(slotDuration)}</span>
           </div>
 
           <div className="settings-field">

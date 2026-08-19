@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar } from '@shared/calendar';
 import { publicApi, ApiError, type BusinessInfo, type FreeSlot } from './api';
 import { FreeSlotPicker } from './components/FreeSlotPicker';
+import { DayViewToggle, type DayView } from './components/DayViewToggle';
 import { BookingSheet } from './components/BookingSheet';
 import { PrivacyPage } from './pages/PrivacyPage';
 import './App.css';
@@ -43,6 +44,24 @@ function RootRedirect() {
   );
 }
 
+const MINUTES_IN_DAY = 24 * 60;
+
+/**
+ * Находит свободный интервал, в который попала минута с таймлайна.
+ * Границы приходят с сервера в абсолютных минутах (за полночь — больше 1440),
+ * поэтому здесь не нужно повторять расчёт смены через полночь: одна ошибка
+ * в этой арифметике уже приводила к тому, что тап по занятому времени
+ * открывал форму на ночной слот.
+ */
+function findSlotAt(slots: FreeSlot[], minutes: number): FreeSlot | undefined {
+  if (slots.length === 0) return undefined;
+
+  const dayStart = slots[0].startMinutes;
+  const point = minutes < dayStart % MINUTES_IN_DAY ? minutes + MINUTES_IN_DAY : minutes;
+
+  return slots.find((slot) => point >= slot.startMinutes && point < slot.endMinutes);
+}
+
 function formatDateStr(dateKey: string): string {
   return new Date(`${dateKey}T00:00:00`).toLocaleDateString('ru-RU', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -61,6 +80,7 @@ function BusinessPage({ slug }: { slug: string }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [sheet, setSheet] = useState<{ slot: FreeSlot | null } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dayView, setDayView] = useState<DayView>('slots');
 
   // ---- загрузка заведения ----
   useEffect(() => {
@@ -136,6 +156,16 @@ function BusinessPage({ slug }: { slug: string }) {
     setRefreshKey((k) => k + 1);
   }
 
+  /**
+   * Нажатие по календарю дня: открываем тот свободный интервал, внутрь
+   * которого попал тап. Если попали в занятое или закрытое время — молчим,
+   * чтобы не открывать форму на время, которое всё равно нельзя занять.
+   */
+  function handleTimeClick(_date: string, minutes: number) {
+    const slot = findSlotAt(freeSlots, minutes);
+    if (slot) setSheet({ slot });
+  }
+
   if (loading) {
     return (
       <div className="app">
@@ -178,8 +208,21 @@ function BusinessPage({ slug }: { slug: string }) {
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           onBack={() => setSelectedDate(null)}
-          variant="compact"
+          variant={dayView === 'calendar' ? 'timeline' : 'compact'}
+          showAvailable
           refreshTrigger={refreshKey}
+          onTimeClick={dayView === 'calendar' ? handleTimeClick : undefined}
+          emptyDayContent={
+            <div className="day-empty">
+              <strong>В этот день записи нет</strong>
+              <span>Выберите другую дату выше.</span>
+            </div>
+          }
+          dayHeader={
+            selectedDate ? (
+              <DayViewToggle value={dayView} onChange={setDayView} freeCount={freeSlots.length} />
+            ) : null
+          }
           dayFooter={
             selectedDate ? (
               <FreeSlotPicker

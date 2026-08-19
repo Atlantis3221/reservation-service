@@ -62,7 +62,8 @@ interface AuthRequest extends Request {
 }
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
-const ALLOWED_SLOT_DURATIONS = [30, 60, 90, 120, 180, 240];
+// 1440 — сутки: день бронируется целиком (дома, глемпинги, бани с проживанием)
+const ALLOWED_SLOT_DURATIONS = [30, 60, 90, 120, 180, 240, 1440];
 const MAX_HORIZON_DAYS = 90;
 const DEFAULT_HORIZON_DAYS = 28;
 
@@ -689,7 +690,7 @@ adminRouter.put('/settings', (req: AuthRequest, res: Response) => {
     const minutes = Number(slotDurationMinutes);
     if (!ALLOWED_SLOT_DURATIONS.includes(minutes)) {
       res.status(400).json({
-        error: `Длительность сеанса: ${ALLOWED_SLOT_DURATIONS.join(', ')} минут`,
+        error: 'Недопустимая длительность сеанса',
       });
       return;
     }
@@ -746,7 +747,6 @@ adminRouter.post('/settings/apply-schedule', (req: AuthRequest, res: Response) =
     const dayConfig = wh[DAY_KEYS[weekdayIndex(date)]];
     if (!dayConfig?.enabled) continue;
     if (!isValidTime(dayConfig.start) || !isValidTime(dayConfig.end)) continue;
-    if (dayConfig.start === dayConfig.end) continue;
 
     const dateKey = toDateKey(date);
     // Стираем только свободное время: брони клиентов должны выжить.

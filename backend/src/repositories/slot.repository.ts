@@ -3,7 +3,7 @@ import { getDb } from '../services/db';
 import { pad2, toDateKey, nextDateKey } from '../utils/date';
 
 function rowToSlot(row: any): TimeSlot {
-  const crossesMidnight = row.end_time < row.start_time;
+  const crossesMidnight = row.end_time <= row.start_time;
   const endDateKey = crossesMidnight ? nextDateKey(row.date_key) : row.date_key;
   return {
     id: row.id,
@@ -49,7 +49,7 @@ export function getSlotsForDateFull(businessId: number, dateKey: string): Array<
     .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY start_time')
     .all(businessId, dateKey);
   return rows.map((row: any) => {
-    const crossesMidnight = row.end_time < row.start_time;
+    const crossesMidnight = row.end_time <= row.start_time;
     const endDK = crossesMidnight ? nextDateKey(row.date_key) : row.date_key;
     return {
       id: row.id,
@@ -90,7 +90,7 @@ export function addDaySlots(businessId: number, dateKey: string, startHour: numb
     .run(businessId, dateKey, startTime, endTime);
 
   const id = Number(result.lastInsertRowid);
-  const crossesMidnight = endTime < startTime;
+  const crossesMidnight = endTime <= startTime;
   const endDK = crossesMidnight ? nextDateKey(dateKey) : dateKey;
 
   return [{
@@ -317,7 +317,7 @@ export function getSlotsForDateAdmin(businessId: number, dateKey: string): Array
     .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ? ORDER BY start_time')
     .all(businessId, dateKey);
   return rows.map((row: any) => {
-    const crossesMidnight = row.end_time < row.start_time;
+    const crossesMidnight = row.end_time <= row.start_time;
     const endDK = crossesMidnight ? nextDateKey(row.date_key) : row.date_key;
     return {
       id: row.id,

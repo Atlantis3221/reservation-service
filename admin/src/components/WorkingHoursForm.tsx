@@ -11,6 +11,8 @@ export const DAY_LABELS_FULL: Record<string, string> = {
   fri: 'Пятница', sat: 'Суббота', sun: 'Воскресенье',
 };
 
+export const FULL_DAY_MINUTES = 24 * 60;
+
 export const SLOT_DURATIONS = [
   { minutes: 30, label: '30 минут' },
   { minutes: 60, label: '1 час' },
@@ -18,7 +20,20 @@ export const SLOT_DURATIONS = [
   { minutes: 120, label: '2 часа' },
   { minutes: 180, label: '3 часа' },
   { minutes: 240, label: '4 часа' },
+  { minutes: FULL_DAY_MINUTES, label: 'Сутки — день целиком' },
 ];
+
+export function isFullDay(minutes: number): boolean {
+  return minutes >= FULL_DAY_MINUTES;
+}
+
+/** Пояснение под выбором длительности: у суток другой смысл часов работы */
+export function durationHint(minutes: number): string {
+  return isFullDay(minutes)
+    ? 'День бронируется целиком: часы выше становятся временем заезда и выезда. ' +
+      'Например, 14:00 → 12:00 — заезд в 14:00, выезд в полдень следующего дня.'
+    : 'На такие интервалы разбивается день — клиент выбирает один из них.';
+}
 
 export function defaultWorkingHours(): WorkingHoursConfig {
   const config: WorkingHoursConfig = {};

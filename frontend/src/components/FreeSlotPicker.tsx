@@ -10,6 +10,7 @@ interface Props {
 }
 
 function durationLabel(minutes: number): string {
+  if (minutes >= 24 * 60) return 'сутки';
   if (minutes % 60 === 0) {
     const h = minutes / 60;
     return h === 1 ? '1 час' : `${h} ${h < 5 ? 'часа' : 'часов'}`;
@@ -57,7 +58,11 @@ export function FreeSlotPicker({ slots, loading, business, onPick, onRequestOwnT
     return (
       <div className="picker">
         <div className="picker-empty">
-          <strong>Свободного времени на этот день нет</strong>
+          <strong>
+            {business.slotDurationMinutes >= 24 * 60
+              ? 'Этот день уже занят'
+              : 'Свободного времени на этот день нет'}
+          </strong>
           <span>Выберите другую дату или предложите своё время.</span>
         </div>
         {business.bookingRequestsEnabled && (
@@ -73,25 +78,40 @@ export function FreeSlotPicker({ slots, loading, business, onPick, onRequestOwnT
   return (
     <div className="picker">
       <div className="picker-head">
-        <span className="picker-title">Свободное время</span>
+        <span className="picker-title">
+          {slots[0]?.fullDay ? 'День свободен' : 'Свободное время'}
+        </span>
         <span className="picker-meta">
-          сеанс {durationLabel(business.slotDurationMinutes)}
+          {slots[0]?.fullDay
+            ? 'бронируется целиком'
+            : `сеанс ${durationLabel(business.slotDurationMinutes)}`}
         </span>
       </div>
 
-      <div className="picker-grid">
+      <div className={`picker-grid${slots[0]?.fullDay ? ' picker-grid--day' : ''}`}>
         {slots.map((slot) => (
           <button
             key={`${slot.startTime}-${slot.endTime}`}
-            className="picker-slot"
+            className={`picker-slot${slot.fullDay ? ' picker-slot--day' : ''}`}
             onClick={() => onPick(slot)}
             type="button"
           >
-            <span className="picker-slot-start">{slot.startTime}</span>
-            <span className="picker-slot-end">
-              до {slot.endTime}
-              {slot.crossesMidnight && <em className="picker-slot-night"> ночь</em>}
-            </span>
+            {slot.fullDay ? (
+              <>
+                <span className="picker-slot-start">Забронировать сутки</span>
+                <span className="picker-slot-end">
+                  заезд {slot.startTime}, выезд {slot.endTime}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="picker-slot-start">{slot.startTime}</span>
+                <span className="picker-slot-end">
+                  до {slot.endTime}
+                  {slot.crossesMidnight && <em className="picker-slot-night"> ночь</em>}
+                </span>
+              </>
+            )}
           </button>
         ))}
       </div>

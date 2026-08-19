@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { networkInterfaces } from 'os';
 import { initDb, checkDbIntegrity, initCleanup } from './services/db';
+import { isMailerConfigured } from './services/mailer';
 import { initBot } from './bot';
 import { initVkBot } from './vk-bot';
 import { apiRouter } from './routes/api';
@@ -81,4 +82,12 @@ app.listen(Number(PORT), '0.0.0.0', () => {
   checkDbIntegrity();
   initDemo();
   initCleanup();
+
+  // Пишем состояние почты при старте, а не при первой отправке: иначе
+  // «почему владельцу не пришло письмо» выясняется задним числом.
+  console.log(
+    isMailerConfigured()
+      ? '[mailer] SMTP настроен — письма о бронях и сброс пароля работают'
+      : '[mailer] SMTP не настроен — письма отключены (см. SMTP_* в .env)',
+  );
 });
