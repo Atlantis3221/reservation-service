@@ -257,10 +257,10 @@ body {
 .phone-mockup {
   position: relative;
   width: 280px;
-  height: 560px;
+  height: 544px;
   background: var(--slate-900);
   border-radius: 40px;
-  padding: 12px;
+  padding: 26px 12px 12px;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.15),
     0 0 0 1px rgba(255, 255, 255, 0.1) inset;
@@ -268,22 +268,24 @@ body {
 
 .phone-notch {
   position: absolute;
-  top: 12px;
+  top: 9px;
   left: 50%;
   transform: translateX(-50%);
-  width: 100px;
-  height: 24px;
-  background: var(--slate-900);
-  border-radius: 0 0 16px 16px;
+  width: 76px;
+  height: 8px;
+  background: #000;
+  border-radius: 999px;
   z-index: 2;
 }
 
 .phone-mockup video,
 .phone-mockup img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 28px;
+  object-position: top;
+  border-radius: 24px;
   background: var(--slate-100);
 }
 
@@ -654,6 +656,25 @@ body {
 .footer-links {
   display: flex;
   gap: 24px;
+  flex-wrap: wrap;
+}
+
+.footer-note {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--slate-100);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--slate-400);
+}
+
+.footer-note a {
+  color: var(--slate-500);
+}
+
+.social-proof-text a {
+  color: var(--blue);
+  font-weight: 600;
 }
 
 .footer-link {
@@ -704,12 +725,12 @@ body {
 
   .phone-mockup {
     width: 220px;
-    height: 440px;
+    height: 430px;
     border-radius: 32px;
-    padding: 10px;
+    padding: 18px 9px 9px;
   }
 
-  .phone-notch { width: 80px; height: 20px; top: 10px; }
+  .phone-notch { width: 64px; height: 7px; top: 8px; }
 
   .phone-mockup video,
   .phone-mockup img { border-radius: 22px; }
@@ -755,13 +776,13 @@ body {
   .benefit-card { padding: 24px 20px; }
 
   .phone-mockup {
-    width: 180px;
-    height: 360px;
+    width: 200px;
+    height: 392px;
     border-radius: 28px;
-    padding: 8px;
+    padding: 16px 8px 8px;
   }
 
-  .phone-notch { width: 64px; height: 16px; top: 8px; border-radius: 0 0 12px 12px; }
+  .phone-notch { width: 56px; height: 6px; top: 7px; }
 
   .phone-mockup video,
   .phone-mockup img { border-radius: 20px; }
