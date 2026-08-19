@@ -24,7 +24,13 @@ type SheetState =
 
 const STORAGE_KEY = 'calendar_selected_date';
 
-export function CalendarPage({ businessId }: { businessId: number | null }) {
+interface Props {
+  businessId: number | null;
+  /** Обновляет сводку в панели: свободные слоты и горизонт записи меняются */
+  onChanged?: () => void;
+}
+
+export function CalendarPage({ businessId, onChanged }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(() => {
     return localStorage.getItem(STORAGE_KEY) || null;
   });
@@ -93,6 +99,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
 
   function refresh() {
     setRefreshKey((k) => k + 1);
+    onChanged?.();
   }
 
   function handleSlotClick(slot: DaySlot) {
@@ -276,6 +283,7 @@ export function CalendarPage({ businessId }: { businessId: number | null }) {
         onSlotClick={handleSlotClick}
         onTimeClick={handleTimeClick}
         showClientInfo
+        showAvailable
         pendingSlot={pendingSlot}
         bookingRequests={calRequests}
         emptyDayContent={

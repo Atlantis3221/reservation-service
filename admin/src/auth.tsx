@@ -12,6 +12,8 @@ interface AuthContextType extends AuthState {
   login: (token: string, user: AuthState['user']) => void;
   logout: () => void;
   setBusinesses: (businesses: Business[]) => void;
+  /** Перечитать профиль и список заведений с сервера */
+  reload: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -23,6 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     businesses: [],
     loading: true,
   });
+
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!state.token) {
@@ -38,7 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token');
         setState({ token: null, user: null, businesses: [], loading: false });
       });
-  }, [state.token]);
+  }, [state.token, reloadKey]);
+
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const login = useCallback((token: string, user: AuthState['user']) => {
     localStorage.setItem('token', token);
@@ -55,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, setBusinesses }}>
+    <AuthContext.Provider value={{ ...state, login, logout, setBusinesses, reload }}>
       {children}
     </AuthContext.Provider>
   );

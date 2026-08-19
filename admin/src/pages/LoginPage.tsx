@@ -61,6 +61,9 @@ export function LoginPage() {
         </form>
 
         <p className="auth-footer">
+          <Link to="/forgot">Забыли пароль?</Link>
+        </p>
+        <p className="auth-footer">
           Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
         </p>
       </div>

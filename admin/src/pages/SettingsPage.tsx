@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, type BusinessSettings, type WorkingHoursConfig, type DayWorkingHours } from '../api';
+import {
+  DAY_KEYS,
+  DAY_LABELS_FULL as DAY_LABELS,
+  SLOT_DURATIONS,
+  defaultWorkingHours,
+} from '../components/WorkingHoursForm';
+import { reachGoal } from '../lib/metrika';
 
 type ContactLinkType = 'telegram' | 'vk' | 'max';
 
@@ -9,26 +16,13 @@ const CONTACT_TYPE_LABELS: Record<ContactLinkType, string> = {
   max: 'MAX',
 };
 
-const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
-const DAY_LABELS: Record<string, string> = {
-  mon: 'Понедельник',
-  tue: 'Вторник',
-  wed: 'Среда',
-  thu: 'Четверг',
-  fri: 'Пятница',
-  sat: 'Суббота',
-  sun: 'Воскресенье',
-};
-
-function defaultWorkingHours(): WorkingHoursConfig {
-  const config: WorkingHoursConfig = {};
-  for (const key of DAY_KEYS) {
-    config[key] = { enabled: false, start: '10:00', end: '22:00' };
-  }
-  return config;
+interface Props {
+  businessId: number | null;
+  /** Дёргаем после публикации расписания, чтобы обновился баннер в панели */
+  onChanged?: () => void;
 }
 
-export function SettingsPage({ businessId }: { businessId: number | null }) {
+export function SettingsPage({ businessId, onChanged }: Props) {
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,6 +31,8 @@ export function SettingsPage({ businessId }: { businessId: number | null }) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [bookingRequestsEnabled, setBookingRequestsEnabled] = useState(false);
+  const [slotDuration, setSlotDuration] = useState(120);
+  const [horizonDays, setHorizonDays] = useState(28);
   const [workingHours, setWorkingHours] = useState<WorkingHoursConfig>(defaultWorkingHours());
   const [applyingSchedule, setApplyingSchedule] = useState(false);
   const [links, setLinks] = useState<Record<ContactLinkType, string>>({
@@ -54,6 +50,7 @@ export function SettingsPage({ businessId }: { businessId: number | null }) {
         setName(s.name);
         setSlug(s.slug);
         setBookingRequestsEnabled(s.bookingRequestsEnabled);
+        setSlotDuration(s.slotDurationMinutes ?? 120);
         setWorkingHours(s.workingHours || defaultWorkingHours());
         const newLinks: Record<ContactLinkType, string> = { telegram: '', vk: '', max: '' };
         for (const l of s.contactLinks) {
@@ -74,19 +71,24 @@ export function SettingsPage({ businessId }: { businessId: number | null }) {
     }));
   }
 
-  async function handleApplySchedule(week: 'this' | 'next') {
+  async function handlePublish() {
     if (!businessId) return;
+    if (!DAY_KEYS.some((d) => workingHours[d]?.enabled)) {
+      setMessage('Ошибка: выберите хотя бы один рабочий день');
+      return;
+    }
+
     setApplyingSchedule(true);
     setMessage('');
     try {
-      await api.updateSettings({
-        businessId,
-        workingHours,
-      });
-      const result = await api.applySchedule(businessId, week);
-      const label = week === 'this' ? 'текущую' : 'следующую';
-      setMessage(`Расписание применено на ${label} неделю (${result.daysCreated} дн.)`);
-      setTimeout(() => setMessage(''), 4000);
+      await api.updateSettings({ businessId, workingHours, slotDurationMinutes: slotDuration });
+      const result = await api.applySchedule(businessId, horizonDays);
+      reachGoal('schedule_published', { source: 'settings', freeSlots: result.freeSlots });
+      setMessage(
+        `Запись открыта на ${result.daysCreated} дн. — свободных интервалов: ${result.freeSlots}`,
+      );
+      setTimeout(() => setMessage(''), 5000);
+      onChanged?.();
     } catch (err: any) {
       setMessage(`Ошибка: ${err.message}`);
     }
@@ -109,11 +111,13 @@ export function SettingsPage({ businessId }: { businessId: number | null }) {
         slug: slug.trim(),
         bookingRequestsEnabled,
         workingHours,
+        slotDurationMinutes: slotDuration,
         contactLinks: contactLinksUpdate,
       });
       setMessage('Настройки сохранены');
       setTimeout(() => setMessage(''), 3000);
       loadSettings();
+      onChanged?.();
     } catch (err: any) {
       setMessage(`Ошибка: ${err.message}`);
     }
@@ -218,22 +222,53 @@ export function SettingsPage({ businessId }: { businessId: number | null }) {
               );
             })}
           </div>
-          <div className="settings-wh-actions">
-            <button
-              className="btn-primary btn-sm"
-              onClick={() => handleApplySchedule('this')}
-              disabled={applyingSchedule}
+        </div>
+
+        <div className="settings-section settings-section--publish">
+          <h3 className="settings-section-title">Открыть запись</h3>
+          <p className="settings-section-hint">
+            Публикует расписание из часов работы выше. Существующие брони клиентов
+            сохранятся.
+          </p>
+
+          <div className="settings-field">
+            <label htmlFor="slot-duration">Длительность сеанса</label>
+            <select
+              id="slot-duration"
+              value={slotDuration}
+              onChange={(e) => setSlotDuration(Number(e.target.value))}
             >
-              Применить на эту неделю
-            </button>
-            <button
-              className="btn-secondary btn-sm"
-              onClick={() => handleApplySchedule('next')}
-              disabled={applyingSchedule}
-            >
-              На следующую неделю
-            </button>
+              {SLOT_DURATIONS.map((d) => (
+                <option key={d.minutes} value={d.minutes}>{d.label}</option>
+              ))}
+            </select>
+            <span className="settings-field-hint">
+              На такие интервалы разбивается день — клиент выбирает один из них
+            </span>
           </div>
+
+          <div className="settings-field">
+            <label htmlFor="horizon">На сколько дней вперёд</label>
+            <select
+              id="horizon"
+              value={horizonDays}
+              onChange={(e) => setHorizonDays(Number(e.target.value))}
+            >
+              <option value={7}>7 дней</option>
+              <option value={14}>14 дней</option>
+              <option value={28}>28 дней</option>
+              <option value={60}>60 дней</option>
+            </select>
+          </div>
+
+          <button
+            className="btn-primary"
+            onClick={handlePublish}
+            disabled={applyingSchedule}
+            type="button"
+          >
+            {applyingSchedule ? 'Открываем запись…' : 'Открыть запись'}
+          </button>
         </div>
 
         <div className="settings-section">

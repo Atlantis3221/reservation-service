@@ -24,7 +24,13 @@ function formatCreatedAt(dt: string): string {
     ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function RequestsPage({ businessId }: { businessId: number | null }) {
+interface Props {
+  businessId: number | null;
+  /** Обновляет счётчик заявок в панели после подтверждения или отклонения */
+  onChanged?: () => void;
+}
+
+export function RequestsPage({ businessId, onChanged }: Props) {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -52,6 +58,7 @@ export function RequestsPage({ businessId }: { businessId: number | null }) {
     try {
       await api.updateBookingRequest(id, { status });
       loadRequests();
+      onChanged?.();
     } catch {}
     setActionLoading(null);
   }
@@ -67,6 +74,7 @@ export function RequestsPage({ businessId }: { businessId: number | null }) {
       });
       setReschedule(null);
       loadRequests();
+      onChanged?.();
     } catch {}
     setActionLoading(null);
   }

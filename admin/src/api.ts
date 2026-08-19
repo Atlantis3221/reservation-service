@@ -49,6 +49,8 @@ export interface Business {
   slug: string;
   name: string;
   ownerChatId: string;
+  bookingRequestsEnabled?: boolean;
+  slotDurationMinutes?: number;
 }
 
 export interface CommandButton {
@@ -126,7 +128,22 @@ export interface BusinessSettings {
   slug: string;
   bookingRequestsEnabled: boolean;
   workingHours: WorkingHoursConfig | null;
+  slotDurationMinutes: number;
   contactLinks: Array<{ type: 'telegram' | 'vk' | 'max'; url: string }>;
+}
+
+export interface BusinessStatus {
+  slug: string;
+  name: string;
+  slotDurationMinutes: number;
+  hasWorkingHours: boolean;
+  bookingRequestsEnabled: boolean;
+  /** Последняя дата, на которую открыта запись; null — расписание не опубликовано */
+  publishedUntil: string | null;
+  freeSlots: number;
+  upcomingBookings: number;
+  pendingRequests: number;
+  today: string;
 }
 
 export const api = {
@@ -140,6 +157,12 @@ export const api = {
     request<AuthResult>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }),
 
   resetPassword: (token: string, newPassword: string) =>
@@ -167,6 +190,12 @@ export const api = {
     request<CommandResult>('/command', {
       method: 'POST',
       body: JSON.stringify({ action, businessId }),
+    }),
+
+  createBusiness: (name: string, slug?: string) =>
+    request<{ business: Business; businesses: Business[] }>('/businesses', {
+      method: 'POST',
+      body: JSON.stringify({ name, slug }),
     }),
 
   linkTelegram: (code: string) =>
@@ -257,6 +286,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getBusinessStatus: (businessId: number) =>
+    request<BusinessStatus>(`/business-status?businessId=${businessId}`),
+
   getSettings: (businessId: number) =>
     request<BusinessSettings>(`/settings?businessId=${businessId}`),
 
@@ -266,6 +298,7 @@ export const api = {
     slug?: string;
     bookingRequestsEnabled?: boolean;
     workingHours?: WorkingHoursConfig;
+    slotDurationMinutes?: number;
     contactLinks?: Array<{ type: string; url: string | null }>;
   }) =>
     request<{ ok: boolean }>('/settings', {
@@ -273,9 +306,10 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  applySchedule: (businessId: number, week: 'this' | 'next') =>
-    request<{ ok: boolean; daysCreated: number }>('/settings/apply-schedule', {
+  /** Открывает запись на `days` дней вперёд по заданным рабочим часам */
+  applySchedule: (businessId: number, days: number) =>
+    request<{ ok: boolean; daysCreated: number; freeSlots: number }>('/settings/apply-schedule', {
       method: 'POST',
-      body: JSON.stringify({ businessId, week }),
+      body: JSON.stringify({ businessId, days }),
     }),
 };

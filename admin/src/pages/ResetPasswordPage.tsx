@@ -16,9 +16,12 @@ export function ResetPasswordPage() {
         <div className="auth-card">
           <h1>Сброс пароля</h1>
           <p className="auth-subtitle">
-            Чтобы сбросить пароль, отправьте команду <code>/reset</code> Telegram-боту.
-            Бот пришлёт ссылку для сброса.
+            Ссылка для сброса недействительна или устарела. Запросите новую —
+            она придёт на email, указанный при регистрации.
           </p>
+          <Link to="/forgot" className="btn-primary" style={{ display: 'block', textAlign: 'center' }}>
+            Запросить ссылку
+          </Link>
           <p className="auth-footer">
             <Link to="/login">Вернуться к входу</Link>
           </p>

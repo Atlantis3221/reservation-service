@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { reachGoal } from '../lib/metrika';
 
 export function RegisterPage() {
   const { login } = useAuth();
@@ -16,6 +17,7 @@ export function RegisterPage() {
     setLoading(true);
     try {
       const result = await api.register(email, password);
+      reachGoal('signup');
       login(result.token, result.user);
     } catch (err: any) {
       setError(err.message);
