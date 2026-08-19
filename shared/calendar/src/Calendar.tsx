@@ -37,6 +37,16 @@ export interface CalendarProps {
   onRequestClick?: (request: BookingRequestBlock) => void;
   showClientInfo?: boolean;
   emptyDayContent?: ReactNode;
+  /** Блок под таймлайном дня — сюда клиентская страница кладёт выбор слота */
+  dayFooter?: ReactNode;
+  /** Показывать свободное время зелёными блоками (страница клиента) */
+  showAvailable?: boolean;
+  /**
+   * 'compact' — без часовой сетки: только переключатель дней и dayFooter.
+   * Клиенту нужен ответ «когда свободно», а не 16-часовой таймлайн,
+   * из-за которого кнопки записи уезжали далеко вниз.
+   */
+  variant?: 'timeline' | 'compact';
   refreshTrigger?: unknown;
   pendingSlot?: PendingSlot | null;
   bookingRequests?: BookingRequestBlock[];
@@ -78,6 +88,9 @@ export default function Calendar({
   onTimeClick,
   showClientInfo,
   emptyDayContent,
+  dayFooter,
+  showAvailable,
+  variant = 'timeline',
   refreshTrigger,
   pendingSlot,
   bookingRequests,
@@ -312,13 +325,18 @@ export default function Calendar({
           )}
         </div>
 
-        {loadingDay ? (
+        {variant === 'compact' ? (
+          <div className="gcal-compact-day">{dayFooter}</div>
+        ) : loadingDay ? (
           <div className="gcal-loading">
             <div className="gcal-spinner" />
             <span>Загрузка...</span>
           </div>
         ) : daySlots.length === 0 ? (
-          emptyDayContent || <div className="gcal-empty">Расписание на этот день не задано</div>
+          <>
+            {emptyDayContent || <div className="gcal-empty">Расписание на этот день не задано</div>}
+            {dayFooter}
+          </>
         ) : (
           <div className="gcal-timeline-wrap">
             <div className="gcal-timeline">
@@ -345,6 +363,23 @@ export default function Calendar({
                     style={{ top: hour * 60 + (hour < rangeStartHour ? 24 * 60 : 0) - rangeStartMin }}
                   />
                 ))}
+
+                {showAvailable && availableSlots.map((slot) => {
+                  const startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
+                  const endRaw = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
+                  const sameDay = slot.endDatetime.split('T')[0] === slot.startDatetime.split('T')[0];
+                  const endMin = sameDay ? (endRaw === 0 ? 24 * 60 : endRaw) : endRaw + 24 * 60;
+                  const top = Math.max(0, startMin - rangeStartMin);
+                  const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
+                  return (
+                    <div
+                      key={`free-${slot.id}`}
+                      className="gcal-tl-open"
+                      style={{ top, height: Math.max(bottom - top, 20) }}
+                      aria-hidden="true"
+                    />
+                  );
+                })}
 
                 {(() => {
                   const parsed = bookedSlots.map((slot) => {
@@ -507,6 +542,7 @@ export default function Calendar({
                 })()}
               </div>
             </div>
+            {dayFooter}
           </div>
         )}
       </div>
@@ -551,6 +587,7 @@ export default function Calendar({
               if (isToday) cls += ' gcal-day--today';
               if (!isPast || isToday) cls += ' gcal-day--clickable';
               if (!hasSlots && isCurrent && !isPast) cls += ' gcal-day--no-slots';
+              if (hasSlots && !isPast) cls += ' gcal-day--has-slots';
 
               return (
                 <button
