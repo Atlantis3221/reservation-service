@@ -5,6 +5,12 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Два пуша подряд запускали две сборки образа на одной машине одновременно.
+# Деплой не отменяем на середине — дожидаемся предыдущего.
+concurrency:
+  group: deploy-master
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -42,6 +48,14 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+          # `docker-compose up --build` молчит по несколько минут, пока внутри
+          # образа идёт npm install и компиляция better-sqlite3, и соединение
+          # разрывалось с «client_loop: send disconnect: Broken pipe».
+          # Раньше этот шаг всегда попадал в кеш слоя и потому был мгновенным.
+          printf 'Host *\n  ServerAliveInterval 30\n  ServerAliveCountMax 20\n  TCPKeepAlive yes\n' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          cat ~/.ssh/config
 
       - name: Sync project to server
         run: |
@@ -108,12 +122,31 @@ jobs:
           BACKUP_SCRIPT
 
       - name: Restart containers
+        timeout-minutes: 25
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cd ${{ secrets.DEPLOY_PATH }} && docker-compose up -d --build"
 
+      # Проверяем не только /health, но и что запущен именно новый код:
+      # предыдущий деплой упал на перезапуске, статика обновилась, а бэкенд
+      # остался старым — и страница записи обращалась к несуществующим ручкам.
       - name: Health check
         run: |
           echo "Waiting for server to start..."
-          sleep 10
-          curl -sf https://slotik.tech/health || echo "Health check failed (may need SSL init)"
+          for i in $(seq 1 20); do
+            if curl -sf https://slotik.tech/health > /dev/null; then break; fi
+            sleep 5
+          done
+
+          curl -sf https://slotik.tech/health || {
+            echo "::error::/health не отвечает"
+            exit 1
+          }
+
+          date=$(date -u +%Y-%m-%d)
+          if ! curl -sf "https://slotik.tech/api/business/demo-banya/free-slots?date=$date" \
+               | grep -q '"slots"'; then
+            echo "::error::бэкенд отвечает, но без /free-slots — контейнер не обновился"
+            exit 1
+          fi
+          echo "Backend is running the current build"
