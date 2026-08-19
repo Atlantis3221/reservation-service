@@ -8,3 +8,4 @@ data/
 frontend-dist/
 certbot/
 .claude/worktrees/
+*.tsbuildinfo
