@@ -85,6 +85,13 @@ function rowToBusiness(row: any): Business {
     bookingRequestsEnabled: !!row.booking_requests_enabled,
     workingHours,
     slotDurationMinutes: row.slot_duration_minutes ?? DEFAULT_SLOT_DURATION_MINUTES,
+    minDurationMinutes: row.min_duration_minutes
+      ?? row.slot_duration_minutes ?? DEFAULT_SLOT_DURATION_MINUTES,
+    // NULL в базе значит «без ограничения», поэтому здесь нельзя ??:
+    // отличаем отсутствие колонки (старая база) от снятого ограничения.
+    maxDurationMinutes: 'max_duration_minutes' in row
+      ? row.max_duration_minutes
+      : (row.slot_duration_minutes ?? DEFAULT_SLOT_DURATION_MINUTES),
     createdAt: row.created_at,
   };
 }
@@ -102,10 +109,15 @@ export function createBusiness(
   const result = getDb()
     .prepare(
       `INSERT INTO businesses (slug, name, owner_chat_id, telegram_username, owner_phone,
-                               booking_requests_enabled, slot_duration_minutes)
-       VALUES (?, ?, ?, ?, ?, 1, ?)`
+                               booking_requests_enabled, slot_duration_minutes,
+                               min_duration_minutes, max_duration_minutes)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`
     )
-    .run(slug, name, ownerChatId, telegramUsername ?? null, phone, DEFAULT_SLOT_DURATION_MINUTES);
+    .run(
+      slug, name, ownerChatId, telegramUsername ?? null, phone,
+      DEFAULT_SLOT_DURATION_MINUTES, DEFAULT_SLOT_DURATION_MINUTES,
+      DEFAULT_SLOT_DURATION_MINUTES,
+    );
 
   notifyNewBusiness(name, slug);
 
@@ -119,6 +131,8 @@ export function createBusiness(
     bookingRequestsEnabled: true,
     workingHours: null,
     slotDurationMinutes: DEFAULT_SLOT_DURATION_MINUTES,
+    minDurationMinutes: DEFAULT_SLOT_DURATION_MINUTES,
+    maxDurationMinutes: DEFAULT_SLOT_DURATION_MINUTES,
     createdAt: new Date().toISOString(),
   };
 }
@@ -284,4 +298,18 @@ export function updateSlotDuration(businessId: number, minutes: number): void {
   getDb()
     .prepare('UPDATE businesses SET slot_duration_minutes = ? WHERE id = ?')
     .run(minutes, businessId);
+}
+
+/**
+ * Минимум и максимум длительности. `max = null` — без верхней границы:
+ * клиент занимает время до конца свободного окна.
+ */
+export function updateDurationLimits(
+  businessId: number,
+  minMinutes: number,
+  maxMinutes: number | null,
+): void {
+  getDb()
+    .prepare('UPDATE businesses SET min_duration_minutes = ?, max_duration_minutes = ? WHERE id = ?')
+    .run(minMinutes, maxMinutes, businessId);
 }

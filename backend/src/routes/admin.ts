@@ -22,6 +22,7 @@ import {
   updateBookingRequestsEnabled,
   updateWorkingHours,
   updateSlotDuration,
+  updateDurationLimits,
   createBusiness,
   generateSlug,
   moveBusinessesToOwner,
@@ -29,7 +30,7 @@ import {
   isSlugTaken,
 } from '../services/business';
 import { sendPasswordResetEmail, isMailerConfigured } from '../services/mailer';
-import { getFreeSlots } from '../services/free-slots';
+import { getFreeSlots, rulesOf, humanDuration, MIN_STEP_MINUTES } from '../services/free-slots';
 import {
   getBookingRequestsByBusiness,
   getBookingRequestsByDate,
@@ -64,8 +65,45 @@ interface AuthRequest extends Request {
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 // 1440 — сутки: день бронируется целиком (дома, глемпинги, бани с проживанием)
 const ALLOWED_SLOT_DURATIONS = [30, 60, 90, 120, 180, 240, 1440];
+/** Шаг сетки времени: как часто предлагается начало брони */
+const ALLOWED_STEPS = [15, 30, 60, 120, 1440];
+/** Верхняя граница длительности; 1440 и больше — это уже режим «сутки» */
+const MAX_DURATION_MINUTES = 1440;
 const MAX_HORIZON_DAYS = 90;
 const DEFAULT_HORIZON_DAYS = 28;
+
+/**
+ * Проверяет пару «минимум/максимум» вместе с шагом. Отдаёт текст ошибки или
+ * null. Смысл проверок: заведение не должно стать незабронируемым, а клиент
+ * не должен видеть варианты, которые сервер потом отвергнет.
+ */
+function validateDurationLimits(
+  min: number,
+  max: number | null,
+  step: number,
+): string | null {
+  if (!Number.isFinite(min) || min < MIN_STEP_MINUTES) {
+    return `Минимальная бронь — не меньше ${MIN_STEP_MINUTES} минут`;
+  }
+  if (min > MAX_DURATION_MINUTES) return 'Минимальная бронь — не больше суток';
+  if (min % MIN_STEP_MINUTES !== 0) return 'Минимальная бронь — кратна 15 минутам';
+
+  if (max !== null) {
+    if (!Number.isFinite(max)) return 'Некорректная максимальная бронь';
+    if (max < min) return 'Максимум не может быть меньше минимума';
+    if (max > MAX_DURATION_MINUTES) return 'Максимальная бронь — не больше суток';
+    if ((max - min) % Math.max(MIN_STEP_MINUTES, step) !== 0) {
+      return `Максимум отличается от минимума на целое число шагов по ${humanDuration(step)}`;
+    }
+  }
+
+  // Сутки — отдельная механика: день продаётся целиком, дробить нечего
+  if (min >= MAX_DURATION_MINUTES && max !== null && max < MAX_DURATION_MINUTES) {
+    return 'Для суточной брони максимум тоже сутки';
+  }
+
+  return null;
+}
 
 /** Индекс дня недели в DAY_KEYS: 0 = понедельник */
 function weekdayIndex(date: Date): number {
@@ -353,7 +391,7 @@ adminRouter.get('/business-status', (req: AuthRequest, res: Response) => {
     const slots = getSlotsForDateAdmin(businessId, dateKey);
     if (slots.length === 0) continue;
     if (slots.some((slot) => slot.status === 'available')) publishedUntil = dateKey;
-    freeSlots += getFreeSlots(businessId, dateKey, business.slotDurationMinutes).length;
+    freeSlots += getFreeSlots(businessId, dateKey, rulesOf(business)).length;
     upcomingBookings += slots.filter((slot) => slot.status === 'booked').length;
   }
 
@@ -361,6 +399,8 @@ adminRouter.get('/business-status', (req: AuthRequest, res: Response) => {
     slug: business.slug,
     name: business.name,
     slotDurationMinutes: business.slotDurationMinutes,
+    minDurationMinutes: business.minDurationMinutes,
+    maxDurationMinutes: business.maxDurationMinutes,
     hasWorkingHours: !!business.workingHours,
     bookingRequestsEnabled: business.bookingRequestsEnabled,
     publishedUntil,
@@ -639,6 +679,8 @@ adminRouter.get('/settings', (req: AuthRequest, res: Response) => {
     bookingRequestsEnabled: business.bookingRequestsEnabled,
     workingHours: business.workingHours,
     slotDurationMinutes: business.slotDurationMinutes,
+    minDurationMinutes: business.minDurationMinutes,
+    maxDurationMinutes: business.maxDurationMinutes,
     contactLinks: contactLinksList,
   });
 });
@@ -647,6 +689,7 @@ adminRouter.put('/settings', (req: AuthRequest, res: Response) => {
   const {
     businessId, name, slug, bookingRequestsEnabled,
     workingHours: whUpdate, contactLinks: linksUpdate, slotDurationMinutes,
+    minDurationMinutes, maxDurationMinutes,
   } = req.body;
   if (!businessId) {
     res.status(400).json({ error: 'businessId обязателен' });
@@ -686,15 +729,56 @@ adminRouter.put('/settings', (req: AuthRequest, res: Response) => {
     updateWorkingHours(businessId, whUpdate);
   }
 
-  if (slotDurationMinutes !== undefined) {
+  // Длительность приходит в двух видах.
+  //
+  // Старый: только `slotDurationMinutes` — «сеанс ровно столько». Так пишут
+  // онбординг и бот, и так это работало до появления гибкой длительности,
+  // поэтому здесь min и max тоже приравниваются к нему: иначе смена
+  // длительности молча перестала бы влиять на бронирование.
+  //
+  // Новый: `min` и `max` (max = null — без ограничения), а
+  // `slotDurationMinutes` становится шагом сетки.
+  const fixedOnly = slotDurationMinutes !== undefined
+    && minDurationMinutes === undefined
+    && maxDurationMinutes === undefined;
+
+  if (fixedOnly) {
     const minutes = Number(slotDurationMinutes);
     if (!ALLOWED_SLOT_DURATIONS.includes(minutes)) {
-      res.status(400).json({
-        error: 'Недопустимая длительность сеанса',
-      });
+      res.status(400).json({ error: 'Недопустимая длительность сеанса' });
       return;
     }
     updateSlotDuration(businessId, minutes);
+    updateDurationLimits(businessId, minutes, minutes);
+  } else if (slotDurationMinutes !== undefined
+             || minDurationMinutes !== undefined
+             || maxDurationMinutes !== undefined) {
+    const current = getBusinessById(businessId)!;
+
+    const step = slotDurationMinutes !== undefined
+      ? Number(slotDurationMinutes)
+      : current.slotDurationMinutes;
+    if (!ALLOWED_STEPS.includes(step)) {
+      res.status(400).json({ error: 'Недопустимый шаг времени' });
+      return;
+    }
+
+    const min = minDurationMinutes !== undefined
+      ? Number(minDurationMinutes)
+      : current.minDurationMinutes;
+    // null приходит осознанно: «без ограничения»
+    const max = maxDurationMinutes === undefined
+      ? current.maxDurationMinutes
+      : maxDurationMinutes === null ? null : Number(maxDurationMinutes);
+
+    const invalid = validateDurationLimits(min, max, step);
+    if (invalid) {
+      res.status(400).json({ error: invalid });
+      return;
+    }
+
+    updateSlotDuration(businessId, step);
+    updateDurationLimits(businessId, min, max);
   }
 
   if (linksUpdate) {
@@ -759,7 +843,7 @@ adminRouter.post('/settings/apply-schedule', (req: AuthRequest, res: Response) =
     ok: true,
     daysCreated: created,
     freeSlots: dates.reduce(
-      (sum, date) => sum + getFreeSlots(businessId, toDateKey(date), business.slotDurationMinutes).length,
+      (sum, date) => sum + getFreeSlots(businessId, toDateKey(date), rulesOf(business)).length,
       0,
     ),
   });

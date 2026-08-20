@@ -323,9 +323,16 @@ export default function Calendar({
               );
             })}
           </div>
-          {selectedDate !== todayKey && (
-            <button className="gcal-today-btn gcal-today-btn--day" onClick={goToday}>Сегодня</button>
-          )}
+          {/* Кнопка на месте всегда, даже когда идти уже некуда: раньше она
+              исчезала на сегодняшнем дне, переносилась на вторую строку на
+              узком экране и двигала таймлайн на 38px вверх-вниз. */}
+          <button
+            className="gcal-today-btn gcal-today-btn--day"
+            onClick={goToday}
+            disabled={selectedDate === todayKey}
+          >
+            Сегодня
+          </button>
         </div>
 
         {dayHeader}
@@ -369,20 +376,34 @@ export default function Calendar({
                   />
                 ))}
 
+                {/* Рабочее окно: ровная заливка с подписанными границами.
+                    Штриховка, которая была здесь раньше, читалась как «что-то
+                    служебное», и по ней нельзя было понять, когда смена
+                    начинается и когда заканчивается. */}
                 {showAvailable && availableSlots.map((slot) => {
-                  const startMin = timeToMinutes(slot.startDatetime.split('T')[1].substring(0, 5));
-                  const endRaw = timeToMinutes(slot.endDatetime.split('T')[1].substring(0, 5));
+                  const startTimeStr = slot.startDatetime.split('T')[1].substring(0, 5);
+                  const endTimeStr = slot.endDatetime.split('T')[1].substring(0, 5);
+                  const startMin = timeToMinutes(startTimeStr);
+                  const endRaw = timeToMinutes(endTimeStr);
                   const sameDay = slot.endDatetime.split('T')[0] === slot.startDatetime.split('T')[0];
                   const endMin = sameDay ? (endRaw === 0 ? 24 * 60 : endRaw) : endRaw + 24 * 60;
                   const top = Math.max(0, startMin - rangeStartMin);
                   const bottom = Math.min(totalMinutes, endMin - rangeStartMin);
+                  const height = Math.max(bottom - top, 20);
                   return (
-                    <div
-                      key={`free-${slot.id}`}
-                      className="gcal-tl-open"
-                      style={{ top, height: Math.max(bottom - top, 20) }}
-                      aria-hidden="true"
-                    />
+                    <div key={`free-${slot.id}`}>
+                      <div
+                        className="gcal-tl-open"
+                        style={{ top, height }}
+                        aria-hidden="true"
+                      />
+                      <span className="gcal-tl-edge" style={{ top }}>
+                        открытие {startTimeStr}
+                      </span>
+                      <span className="gcal-tl-edge gcal-tl-edge--end" style={{ top: top + height }}>
+                        закрытие {endTimeStr}
+                      </span>
+                    </div>
                   );
                 })}
 

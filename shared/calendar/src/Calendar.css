@@ -4,8 +4,9 @@
    первым в своём базовом css.
 
    Семантика цвета одна на весь продукт:
-     свободное время — акцент (штриховка), бронь — белая карточка с чернильным
-     текстом, закрытое — плоская бумага, ожидание — пунктир. */
+     рабочее окно — ровная акцентная заливка с подписанными границами,
+     бронь — плотная бумага с чернильной полосой, закрытое — глухая бумага,
+     ожидание — пунктир. */
 
 .gcal {
   background: transparent;
@@ -87,6 +88,17 @@
   margin-left: auto;
   padding: 6px 11px;
   font-size: 0.75rem;
+}
+
+/* Уже на сегодняшнем дне: кнопка гаснет, но место занимает */
+.gcal-today-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gcal-today-btn:disabled:hover {
+  background: var(--card);
+  border-color: var(--line-strong);
 }
 
 /* ── Загрузка ── */
@@ -391,22 +403,35 @@
   border-top: 1px solid var(--line);
 }
 
-/* Свободное время. Без этого блока пустая сетка выглядела так же,
-   как «заведение не работает». */
+/* Рабочее окно. Ровная заливка, а не штриховка: штриховку принимали за
+   служебную графику, и по ней не читалось, где смена начинается и кончается. */
 .gcal-tl-open {
   position: absolute;
   left: 3px;
   right: 3px;
   border-radius: var(--r-sm);
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(14, 122, 78, 0.14),
-    rgba(14, 122, 78, 0.14) 6px,
-    rgba(14, 122, 78, 0.05) 6px,
-    rgba(14, 122, 78, 0.05) 13px
-  );
+  background: var(--accent-wash);
   box-shadow: inset 0 0 0 1px var(--accent-line);
   z-index: 0;
+}
+
+/* Границы смены подписаны словами и лежат выше броней: иначе подпись
+   пряталась под первой же записью на десять утра. */
+.gcal-tl-edge {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  line-height: 1.5;
+  color: var(--accent-deep);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .gcal-tl-block {

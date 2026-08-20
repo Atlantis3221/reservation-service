@@ -41,6 +41,8 @@ function createSchema(db: Database.Database): void {
       booking_requests_enabled INTEGER NOT NULL DEFAULT 0,
       working_hours     TEXT,
       slot_duration_minutes INTEGER NOT NULL DEFAULT 120,
+      min_duration_minutes INTEGER,
+      max_duration_minutes INTEGER,
       created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
     )
   `);

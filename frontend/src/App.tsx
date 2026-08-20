@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Calendar } from '@shared/calendar';
-import { publicApi, ApiError, type BusinessInfo, type FreeSlot } from './api';
-import { FreeSlotPicker } from './components/FreeSlotPicker';
-import { DayViewToggle, type DayView } from './components/DayViewToggle';
-import { BookingSheet } from './components/BookingSheet';
+import { publicApi, type BusinessInfo, type DaySlot, type FreeSlot } from './api';
+import { DateRail } from './components/DateRail';
+import { DayTimes } from './components/DayTimes';
+import { DayTrack } from './components/DayTrack';
+import { MonthSheet } from './components/MonthSheet';
+import { BookingSheet, type BookingDraft } from './components/BookingSheet';
 import { PrivacyPage } from './pages/PrivacyPage';
+import { useKeyboardInset } from './hooks/useKeyboardInset';
+import { MINUTES_IN_DAY, addDays, toDateKey } from './lib/day';
 import './App.css';
 
 const LANDING_URL = 'https://slotik.tech';
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function getPathSegment(): string | null {
   const base = import.meta.env.BASE_URL || '/';
@@ -19,6 +23,7 @@ function getPathSegment(): string | null {
 
 export default function App() {
   const segment = useMemo(() => getPathSegment(), []);
+  useKeyboardInset();
 
   if (segment === 'privacy') return <PrivacyPage />;
   if (!segment) return <RootRedirect />;
@@ -28,8 +33,7 @@ export default function App() {
 
 /**
  * Корень домена отдаёт лендинг через nginx. Если сюда всё же попали
- * (например, из SPA-фолбэка), уводим на лендинг вместо старой заглушки
- * с инструкцией «подключите Telegram-бота».
+ * (например, из SPA-фолбэка), уводим на лендинг.
  */
 function RootRedirect() {
   useEffect(() => {
@@ -37,35 +41,16 @@ function RootRedirect() {
   }, []);
 
   return (
-    <div className="app-loading">
-      <div className="app-spinner" />
+    <div className="boot">
+      <span className="spinner" />
       <span>Переходим на slotik.tech…</span>
     </div>
   );
 }
 
-const MINUTES_IN_DAY = 24 * 60;
-
-/**
- * Находит свободный интервал, в который попала минута с таймлайна.
- * Границы приходят с сервера в абсолютных минутах (за полночь — больше 1440),
- * поэтому здесь не нужно повторять расчёт смены через полночь: одна ошибка
- * в этой арифметике уже приводила к тому, что тап по занятому времени
- * открывал форму на ночной слот.
- */
-function findSlotAt(slots: FreeSlot[], minutes: number): FreeSlot | undefined {
-  if (slots.length === 0) return undefined;
-
-  const dayStart = slots[0].startMinutes;
-  const point = minutes < dayStart % MINUTES_IN_DAY ? minutes + MINUTES_IN_DAY : minutes;
-
-  return slots.find((slot) => point >= slot.startMinutes && point < slot.endMinutes);
-}
-
-function formatDateStr(dateKey: string): string {
-  return new Date(`${dateKey}T00:00:00`).toLocaleDateString('ru-RU', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
+function readDateParam(): string | null {
+  const value = new URLSearchParams(window.location.search).get('date');
+  return value && DATE_RE.test(value) ? value : null;
 }
 
 function BusinessPage({ slug }: { slug: string }) {
@@ -73,176 +58,190 @@ function BusinessPage({ slug }: { slug: string }) {
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(() =>
-    new URLSearchParams(window.location.search).get('date'),
-  );
+  const [freeDates, setFreeDates] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(readDateParam);
   const [freeSlots, setFreeSlots] = useState<FreeSlot[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [daySlots, setDaySlots] = useState<DaySlot[]>([]);
+  const [loadingDay, setLoadingDay] = useState(false);
+
   const [sheet, setSheet] = useState<{ slot: FreeSlot | null } | null>(null);
+  const [monthOpen, setMonthOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dayView, setDayView] = useState<DayView>('slots');
 
-  // ---- загрузка заведения ----
+  // Черновик живёт на странице, а не в листе: случайный тап по фону больше
+  // не стирает уже введённые имя и телефон.
+  const [draft, setDraft] = useState<BookingDraft>({ name: '', phone: '', comment: '' });
+
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const freeDateSet = useMemo(() => new Set(freeDates), [freeDates]);
+
   useEffect(() => {
-    const controller = new AbortController();
     setLoading(true);
-
     publicApi.getBusiness(slug)
       .then(setBusiness)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) setNotFound(true);
-        else setNotFound(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [slug]);
 
-  // ---- дата в адресной строке, чтобы ссылкой можно было делиться ----
   useEffect(() => {
+    publicApi.getAvailableDates(slug)
+      .then(setFreeDates)
+      .catch(() => setFreeDates([]));
+  }, [slug, refreshKey]);
+
+  // Открываем сразу на ближайшем дне со свободным временем: клиент пришёл
+  // за временем, а не за календарём, и первый экран должен отвечать сразу.
+  useEffect(() => {
+    if (selectedDate) return;
+    const nearest = freeDates.find((d) => d >= todayKey);
+    setSelectedDate(nearest || todayKey);
+  }, [freeDates, selectedDate, todayKey]);
+
+  // Дата в адресной строке — чтобы ссылкой на конкретный день можно делиться
+  useEffect(() => {
+    if (!selectedDate) return;
     const url = new URL(window.location.href);
-    if (selectedDate) url.searchParams.set('date', selectedDate);
-    else url.searchParams.delete('date');
+    if (url.searchParams.get('date') === selectedDate) return;
+    url.searchParams.set('date', selectedDate);
     window.history.replaceState({}, '', url.toString());
   }, [selectedDate]);
 
   useEffect(() => {
-    function onPopState() {
-      setSelectedDate(new URLSearchParams(window.location.search).get('date'));
+    function onPopState(): void {
+      setSelectedDate(readDateParam());
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // ---- свободные интервалы выбранного дня ----
   useEffect(() => {
-    if (!selectedDate) {
-      setFreeSlots([]);
-      return;
-    }
-    setLoadingSlots(true);
-    publicApi.getFreeSlots(slug, selectedDate)
-      .then(setFreeSlots)
-      .catch(() => setFreeSlots([]))
-      .finally(() => setLoadingSlots(false));
+    if (!selectedDate) return;
+    let cancelled = false;
+    setLoadingDay(true);
+
+    Promise.all([
+      publicApi.getFreeSlots(slug, selectedDate).catch(() => [] as FreeSlot[]),
+      publicApi.getDaySlots(slug, selectedDate).catch(() => [] as DaySlot[]),
+    ]).then(([free, day]) => {
+      if (cancelled) return;
+      setFreeSlots(free);
+      setDaySlots(day);
+      setLoadingDay(false);
+    });
+
+    return () => { cancelled = true; };
   }, [slug, selectedDate, refreshKey]);
 
-  // ---- title и описание ----
   useEffect(() => {
     if (!business) return;
-    document.title = selectedDate
-      ? `${business.name} — ${formatDateStr(selectedDate)}`
-      : `${business.name} — онлайн-запись`;
-
-    const meta = document.querySelector('meta[name="description"]');
-    meta?.setAttribute(
+    document.title = `${business.name} — онлайн-запись`;
+    document.querySelector('meta[name="description"]')?.setAttribute(
       'content',
       `Онлайн-запись в «${business.name}». Выберите свободное время и забронируйте за минуту.`,
     );
-  }, [business, selectedDate]);
-
-  const fetchAvailableDates = useCallback(
-    () => publicApi.getAvailableDates(slug),
-    [slug],
-  );
-  const fetchDaySlots = useCallback(
-    (date: string) => publicApi.getDaySlots(slug, date),
-    [slug],
-  );
-
-  function handleBooked() {
-    setRefreshKey((k) => k + 1);
-  }
+  }, [business]);
 
   /**
-   * Нажатие по календарю дня: открываем тот свободный интервал, внутрь
-   * которого попал тап. Если попали в занятое или закрытое время — молчим,
-   * чтобы не открывать форму на время, которое всё равно нельзя занять.
+   * Куда предложить пойти, если в выбранном дне записаться нельзя: сначала
+   * ближайший свободный день после него, иначе — ближайший свободный вообще.
+   * Второй случай — это когда человек ушёл далеко вперёд по календарю
+   * и попал в даты, на которые расписание ещё не опубликовано.
    */
-  function handleTimeClick(_date: string, minutes: number) {
-    const slot = findSlotAt(freeSlots, minutes);
-    if (slot) setSheet({ slot });
-  }
+  const nextFreeDate = useMemo(() => {
+    if (!selectedDate) return null;
+    const after = freeDates.find((d) => d > selectedDate);
+    if (after) return after;
+    const upcoming = freeDates.find((d) => d >= todayKey && d !== selectedDate);
+    return upcoming || null;
+  }, [freeDates, selectedDate, todayKey]);
+
+  /**
+   * «Сейчас» в координатах дорожки дня: у смены через полночь минуты после
+   * неё лежат в тех же сутках расписания, поэтому сдвигаются на 1440.
+   */
+  const trackNow = useMemo(() => {
+    if (!selectedDate) return null;
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    if (selectedDate === todayKey) return minutes;
+    if (addDays(selectedDate, 1) === todayKey) return minutes + MINUTES_IN_DAY;
+    return null;
+  }, [selectedDate, todayKey]);
+
+  const handleBooked = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    setDraft({ name: '', phone: '', comment: '' });
+  }, []);
 
   if (loading) {
     return (
-      <div className="app">
-        <div className="app-loading">
-          <div className="app-spinner" />
-          <span>Загрузка…</span>
-        </div>
+      <div className="boot">
+        <span className="spinner" />
       </div>
     );
   }
 
   if (notFound || !business) {
     return (
-      <div className="app">
-        <div className="not-found">
+      <div className="page">
+        <div className="miss">
           <h1>Страница не найдена</h1>
-          <p>По адресу <code>/{slug}</code> ничего нет.</p>
-          <p>Проверьте ссылку — возможно, в ней опечатка.</p>
-          <a className="not-found-link" href={LANDING_URL}>Что такое slotik →</a>
+          <p>По адресу <code>/{slug}</code> ничего нет. Проверьте ссылку — возможно, в ней опечатка.</p>
+          <a className="link" href={LANDING_URL}>Что такое slotik →</a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`app${selectedDate ? ' app--day' : ''}`}>
-      <header className="header">
+    <div className="page">
+      <header className="page-head">
         <h1>{business.name}</h1>
-        <p>
-          {selectedDate
-            ? 'Выберите свободное время'
-            : 'Онлайн-запись — выберите дату'}
-        </p>
+        <p>Онлайн-запись</p>
       </header>
 
-      <main className="main">
-        <Calendar
-          fetchAvailableDates={fetchAvailableDates}
-          fetchDaySlots={fetchDaySlots}
-          selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
-          onBack={() => setSelectedDate(null)}
-          variant={dayView === 'calendar' ? 'timeline' : 'compact'}
-          showAvailable
-          refreshTrigger={refreshKey}
-          onTimeClick={dayView === 'calendar' ? handleTimeClick : undefined}
-          emptyDayContent={
-            <div className="day-empty">
-              <strong>В этот день записи нет</strong>
-              <span>Выберите другую дату выше.</span>
-            </div>
-          }
-          dayHeader={
-            selectedDate ? (
-              <DayViewToggle value={dayView} onChange={setDayView} freeCount={freeSlots.length} />
-            ) : null
-          }
-          dayFooter={
-            selectedDate ? (
-              <FreeSlotPicker
-                slots={freeSlots}
-                loading={loadingSlots}
-                business={business}
-                onPick={(slot) => setSheet({ slot })}
-                onRequestOwnTime={() => setSheet({ slot: null })}
-              />
-            ) : null
-          }
-        />
-      </main>
+      <DateRail
+        todayKey={todayKey}
+        freeDates={freeDateSet}
+        selected={selectedDate}
+        onSelect={setSelectedDate}
+        onOpenMonth={() => setMonthOpen(true)}
+      />
 
-      {!selectedDate && (
-        <footer className="page-footer">
-          <a href="/privacy">Обработка персональных данных</a>
-          <span className="page-footer-sep">·</span>
-          <a href={LANDING_URL} target="_blank" rel="noopener">Работает на slotik.tech</a>
-        </footer>
+      {selectedDate && (
+        <DayTimes
+          dateKey={selectedDate}
+          todayKey={todayKey}
+          business={business}
+          freeSlots={freeSlots}
+          daySlots={daySlots}
+          loading={loadingDay}
+          nextFreeDate={nextFreeDate}
+          onPick={(slot) => setSheet({ slot })}
+          onGoToDate={setSelectedDate}
+          onRequestOwnTime={() => setSheet({ slot: null })}
+        />
+      )}
+
+      {/* Календарь дня — не отдельный режим, а картинка под сеткой времени:
+          видно смену целиком, а выбор остаётся в одном месте. */}
+      {selectedDate && !loadingDay && daySlots.length > 0 && (
+        <DayTrack daySlots={daySlots} nowMinutes={trackNow} />
+      )}
+
+      <footer className="page-foot">
+        <a href="/privacy">Обработка персональных данных</a>
+        <a href={LANDING_URL} target="_blank" rel="noopener">Работает на slotik.tech</a>
+      </footer>
+
+      {monthOpen && (
+        <MonthSheet
+          todayKey={todayKey}
+          freeDates={freeDateSet}
+          selected={selectedDate}
+          onSelect={setSelectedDate}
+          onClose={() => setMonthOpen(false)}
+        />
       )}
 
       {sheet && selectedDate && (
@@ -250,6 +249,8 @@ function BusinessPage({ slug }: { slug: string }) {
           business={business}
           date={selectedDate}
           slot={sheet.slot}
+          draft={draft}
+          onDraftChange={setDraft}
           onClose={() => setSheet(null)}
           onBooked={handleBooked}
         />

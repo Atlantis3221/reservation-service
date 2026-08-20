@@ -4,7 +4,9 @@ import { getBusinessBySlug, getContactLinksWithFallback } from '../services/busi
 import { createBookingRequest } from '../repositories/booking-request.repository';
 import { notifyBookingRequest, notifyNewBooking } from '../services/booking-notifications';
 import { emitNewBookingRequest } from '../services/booking-events';
-import { getFreeSlots, getBookableDateKeys, isRangeBookable } from '../services/free-slots';
+import {
+  getFreeSlots, getBookableDateKeys, isRangeBookable, rulesOf, checkDuration,
+} from '../services/free-slots';
 import { checkRateLimit } from '../services/rate-limit';
 
 export const apiRouter = Router();
@@ -66,6 +68,8 @@ apiRouter.get('/business/:slug', (req: Request<{ slug: string }>, res: Response)
     contactLinks: getContactLinksWithFallback(biz.id, biz.telegramUsername),
     bookingRequestsEnabled: biz.bookingRequestsEnabled,
     slotDurationMinutes: biz.slotDurationMinutes,
+    minDurationMinutes: biz.minDurationMinutes,
+    maxDurationMinutes: biz.maxDurationMinutes,
   });
 });
 
@@ -84,7 +88,7 @@ apiRouter.get('/business/:slug/free-slots', (req: Request<{ slug: string }>, res
     res.status(400).json({ error: 'Параметр date обязателен (YYYY-MM-DD)' });
     return;
   }
-  res.json({ slots: getFreeSlots(biz.id, date, biz.slotDurationMinutes) });
+  res.json({ slots: getFreeSlots(biz.id, date, rulesOf(biz)) });
 });
 
 /** Мгновенная бронь свободного интервала — без звонка и без подтверждения */
@@ -109,6 +113,14 @@ apiRouter.post('/business/:slug/book', (req: Request<{ slug: string }>, res: Res
   const contact = parseClientContact(req.body);
   if (!contact.data) {
     res.status(400).json({ error: contact.error });
+    return;
+  }
+
+  // Длительность проверяем до занятости: «просят меньше минимума» и «время
+  // уже заняли» — разные ошибки, и клиенту нужно понять, какая из них.
+  const duration = checkDuration(rulesOf(biz), startTime, endTime);
+  if (!duration.ok) {
+    res.status(400).json({ error: duration.error });
     return;
   }
 
@@ -192,7 +204,7 @@ apiRouter.get('/business/:slug/available-dates', (req: Request<{ slug: string }>
     res.status(404).json({ error: 'Заведение не найдено' });
     return;
   }
-  res.json({ dates: getBookableDateKeys(biz.id, biz.slotDurationMinutes) });
+  res.json({ dates: getBookableDateKeys(biz.id, rulesOf(biz)) });
 });
 
 apiRouter.get('/business/:slug/day-slots', (req: Request<{ slug: string }>, res: Response) => {

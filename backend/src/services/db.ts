@@ -130,6 +130,7 @@ type MigrationFn = (d: Database.Database) => void;
 export const migrations: MigrationFn[] = [
   migrationV1,
   migrationV2,
+  migrationV3,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -481,4 +482,37 @@ function migrateHourToTimeRange(d: Database.Database): void {
   d.exec('DROP TABLE slots');
   d.exec('ALTER TABLE slots_new RENAME TO slots');
   d.exec('CREATE INDEX IF NOT EXISTS idx_slots_business_date ON slots(business_id, date_key)');
+}
+
+// ---- Migration V3: гибкая длительность брони ----
+
+/**
+ * До этой миграции длительность была одна на всё заведение: сеанс ровно
+ * 2 часа и никак иначе. Баню же сдают «от двух часов», прокат — «от часа
+ * без верхней границы». Поэтому появляются минимум и максимум, а
+ * `slot_duration_minutes` становится шагом сетки времени.
+ *
+ * Существующим заведениям ставим min = max = slot_duration_minutes: их
+ * поведение не меняется ни на минуту.
+ */
+function migrationV3(d: Database.Database): void {
+  if (!columnExists(d, 'businesses', 'min_duration_minutes')) {
+    d.exec('ALTER TABLE businesses ADD COLUMN min_duration_minutes INTEGER');
+  }
+  if (!columnExists(d, 'businesses', 'max_duration_minutes')) {
+    d.exec('ALTER TABLE businesses ADD COLUMN max_duration_minutes INTEGER');
+  }
+
+  const filled = d
+    .prepare(
+      `UPDATE businesses
+          SET min_duration_minutes = slot_duration_minutes,
+              max_duration_minutes = slot_duration_minutes
+        WHERE min_duration_minutes IS NULL`,
+    )
+    .run();
+
+  if (filled.changes > 0) {
+    console.log(`[db] v3: длительность перенесена у ${filled.changes} заведений`);
+  }
 }

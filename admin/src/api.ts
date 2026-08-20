@@ -51,6 +51,8 @@ export interface Business {
   ownerChatId: string;
   bookingRequestsEnabled?: boolean;
   slotDurationMinutes?: number;
+  minDurationMinutes?: number;
+  maxDurationMinutes?: number | null;
 }
 
 export interface CommandButton {
@@ -128,7 +130,11 @@ export interface BusinessSettings {
   slug: string;
   bookingRequestsEnabled: boolean;
   workingHours: WorkingHoursConfig | null;
+  /** Шаг сетки времени */
   slotDurationMinutes: number;
+  minDurationMinutes?: number;
+  /** null — без ограничения; undefined — бэкенд без гибкой длительности */
+  maxDurationMinutes?: number | null;
   contactLinks: Array<{ type: 'telegram' | 'vk' | 'max'; url: string }>;
 }
 
@@ -136,6 +142,8 @@ export interface BusinessStatus {
   slug: string;
   name: string;
   slotDurationMinutes: number;
+  minDurationMinutes?: number;
+  maxDurationMinutes?: number | null;
   hasWorkingHours: boolean;
   bookingRequestsEnabled: boolean;
   /** Последняя дата, на которую открыта запись; null — расписание не опубликовано */
@@ -299,6 +307,9 @@ export const api = {
     bookingRequestsEnabled?: boolean;
     workingHours?: WorkingHoursConfig;
     slotDurationMinutes?: number;
+    minDurationMinutes?: number;
+    /** null — снять верхнюю границу */
+    maxDurationMinutes?: number | null;
     contactLinks?: Array<{ type: string; url: string | null }>;
   }) =>
     request<{ ok: boolean }>('/settings', {

@@ -269,8 +269,10 @@ function executeBusinessCommand(
 
   const atCmd = parseBookingAt(text.trim());
   if (atCmd) {
-    // Длительность не указана — берём длительность сеанса заведения
-    const endTime = addMinutes(atCmd.startTime, biz.slotDurationMinutes);
+    // Длительность не указана — берём минимальную бронь заведения.
+    // Не шаг сетки: у «от двух часов с шагом 30 минут» шаг — это 30, и бронь
+    // на полчаса владелец точно не имел в виду.
+    const endTime = addMinutes(atCmd.startTime, biz.minDurationMinutes);
     return handleBookByRange(biz, atCmd.dayName, atCmd.startTime, endTime, atCmd.clientName);
   }
 

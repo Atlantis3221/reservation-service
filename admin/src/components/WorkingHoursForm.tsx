@@ -23,16 +23,56 @@ export const SLOT_DURATIONS = [
   { minutes: FULL_DAY_MINUTES, label: 'Сутки — день целиком' },
 ];
 
+/** Шаг сетки: как часто клиенту предлагается начало брони */
+export const TIME_STEPS = [
+  { minutes: 15, label: 'каждые 15 минут' },
+  { minutes: 30, label: 'каждые 30 минут' },
+  { minutes: 60, label: 'каждый час' },
+  { minutes: 120, label: 'каждые 2 часа' },
+];
+
+/** Варианты минимальной и максимальной брони */
+export const DURATION_OPTIONS = [
+  { minutes: 30, label: '30 минут' },
+  { minutes: 60, label: '1 час' },
+  { minutes: 90, label: '1,5 часа' },
+  { minutes: 120, label: '2 часа' },
+  { minutes: 150, label: '2,5 часа' },
+  { minutes: 180, label: '3 часа' },
+  { minutes: 240, label: '4 часа' },
+  { minutes: 300, label: '5 часов' },
+  { minutes: 360, label: '6 часов' },
+  { minutes: 480, label: '8 часов' },
+  { minutes: 720, label: '12 часов' },
+];
+
+export type BookingMode = 'fixed' | 'range' | 'day';
+
 export function isFullDay(minutes: number): boolean {
   return minutes >= FULL_DAY_MINUTES;
 }
 
-/** Пояснение под выбором длительности: у суток другой смысл часов работы */
-export function durationHint(minutes: number): string {
-  return isFullDay(minutes)
-    ? 'День бронируется целиком: часы выше становятся временем заезда и выезда. ' +
-      'Например, 14:00 → 12:00 — заезд в 14:00, выезд в полдень следующего дня.'
-    : 'На такие интервалы разбивается день — клиент выбирает один из них.';
+/** Режим по сохранённым значениям: сутки / фиксированный сеанс / диапазон */
+export function bookingModeOf(
+  min: number,
+  max: number | null | undefined,
+): BookingMode {
+  if (isFullDay(min)) return 'day';
+  if (max !== null && max !== undefined && max <= min) return 'fixed';
+  return 'range';
+}
+
+/** Пояснение под выбором длительности: у каждого режима свой смысл */
+export function durationHint(mode: BookingMode): string {
+  if (mode === 'day') {
+    return 'День бронируется целиком: часы работы становятся временем заезда и выезда. '
+      + 'Например, 14:00 → 12:00 — заезд в 14:00, выезд в полдень следующего дня.';
+  }
+  if (mode === 'fixed') {
+    return 'День разбивается на равные сеансы — клиент выбирает один из них.';
+  }
+  return 'Клиент сам выбирает, сколько времени взять: от минимума и дальше шагами. '
+    + 'Так сдают баню «от двух часов» или корт «на час-два».';
 }
 
 export function defaultWorkingHours(): WorkingHoursConfig {

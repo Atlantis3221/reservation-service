@@ -11,7 +11,12 @@ export interface BusinessInfo {
   telegramUsername: string | null;
   contactLinks: ContactLink[];
   bookingRequestsEnabled: boolean;
+  /** Шаг сетки: как часто предлагается начало и какими шагами растёт бронь */
   slotDurationMinutes: number;
+  /** Минимальная бронь. Равна максимуму — сеанс фиксированный */
+  minDurationMinutes?: number;
+  /** Максимальная бронь; null — без ограничения, до конца свободного окна */
+  maxDurationMinutes?: number | null;
 }
 
 export interface FreeSlot {
@@ -23,6 +28,8 @@ export interface FreeSlot {
   /** Абсолютные минуты от полуночи дня; за полночь больше 1440 */
   startMinutes: number;
   endMinutes: number;
+  /** Сколько минут максимум можно занять с этого начала */
+  maxMinutes?: number;
 }
 
 export interface DaySlot {

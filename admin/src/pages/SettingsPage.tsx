@@ -3,10 +3,9 @@ import { api, type BusinessSettings, type WorkingHoursConfig, type DayWorkingHou
 import {
   DAY_KEYS,
   DAY_LABELS_FULL as DAY_LABELS,
-  SLOT_DURATIONS,
   defaultWorkingHours,
-  durationHint,
 } from '../components/WorkingHoursForm';
+import { DurationFields, type DurationValue } from '../components/DurationFields';
 import { reachGoal } from '../lib/metrika';
 
 type ContactLinkType = 'telegram' | 'vk' | 'max';
@@ -32,7 +31,7 @@ export function SettingsPage({ businessId, onChanged }: Props) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [bookingRequestsEnabled, setBookingRequestsEnabled] = useState(false);
-  const [slotDuration, setSlotDuration] = useState(120);
+  const [duration, setDuration] = useState<DurationValue>({ step: 120, min: 120, max: 120 });
   const [horizonDays, setHorizonDays] = useState(28);
   const [workingHours, setWorkingHours] = useState<WorkingHoursConfig>(defaultWorkingHours());
   const [applyingSchedule, setApplyingSchedule] = useState(false);
@@ -51,7 +50,14 @@ export function SettingsPage({ businessId, onChanged }: Props) {
         setName(s.name);
         setSlug(s.slug);
         setBookingRequestsEnabled(s.bookingRequestsEnabled);
-        setSlotDuration(s.slotDurationMinutes ?? 120);
+        setDuration({
+          step: s.slotDurationMinutes ?? 120,
+          min: s.minDurationMinutes ?? s.slotDurationMinutes ?? 120,
+          // undefined — старый бэкенд без гибкой длительности: сеанс фиксированный
+          max: s.maxDurationMinutes === undefined
+            ? (s.slotDurationMinutes ?? 120)
+            : s.maxDurationMinutes,
+        });
         setWorkingHours(s.workingHours || defaultWorkingHours());
         const newLinks: Record<ContactLinkType, string> = { telegram: '', vk: '', max: '' };
         for (const l of s.contactLinks) {
@@ -82,7 +88,12 @@ export function SettingsPage({ businessId, onChanged }: Props) {
     setApplyingSchedule(true);
     setMessage('');
     try {
-      await api.updateSettings({ businessId, workingHours, slotDurationMinutes: slotDuration });
+      await api.updateSettings({
+        businessId, workingHours,
+        slotDurationMinutes: duration.step,
+        minDurationMinutes: duration.min,
+        maxDurationMinutes: duration.max,
+      });
       const result = await api.applySchedule(businessId, horizonDays);
       reachGoal('schedule_published', { source: 'settings', freeSlots: result.freeSlots });
       setMessage(
@@ -112,7 +123,9 @@ export function SettingsPage({ businessId, onChanged }: Props) {
         slug: slug.trim(),
         bookingRequestsEnabled,
         workingHours,
-        slotDurationMinutes: slotDuration,
+        slotDurationMinutes: duration.step,
+        minDurationMinutes: duration.min,
+        maxDurationMinutes: duration.max,
         contactLinks: contactLinksUpdate,
       });
       setMessage('Настройки сохранены');
@@ -232,19 +245,7 @@ export function SettingsPage({ businessId, onChanged }: Props) {
             сохранятся.
           </p>
 
-          <div className="settings-field">
-            <label htmlFor="slot-duration">Длительность сеанса</label>
-            <select
-              id="slot-duration"
-              value={slotDuration}
-              onChange={(e) => setSlotDuration(Number(e.target.value))}
-            >
-              {SLOT_DURATIONS.map((d) => (
-                <option key={d.minutes} value={d.minutes}>{d.label}</option>
-              ))}
-            </select>
-            <span className="settings-field-hint">{durationHint(slotDuration)}</span>
-          </div>
+          <DurationFields value={duration} onChange={setDuration} />
 
           <div className="settings-field">
             <label htmlFor="horizon">На сколько дней вперёд</label>

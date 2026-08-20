@@ -17,8 +17,15 @@ export interface Business {
   ownerPhone: string | null;
   bookingRequestsEnabled: boolean;
   workingHours: WorkingHoursConfig | null;
-  /** Длительность одного сеанса в минутах — шаг сетки бронирования */
+  /**
+   * Шаг сетки времени в минутах: как часто предлагается начало брони и
+   * какими шагами растёт её длительность.
+   */
   slotDurationMinutes: number;
+  /** Минимальная длительность брони. Равен максимуму — сеанс фиксированный */
+  minDurationMinutes: number;
+  /** Максимальная длительность; null — без ограничения (до конца смены) */
+  maxDurationMinutes: number | null;
   createdAt: string;
 }
 
@@ -43,6 +50,12 @@ export interface FreeSlot {
    */
   startMinutes: number;
   endMinutes: number;
+  /**
+   * Сколько минут максимум можно занять с этого начала: свободное окно,
+   * обрезанное максимальной длительностью заведения. Равно длительности
+   * интервала, когда сеанс фиксированный.
+   */
+  maxMinutes: number;
 }
 
 export interface TimeSlot {
