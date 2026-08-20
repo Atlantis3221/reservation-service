@@ -35,6 +35,7 @@
     gap: 36px;
     align-items: start;
   }
+
 }
 
 .sr-only {
@@ -191,10 +192,12 @@
   gap: 8px;
 }
 
-/* Свободное время — единственное залитое место на странице, поэтому
-   рамка ему не нужна. Заливка сплошная, а не бледная: на светло-зелёном
-   свободное и занятое различались только оттенком и на глаз не разделялись,
-   а это главное действие страницы. */
+/* Свободное время. Баланс здесь искался дважды: бледная заливка не
+   отличалась от занятого, сплошной акцент на четырнадцати чипах превращал
+   страницу в стену зелёного. Работает середина — светлая зелёная заливка
+   плюс насыщенный цвет самого времени: различие держится на светлоте и
+   цвете текста, а не на плотности. Сплошным акцентом на странице залиты
+   только выбранный день и главная кнопка в листе. */
 .slot {
   display: flex;
   flex-direction: column;
@@ -205,14 +208,14 @@
   padding: 10px 6px;
   border: none;
   border-radius: var(--r);
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-line);
+  color: var(--accent-deep);
   font-family: inherit;
   cursor: pointer;
   transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-.slot:hover { background: var(--accent-deep); }
+.slot:hover { background: var(--accent); color: #fff; }
 .slot:active { transform: scale(0.97); }
 
 .slot-time {
@@ -224,7 +227,7 @@
 
 .slot-hint {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--accent);
 }
 
 /* Занятое время. Зачёркнутое читается как «нельзя» без единого слова, а
@@ -380,46 +383,51 @@
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1.5px solid var(--accent);
+  border-top: 1px solid var(--accent);
   z-index: 3;
   pointer-events: none;
 }
 
+/* Подпись светлая, линия — цветная: сама граница и так видна линией,
+   а две сплошные зелёные плашки добавляли странице веса. */
 .cal-edge span {
   position: absolute;
   right: 4px;
   top: -8px;
   padding: 1px 6px;
   border-radius: var(--r-xs);
-  background: var(--accent);
-  color: #fff;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-deep);
   font-family: var(--font-mono);
   font-size: 0.625rem;
   line-height: 1.5;
   white-space: nowrap;
 }
 
-/* Занято — плотный чернильный блок. Против светло-зелёного свободного это
-   максимальный контраст, какой есть в палитре. */
+/* Занято — плотная бумага с чернильной полосой слева, как в календаре
+   владельца. Чёрная плита читалась мгновенно, но перетягивала на себя весь
+   экран: занятое время — не то, на что клиент должен смотреть. */
 .cal-busy {
   position: absolute;
   left: 0;
   right: 0;
   display: flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 2px 8px 2px 10px;
   border-top: 1px solid var(--paper);
   border-bottom: 1px solid var(--paper);
   box-sizing: border-box;
   border-radius: var(--r-xs);
-  background: var(--ink-soft);
+  background: var(--paper-3);
+  box-shadow: inset 3px 0 0 var(--ink-soft);
   z-index: 2;
 }
 
 .cal-busy span {
   font-family: var(--font-mono);
   font-size: 0.625rem;
-  color: var(--paper);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -453,26 +461,27 @@
   border-top: 1px solid var(--line);
 }
 
-/* Второй по важности призыв к действию: раньше он был текстовой ссылкой
-   между сеткой времени и календарём, и его не читали как кнопку. */
+/* Второй по важности призыв к действию: текстовой ссылкой его не читали
+   как кнопку, а акцентной рамкой он спорил со свободным временем. Рамка
+   нейтральная, площадь кнопочная — этого хватает. */
 .btn-quiet {
   display: block;
   width: 100%;
   min-height: var(--tap);
   padding: 13px 16px;
-  border: 1.5px solid var(--accent);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r);
   background: var(--card);
-  color: var(--accent-deep);
+  color: var(--ink);
   font-family: inherit;
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 
-.btn-quiet:hover { background: var(--accent-wash); }
+.btn-quiet:hover { background: var(--paper-2); border-color: var(--ink-soft); }
 .btn-quiet:active { transform: scale(0.99); }
 
 @media (min-width: 760px) {
@@ -1079,6 +1088,15 @@
 .doc a { color: var(--accent); }
 
 /* ── Адаптив ── */
+
+/* Десктоп. Стоит в конце файла осознанно: правила .slots и .slot заданы
+   выше без медиазапроса, и при равной специфичности побеждает то, что ниже. */
+@media (min-width: 760px) {
+  .slots,
+  .day-skeleton { grid-template-columns: repeat(auto-fill, minmax(102px, 1fr)); }
+
+  .slot { min-height: 58px; }
+}
 
 @media (max-width: 380px) {
   .page { padding: 22px 14px calc(24px + env(safe-area-inset-bottom)); }
