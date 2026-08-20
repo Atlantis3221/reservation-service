@@ -18,6 +18,8 @@ mkdir -p "$OUT_DIR"
 
 cp "$SRC_DIR/index.html" "$OUT_DIR/index.html"
 cp "$SRC_DIR/styles.css" "$OUT_DIR/styles.css"
+cp "$SRC_DIR/robots.txt" "$OUT_DIR/robots.txt"
+cp "$SRC_DIR/sitemap.xml" "$OUT_DIR/sitemap.xml"
 
 # Substitute METRIKA_COUNTER_ID or remove the Metrika block entirely
 if [ -n "${METRIKA_COUNTER_ID:-}" ]; then

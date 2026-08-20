@@ -4,13 +4,18 @@
 |---|---|---|
 | `screen-client.png` | Страница записи глазами клиента — свободные слоты | 780×1440 (390×720 @2x) |
 | `screen-owner.png` | Панель владельца — календарь с бронями | 780×1440 (390×720 @2x) |
-| `fonts/inter-latin.woff2` | Inter, латиница (SIL Open Font License 1.1) | woff2, variable |
-| `fonts/inter-cyrillic.woff2` | Inter, кириллица (SIL Open Font License 1.1) | woff2, variable |
+| `fonts/inter-latin.woff2` | Inter, латиница — текст и заголовки | woff2, variable 400–800 |
+| `fonts/inter-cyrillic.woff2` | Inter, кириллица | woff2, variable 400–800 |
+| `fonts/lora-italic-latin.woff2` | Lora Italic, латиница — серифные акценты в заголовках | woff2, variable 400–700 |
+| `fonts/lora-italic-cyrillic.woff2` | Lora Italic, кириллица | woff2, variable 400–700 |
+| `fonts/jetbrains-mono-latin.woff2` | JetBrains Mono, латиница — мелкие технические подписи и индексы | woff2, variable 400–500 |
+| `fonts/jetbrains-mono-cyrillic.woff2` | JetBrains Mono, кириллица | woff2, variable 400–500 |
 
-Шрифты лежат локально, а не подключаются с `fonts.googleapis.com`: внешний
-CSS блокирует рендер и в РФ часто отвечает медленно. Оба файла — variable
-(веса 400–800 в одном файле), подключаются в `styles.css` через `@font-face`
-с `unicode-range`, поэтому кириллица и латиница качаются раздельно.
+Все шрифты — SIL Open Font License 1.1. Лежат локально, а не подключаются
+с `fonts.googleapis.com`: внешний CSS блокирует рендер и в РФ часто отвечает
+медленно. Файлы — variable (диапазон весов в одном файле), подключаются
+в `styles.css` через `@font-face` с `unicode-range`, поэтому кириллица
+и латиница качаются раздельно.
 
 ## Как пересобрать скриншоты
 

@@ -10,8 +10,21 @@
   <meta property="og:description" content="Клиент видит свободные слоты и бронирует сам. Вы управляете расписанием из браузера. Без абонплаты, за 2 минуты.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://slotik.tech">
+  <meta property="og:site_name" content="slotik.tech">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:image" content="https://slotik.tech/media/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Онлайн-запись для бани, глемпинга и аренды — slotik.tech">
+  <meta name="twitter:description" content="Клиент видит свободные слоты и бронирует сам. Без абонплаты, за 2 минуты.">
+  <meta name="twitter:image" content="https://slotik.tech/media/og-image.png">
+  <meta name="theme-color" content="#f4f3ef">
   <link rel="canonical" href="https://slotik.tech">
   <link rel="preload" href="media/fonts/inter-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="media/fonts/lora-italic-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="media/fonts/jetbrains-mono-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="media/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
 
   <script type="application/ld+json">
@@ -116,45 +129,45 @@
   <nav class="nav" id="nav">
     <div class="container">
       <a href="/" class="logo">slotik<span>.tech</span></a>
-      <a href="https://admin.slotik.tech/register" class="nav-cta">
-        Попробовать
-      </a>
+      <div class="nav-right">
+        <a href="/demo-banya" class="nav-link" target="_blank" rel="noopener">Демо</a>
+        <a href="https://admin.slotik.tech/register" class="btn btn-ink">Попробовать</a>
+      </div>
     </div>
   </nav>
 
   <!-- Hero -->
-  <section class="hero">
+  <header class="hero">
     <div class="container hero-grid">
-      <div class="hero-content">
-        <div class="hero-pill">
-          <span class="dot"></span>
-          Без абонплаты на этапе запуска
-        </div>
-        <h1>Клиент открывает вашу ссылку и <em>записывается сам</em></h1>
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="dot"></span>Без абонплаты на этапе запуска</p>
+        <h1>Клиент открывает вашу ссылку и&nbsp;<em>записывается сам</em></h1>
         <p class="hero-sub">Он видит свободные слоты, выбирает время и оставляет имя с&nbsp;телефоном. Вам приходит бронь. Никто никому не&nbsp;звонит и не&nbsp;переписывается по&nbsp;ночам.</p>
         <div class="hero-actions">
-          <a href="https://admin.slotik.tech/register" class="cta-btn">
+          <a href="https://admin.slotik.tech/register" class="btn btn-primary">
             Открыть запись — бесплатно
           </a>
-          <a href="/demo-banya" class="demo-link" target="_blank" rel="noopener">
+          <a href="/demo-banya" class="link-arrow" target="_blank" rel="noopener">
             Посмотреть глазами клиента →
           </a>
         </div>
-        <span class="cta-hint">2 минуты: название, часы работы, готовая ссылка. Без карты и договоров.</span>
+        <p class="hero-hint">2 минуты: название, часы работы, готовая ссылка. Без карты и договоров.</p>
       </div>
-      <div class="hero-media">
-        <div class="phone-mockup">
-          <div class="phone-notch"></div>
-          <img src="media/screen-client.png" alt="Страница записи: клиент выбирает свободное время" width="780" height="1440" fetchpriority="high" decoding="async">
+      <figure class="hero-media">
+        <div class="hero-panel grid-panel">
+          <div class="device">
+            <img src="media/screen-client.png" alt="Страница записи: клиент выбирает свободное время" width="780" height="1440" fetchpriority="high" decoding="async">
+          </div>
         </div>
-      </div>
+        <figcaption class="mono-caption">то, что откроет ваш клиент</figcaption>
+      </figure>
     </div>
-  </section>
+  </header>
 
   <!-- Честно о стадии -->
-  <section class="social-proof">
+  <section class="note">
     <div class="container">
-      <p class="social-proof-text">
+      <p class="note-text">
         Сервис молодой: мы запускаемся и набираем первых клиентов.
         Поэтому <strong>бесплатно</strong> и поэтому отвечаем на&nbsp;сообщения лично.
         Не&nbsp;верьте на&nbsp;слово — <a href="/demo-banya" target="_blank" rel="noopener">откройте демо</a>
@@ -164,203 +177,208 @@
   </section>
 
   <!-- Positioning -->
-  <section class="positioning">
+  <section class="positioning section">
     <div class="container">
-      <span class="section-label">Что такое slotik</span>
-      <h2 class="section-title">Простая система записи — не перегруженная CRM</h2>
-      <p class="section-desc">Мы не пытаемся заменить вам бухгалтерию и аналитику. Slotik решает одну задачу — чтобы клиенты легко записывались, а вы не теряли брони.</p>
-      <div class="positioning-items">
-        <span class="positioning-chip"><span class="icon">&#10005;</span> Не агрегатор</span>
-        <span class="positioning-chip"><span class="icon">&#10005;</span> Не маркетплейс</span>
-        <span class="positioning-chip"><span class="icon">&#10005;</span> Не CRM</span>
+      <div class="section-head">
+        <p class="eyebrow"><span class="sq"></span>Что такое slotik</p>
+        <h2>Простая система записи&nbsp;— не&nbsp;перегруженная CRM</h2>
+        <p class="lead">Мы не пытаемся заменить вам бухгалтерию и аналитику. Slotik решает одну задачу — чтобы клиенты легко записывались, а вы не теряли брони.</p>
       </div>
-      <div class="positioning-result">
-        <span>&#10003;</span>
-        Электронная тетрадь для записей — только удобнее
-      </div>
+      <ul class="not-list">
+        <li>Не агрегатор</li>
+        <li>Не маркетплейс</li>
+        <li>Не CRM</li>
+      </ul>
+      <p class="is-line">Электронная тетрадь для записей&nbsp;— <em class="serif">только&nbsp;удобнее</em></p>
     </div>
   </section>
 
   <!-- Benefits -->
-  <section class="benefits">
+  <section class="benefits section">
     <div class="container">
-      <span class="section-label">Как это работает</span>
-      <h2 class="section-title">Запись без звонков — с двух сторон</h2>
-      <p class="section-desc">Клиенту — свободные слоты и две минуты на бронь. Вам — календарь, который видно с телефона.</p>
-      <div class="benefits-grid">
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--green">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
+      <div class="section-head">
+        <p class="eyebrow"><span class="sq"></span>Как это работает</p>
+        <h2>Запись без звонков&nbsp;— с&nbsp;двух&nbsp;сторон</h2>
+        <p class="lead">Клиенту — свободные слоты и две минуты на бронь. Вам — календарь, который видно с телефона.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <span class="feature-index">01</span>
           <h3>Клиент видит свободное время</h3>
           <p>День разбит на сеансы — 30 минут, час, два, сколько нужно вам. Занятое не показывается. Клиент нажимает свободный слот, оставляет имя и телефон — бронь у вас. Круглосуточно, без вашего участия.</p>
-        </div>
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--blue">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-          </div>
+        </article>
+        <article class="feature">
+          <span class="feature-index">02</span>
           <h3>Ваш календарь в браузере</h3>
           <p>Все брони с именами и телефонами на одном экране. Работает на телефоне, планшете и компьютере — устанавливать нечего. Записи от звонков добавляете сами, они встают в то же расписание.</p>
-        </div>
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--violet">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-          </div>
+        </article>
+        <article class="feature">
+          <span class="feature-index">03</span>
           <h3>Одна ссылка вместо переписки</h3>
           <p>Каждое заведение получает свой адрес вида slotik.tech/ваше-название. Ставьте в Авито, в описание профиля, в WhatsApp — вместо «напишите, уточню и отвечу».</p>
-        </div>
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--teal">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-          </div>
+        </article>
+        <article class="feature">
+          <span class="feature-index">04</span>
           <h3>Заявка, если время не подошло</h3>
           <p>Не нашлось подходящего слота — клиент предлагает своё время и оставляет телефон. Вы видите заявку в панели и подтверждаете или предлагаете другое. Клиент не уходит к соседям.</p>
-        </div>
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--amber">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-          </div>
+        </article>
+        <article class="feature">
+          <span class="feature-index">05</span>
           <h3>Двойных броней не бывает</h3>
           <p>Как только время занято — оно исчезает у всех остальных. Если двое нажали один слот одновременно, второй получит понятное «это время только что заняли» и выберет другое.</p>
-        </div>
-        <div class="benefit-card">
-          <div class="benefit-icon benefit-icon--rose">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
+        </article>
+        <article class="feature">
+          <span class="feature-index">06</span>
           <h3>Ваши процессы остаются</h3>
           <p>Звонки, WhatsApp, личные сообщения — всё как было. Slotik добавляет ещё один канал, которым клиенты пользуются сами. Телефоны клиентов видите только вы: на публичной странице их нет.</p>
-        </div>
+        </article>
       </div>
     </div>
   </section>
 
   <!-- Screenshots -->
-  <section class="screenshots">
+  <section class="screenshots section">
     <div class="container">
-      <span class="section-label">Интерфейс</span>
-      <h2 class="section-title">Как это выглядит</h2>
-      <p class="section-desc">Слева — то, что видит клиент по вашей ссылке: свободные слоты, которые можно нажать. Справа — ваш календарь с бронями.</p>
-      <div class="screenshots-grid">
-        <div class="screenshot-card">
-          <img src="media/screen-client.png" alt="Страница записи: свободные слоты, которые клиент выбирает нажатием" loading="lazy" width="780" height="1440" decoding="async">
-          <p class="screenshot-caption">Страница клиента — свободное время нажатием</p>
-        </div>
-        <div class="screenshot-card">
-          <img src="media/screen-owner.png" alt="Панель владельца: календарь с бронями, именами и телефонами клиентов" loading="lazy" width="780" height="1440" decoding="async">
-          <p class="screenshot-caption">Ваша панель — брони с контактами клиентов</p>
-        </div>
+      <div class="section-head">
+        <p class="eyebrow"><span class="sq"></span>Интерфейс</p>
+        <h2>Как это выглядит</h2>
+        <p class="lead">Слева — то, что видит клиент по вашей ссылке: свободные слоты, которые можно нажать. Справа — ваш календарь с бронями.</p>
+      </div>
+      <div class="shots-panel grid-panel">
+        <figure class="shot">
+          <div class="device">
+            <img src="media/screen-client.png" alt="Страница записи: свободные слоты, которые клиент выбирает нажатием" loading="lazy" width="780" height="1440" decoding="async">
+          </div>
+          <figcaption class="mono-caption">страница клиента — свободное время нажатием</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="device">
+            <img src="media/screen-owner.png" alt="Панель владельца: календарь с бронями, именами и телефонами клиентов" loading="lazy" width="780" height="1440" decoding="async">
+          </div>
+          <figcaption class="mono-caption">ваша панель — брони с контактами клиентов</figcaption>
+        </figure>
       </div>
     </div>
   </section>
 
   <!-- Steps -->
-  <section class="steps">
+  <section class="steps section">
     <div class="container">
-      <span class="section-label">Быстрый старт</span>
-      <h2 class="section-title">Подключите онлайн-запись за 2 минуты</h2>
-      <p class="section-desc">Ничего устанавливать не нужно. Три шага — и клиенты могут бронировать.</p>
-      <div class="steps-list">
-        <div class="step">
-          <span class="step-num">1</span>
+      <div class="section-head">
+        <p class="eyebrow"><span class="sq"></span>Быстрый старт</p>
+        <h2>Подключите онлайн-запись за&nbsp;2&nbsp;минуты</h2>
+        <p class="lead">Ничего устанавливать не нужно. Три шага — и клиенты могут бронировать.</p>
+      </div>
+      <ol class="steps-grid">
+        <li class="step">
+          <span class="step-index">01</span>
           <h3>Зарегистрируйтесь</h3>
           <p>Email и пароль — 30 секунд. Без подтверждений по телефону и анкет.</p>
-        </div>
-        <div class="step">
-          <span class="step-num">2</span>
+        </li>
+        <li class="step">
+          <span class="step-index">02</span>
           <h3>Ответьте на два вопроса</h3>
           <p>Название заведения, часы работы и длительность сеанса. Сервис сам разложит это на слоты на месяц вперёд.</p>
-        </div>
-        <div class="step">
-          <span class="step-num">3</span>
+        </li>
+        <li class="step">
+          <span class="step-index">03</span>
           <h3>Отправьте ссылку клиентам</h3>
           <p>Ссылка готова сразу — с кнопками «поделиться» в WhatsApp и Telegram. С этого момента клиенты бронируют сами.</p>
-        </div>
+        </li>
+      </ol>
+      <div class="link-chip" aria-hidden="true">
+        <span class="link-chip-box">
+          <span class="link-chip-url">slotik.tech/<b>vasha-banya</b></span>
+          <span class="link-chip-btn">Копировать</span>
+        </span>
       </div>
     </div>
   </section>
 
   <!-- FAQ -->
-  <section class="faq">
-    <div class="container">
-      <span class="section-label">Частые вопросы</span>
-      <h2 class="section-title">Вопросы, которые задают чаще всего</h2>
+  <section class="faq section">
+    <div class="container faq-grid">
+      <div class="faq-aside">
+        <p class="eyebrow"><span class="sq"></span>Частые вопросы</p>
+        <h2>Вопросы, которые задают чаще всего</h2>
+      </div>
       <div class="faq-list">
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Клиенты правда будут записываться сами?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Большинству проще открыть ссылку и нажать свободное время, чем дозваниваться — особенно вечером и в выходные, когда вы заняты. Тем, кто привык звонить, ничего не мешает позвонить: такие записи вы добавляете сами через панель, и они встают в то же расписание.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Что видит клиент на странице?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Календарь с датами, где есть свободное время, и список свободных интервалов на выбранный день — например «14:00 до 16:00». Занятое время не показывается вообще. Имён и телефонов других клиентов на публичной странице нет.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Что будет, если двое выберут одно время?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Забронирует тот, кто нажал первым. Второй сразу увидит «это время только что заняли» и выберет другое. Двойных броней быть не может.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Сколько это стоит?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Сейчас ничего. Мы на этапе запуска и набираем первых клиентов, поэтому все функции открыты бесплатно. Платные тарифы появятся позже, и мы предупредим заранее — задним числом ничего не отключим.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Сколько времени занимает подключение?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Около двух минут. Регистрация, название заведения, часы работы и длительность сеанса — дальше сервис сам публикует расписание на месяц вперёд и выдаёт готовую ссылку. Устанавливать ничего не нужно.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Что делать, если клиенту не подходит ни один свободный слот?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Он нажимает «Нужно другое время», указывает удобное ему время и телефон. Заявка приходит вам в панель — вы подтверждаете её или предлагаете другое время. Так клиент не уходит, даже когда нужного слота нет.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Как я узнаю о новой брони?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Бронь сразу появляется в календаре, а заявки — во вкладке «Заявки» со счётчиком. Если привязать Telegram или VK, уведомления придут в мессенджер. Для аккаунтов без мессенджера мы отправляем письмо на email.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Подходит только для бань?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Нет. Подходит всему, что сдаётся или бронируется по времени: бани и глемпинги, беседки и шале, корты и залы, квесты, прокат, фотостудии, мастерские, коворкинги.</p>
           </div>
         </div>
         <div class="faq-item">
-          <button class="faq-question" onclick="this.parentElement.classList.toggle('open');var a=this.nextElementSibling;a.style.maxHeight=a.style.maxHeight?null:a.scrollHeight+'px'">
+          <button class="faq-question">
             <span>Что с персональными данными клиентов?</span>
-            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="faq-toggle" aria-hidden="true"></span>
           </button>
           <div class="faq-answer">
             <p class="faq-answer-inner">Клиент даёт согласие галочкой в форме, данные видны только вам после входа в панель и удаляются автоматически через 30 дней после даты записи. Подробности — в политике обработки персональных данных.</p>
@@ -370,12 +388,24 @@
     </div>
   </section>
 
-  <!-- CTA bottom -->
-  <section class="cta-bottom">
+  <!-- От автора -->
+  <section class="founder section">
     <div class="container">
-      <h2>Откройте запись за две минуты</h2>
+      <p class="eyebrow"><span class="sq"></span>От автора</p>
+      <p class="founder-text">Не хватает какой-то функции под ваш формат? Напишите мне в&nbsp;Telegram — расскажу, что сервис уже умеет, и&nbsp;<em class="serif">доработаю под&nbsp;вас</em>.</p>
+      <div class="founder-actions">
+        <a href="https://t.me/ndrwbv" class="btn btn-ink" target="_blank" rel="noopener">Написать в Telegram</a>
+        <span class="mono-caption">@ndrwbv</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA bottom -->
+  <section class="cta-final">
+    <div class="container">
+      <h2>Откройте запись за <em>две&nbsp;минуты</em></h2>
       <p>Название, часы работы, длительность сеанса — и ссылка, которую можно отправить клиентам сегодня же.</p>
-      <a href="https://admin.slotik.tech/register" class="cta-btn">
+      <a href="https://admin.slotik.tech/register" class="btn btn-primary">
         Открыть запись — бесплатно
       </a>
     </div>
@@ -390,6 +420,7 @@
           <a href="https://admin.slotik.tech/register" class="footer-link">Панель управления</a>
           <a href="/demo-banya" class="footer-link" target="_blank" rel="noopener">Демо</a>
           <a href="/privacy" class="footer-link">Персональные данные</a>
+          <a href="https://t.me/ndrwbv" class="footer-link" target="_blank" rel="noopener">Telegram — @ndrwbv</a>
           <a href="mailto:hello@slotik.tech" class="footer-link">hello@slotik.tech</a>
         </div>
       </div>
@@ -405,6 +436,17 @@
     var nav = document.getElementById('nav');
     window.addEventListener('scroll', function () {
       nav.classList.toggle('scrolled', window.scrollY > 20);
+    }, { passive: true });
+
+    document.querySelectorAll('.faq-question').forEach(function (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+      btn.addEventListener('click', function () {
+        var item = btn.parentElement;
+        var answer = btn.nextElementSibling;
+        var open = item.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        answer.style.maxHeight = open ? answer.scrollHeight + 'px' : '';
+      });
     });
   </script>
 
