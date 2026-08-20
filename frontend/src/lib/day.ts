@@ -2,6 +2,33 @@
 
 export const MINUTES_IN_DAY = 24 * 60;
 
+/**
+ * Таймзона заведения. Своей у заведений пока нет, и весь бэкенд считает
+ * расписание по Москве — крон очистки для этого даже написан со сдвигом
+ * руками. Здесь это зашито в одном месте: когда у заведения появится
+ * собственная TZ, менять надо только тут.
+ *
+ * Брать часы зрителя нельзя: клиент из Красноярска, глядя на московскую
+ * баню, видел бы «сейчас» на четыре часа в стороне от её настоящих часов.
+ */
+export const BUSINESS_TZ = 'Europe/Moscow';
+
+const TZ_PARTS = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: BUSINESS_TZ,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+/** «Сейчас» по часам заведения: дата и минуты от полуночи */
+export function nowInBusinessTz(): { dateKey: string; minutes: number } {
+  const parts: Record<string, string> = {};
+  for (const p of TZ_PARTS.formatToParts(new Date())) parts[p.type] = p.value;
+  return {
+    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  };
+}
+
 export function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }

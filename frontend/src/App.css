@@ -16,6 +16,27 @@
   padding: 26px 16px calc(28px + env(safe-area-inset-bottom));
 }
 
+/* Расписание — одно целое: сетка времени и календарь дня стоят рядом и
+   ничем не разделены. На телефоне складываются в столбик, на десктопе
+   встают в две колонки: узкая колонка в 460px оставляла полэкрана пустым. */
+.schedule {
+  display: grid;
+  gap: 26px;
+}
+
+@media (min-width: 760px) {
+  .page {
+    max-width: 900px;
+    padding: 40px 28px 48px;
+  }
+
+  .schedule {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 36px;
+    align-items: start;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -171,7 +192,9 @@
 }
 
 /* Свободное время — единственное залитое место на странице, поэтому
-   рамка ему не нужна: заливки достаточно, чтобы читаться как кнопка. */
+   рамка ему не нужна. Заливка сплошная, а не бледная: на светло-зелёном
+   свободное и занятое различались только оттенком и на глаз не разделялись,
+   а это главное действие страницы. */
 .slot {
   display: flex;
   flex-direction: column;
@@ -182,14 +205,14 @@
   padding: 10px 6px;
   border: none;
   border-radius: var(--r);
-  background: var(--accent-wash);
-  color: var(--accent-deep);
+  background: var(--accent);
+  color: #fff;
   font-family: inherit;
   cursor: pointer;
   transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-.slot:hover { background: #dceade; }
+.slot:hover { background: var(--accent-deep); }
 .slot:active { transform: scale(0.97); }
 
 .slot-time {
@@ -201,12 +224,12 @@
 
 .slot-hint {
   font-size: 0.75rem;
-  color: var(--accent);
-  opacity: 0.85;
+  color: rgba(255, 255, 255, 0.82);
 }
 
-/* Занятое время. Зачёркнутое время читается как «нельзя» без единого слова —
-   отдельный режим «календарь дня» с таймлайном на 960 px больше не нужен. */
+/* Занятое время. Зачёркнутое читается как «нельзя» без единого слова, а
+   тёплая серая заливка по светлоте заметно ниже зелёной — различие видно
+   краем глаза, не вчитываясь. */
 .slot--busy {
   background: var(--paper-2);
   color: var(--faint);
@@ -216,8 +239,7 @@
 .slot--busy .slot-time {
   font-weight: 400;
   text-decoration: line-through;
-  text-decoration-thickness: 1px;
-  opacity: 0.75;
+  text-decoration-thickness: 1.5px;
 }
 
 /* Сутки — одна широкая кнопка вместо сетки. Слова здесь набраны основным
@@ -284,53 +306,42 @@
   50% { opacity: 0.45; }
 }
 
-/* ── Дорожка дня: как занята смена ── */
+/* ── Календарь дня ── */
 
-.track-wrap {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.track-head {
+.cal-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
-.track-head h3 {
+.cal-head h3 {
   font-size: 0.9375rem;
   font-weight: 640;
   color: var(--ink);
   letter-spacing: -0.01em;
 }
 
-.track-head span {
+.cal-head span {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--muted);
 }
 
-/* Колонка часов слева, дорожка справа; открытие и закрытие — строками
-   сверху и снизу, ровно над и под дорожкой. */
-.track-body {
+/* Час — минимальная бронь, поэтому линия на каждый час: сетка в три часа
+   читалась как случайные отметки. */
+.cal-body {
   display: grid;
   grid-template-columns: 42px 1fr;
-  grid-template-rows: auto auto auto;
-  gap: 7px 8px;
-  align-items: center;
+  gap: 0 8px;
 }
 
-.track-hours {
+.cal-hours {
   position: relative;
-  grid-column: 1;
-  grid-row: 2;
-  height: 100%;
 }
 
-.track-hours span {
+.cal-hours span {
   position: absolute;
   right: 0;
   transform: translateY(-50%);
@@ -340,115 +351,132 @@
   white-space: nowrap;
 }
 
-/* Границы смены подписаны словами. Раньше это была зелёная штриховка на
-   бесконечной часовой сетке: где день начинается и кончается — непонятно. */
-.track-cap {
-  grid-column: 2;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.track-cap-time {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.track-cap-word {
-  font-size: 0.75rem;
-  color: var(--faint);
-}
-
-.track {
+.cal-grid {
   position: relative;
-  grid-column: 2;
-  grid-row: 2;
-  border-radius: var(--r);
-  /* Пустая дорожка и есть свободное время: заливать её нечем, иначе
-     «занято» и «свободно» станут двумя оттенками одного цвета. */
-  background: var(--accent-wash);
-  overflow: hidden;
+  height: 100%;
+  border-radius: var(--r-xs);
 }
 
-.track-tick {
+.cal-hourline {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1px solid var(--accent-line);
+  border-top: 1px solid var(--line);
 }
 
-/* Волосяной зазор сверху и снизу: две брони подряд иначе слипались
-   в один блок с двумя подписями. */
-.track-busy {
+/* Рабочее время залито, закрытое остаётся фоном страницы: так видно, что
+   до открытия и после закрытия времени просто нет. */
+.cal-open {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--accent-wash);
+}
+
+/* Границы смены — линии, а не подписи над и под картинкой */
+.cal-edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1.5px solid var(--accent);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.cal-edge span {
+  position: absolute;
+  right: 4px;
+  top: -8px;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* Занято — плотный чернильный блок. Против светло-зелёного свободного это
+   максимальный контраст, какой есть в палитре. */
+.cal-busy {
   position: absolute;
   left: 0;
   right: 0;
   display: flex;
   align-items: center;
-  padding: 1px 10px;
+  padding: 2px 8px;
   border-top: 1px solid var(--paper);
   border-bottom: 1px solid var(--paper);
   box-sizing: border-box;
-  background: var(--paper-3);
-  box-shadow: inset 2px 0 0 var(--ink-soft);
+  border-radius: var(--r-xs);
+  background: var(--ink-soft);
+  z-index: 2;
 }
 
-.track-busy span {
+.cal-busy span {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--muted);
+  font-size: 0.625rem;
+  color: var(--paper);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.track-now {
+.cal-now {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
   border-top: 1.5px solid var(--danger);
+  z-index: 4;
 }
 
-.track-now::before {
+.cal-now::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: -3.5px;
+  left: -3px;
+  top: -4px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--danger);
 }
 
-.track-legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: 0.75rem;
-  color: var(--faint);
-}
-
-.track-legend-free,
-.track-legend-busy {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-}
-
-.track-legend-free { background: var(--accent-wash); }
-.track-legend-busy { background: var(--paper-3); margin-left: 8px; }
-
 /* ── Альтернативы записи ── */
 
-.day-alt {
-  margin-top: 26px;
-  padding-top: 18px;
+.alt {
+  margin-top: 30px;
+  padding-top: 20px;
   border-top: 1px solid var(--line);
+}
+
+/* Второй по важности призыв к действию: раньше он был текстовой ссылкой
+   между сеткой времени и календарём, и его не читали как кнопку. */
+.btn-quiet {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 13px 16px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--accent-deep);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+
+.btn-quiet:hover { background: var(--accent-wash); }
+.btn-quiet:active { transform: scale(0.99); }
+
+@media (min-width: 760px) {
+  .btn-quiet { width: auto; min-width: 260px; }
 }
 
 .link-btn {
@@ -456,28 +484,24 @@
   background: none;
   padding: 0;
   font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 550;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--accent);
   cursor: pointer;
   text-align: left;
+  min-height: 24px;
 }
 
 .link-btn:hover { color: var(--accent-deep); text-decoration: underline; }
 
-.link-btn--inline {
-  font-size: 0.875rem;
-  font-weight: 500;
-  align-self: flex-start;
-  min-height: 24px;
-}
+.link-btn--inline { align-self: flex-start; }
 
-.day-contacts {
+.alt-contacts {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin-top: 14px;
+  margin-top: 16px;
   font-size: 0.875rem;
   color: var(--muted);
 }

@@ -5,6 +5,7 @@ import {
   upsertContactLink,
   updateBookingRequestsEnabled,
   updateSlotDuration,
+  updateDurationLimits,
 } from './business';
 import { addDaySlotRange, bookRange, clearAvailableSlots } from '../repositories/slot.repository';
 import { createBookingRequest } from '../repositories/booking-request.repository';
@@ -16,7 +17,14 @@ const DEMO_OWNER_CHAT_ID = 'demo';
 const SCHEDULE_DAYS = 14;
 const SCHEDULE_START = '10:00';
 const SCHEDULE_END = '02:00';
-const SLOT_DURATION_MINUTES = 120;
+/**
+ * Демо сдаётся «от одного часа»: шаг сетки — час, минимум — час, верхней
+ * границы нет. Так демо показывает гибкую длительность, а не единственный
+ * фиксированный сеанс, которым продукт был раньше.
+ */
+const SLOT_STEP_MINUTES = 60;
+const MIN_DURATION_MINUTES = 60;
+const MAX_DURATION_MINUTES: number | null = null;
 
 const DEMO_CONTACTS = [
   { type: 'telegram' as const, url: 'https://t.me/ndrwbv' },
@@ -157,7 +165,8 @@ function refreshDemo(): void {
   const yesterdayKey = dateKeyOffset(-1);
 
   updateBookingRequestsEnabled(businessId, true);
-  updateSlotDuration(businessId, SLOT_DURATION_MINUTES);
+  updateSlotDuration(businessId, SLOT_STEP_MINUTES);
+  updateDurationLimits(businessId, MIN_DURATION_MINUTES, MAX_DURATION_MINUTES);
 
   cleanOldSlots(businessId, yesterdayKey);
   cleanOldRequests(businessId, yesterdayKey);

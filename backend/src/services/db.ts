@@ -387,12 +387,15 @@ export function initCleanup(): void {
   cleanupOldSlots();
 
   // 00:10 MSK (UTC+3) = 21:10 UTC — after demo cron at 21:05
-  cron.schedule('10 21 * * *', () => {
+  // Локальное время контейнера — московское (TZ в docker-compose), поэтому
+  // час здесь настоящий. До этого стояло 21:10 UTC со сдвигом, посчитанным
+  // руками, — при появлении TZ такая запись уехала бы на три часа.
+  cron.schedule('10 0 * * *', () => {
     console.log('[db] Daily cleanup triggered');
     cleanupOldSlots();
   });
 
-  console.log('[db] Slot cleanup initialized, cron scheduled at 00:10 MSK');
+  console.log('[db] Slot cleanup initialized, cron scheduled at 00:10 local time');
 }
 
 // ---- Helpers ----

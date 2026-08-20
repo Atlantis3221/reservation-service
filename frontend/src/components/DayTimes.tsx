@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import type { BusinessInfo, DaySlot, FreeSlot } from '../api';
-import { ContactIcon, CONTACT_LABELS } from './ContactIcon';
 import {
-  MINUTES_IN_DAY, addDays, dateLong, dayTitle, durationRules, durationSummary,
-  slotsCountLabel, timeToMinutes,
+  MINUTES_IN_DAY, addDays, dateLong, dayTitle, durationRules,
+  nowInBusinessTz, slotsCountLabel, timeToMinutes,
 } from '../lib/day';
 
 interface Props {
@@ -17,7 +16,6 @@ interface Props {
   nextFreeDate: string | null;
   onPick: (slot: FreeSlot) => void;
   onGoToDate: (dateKey: string) => void;
-  onRequestOwnTime: () => void;
 }
 
 type Entry =
@@ -36,7 +34,7 @@ function timeOfDay(datetime: string): string {
  */
 export function DayTimes({
   dateKey, todayKey, business, freeSlots, daySlots, loading,
-  nextFreeDate, onPick, onGoToDate, onRequestOwnTime,
+  nextFreeDate, onPick, onGoToDate,
 }: Props) {
   const entries = useMemo<Entry[]>(() => {
     const available = daySlots.filter((s) => s.status === 'available');
@@ -53,8 +51,9 @@ export function DayTimes({
       return crossesMidnight && minutes < dayStart ? minutes + MINUTES_IN_DAY : minutes;
     }
 
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    // Часы заведения, а не зрителя: свободное время сервер отсекает по ним же,
+    // и две половины экрана обязаны сходиться.
+    const { minutes: nowMinutes } = nowInBusinessTz();
     const cutoff =
       dateKey === todayKey ? nowMinutes
       : addDays(dateKey, 1) === todayKey ? nowMinutes + MINUTES_IN_DAY
@@ -86,7 +85,6 @@ export function DayTimes({
 
   const rules = durationRules(business);
   const fullDay = rules.min >= MINUTES_IN_DAY;
-  const links = business.contactLinks || [];
   const beforeMidnight = entries.filter((e) => e.start < MINUTES_IN_DAY);
   const afterMidnight = entries.filter((e) => e.start >= MINUTES_IN_DAY);
 
@@ -98,7 +96,7 @@ export function DayTimes({
           {loading ? 'смотрим свободное время…'
             : freeSlots.length === 0 ? (daySlots.length === 0 ? 'записи нет' : 'всё занято')
             : fullDay ? 'день свободен целиком'
-            : `${slotsCountLabel(freeSlots.length)} на выбор · ${durationSummary(rules)}`}
+            : `свободно ${slotsCountLabel(freeSlots.length)}`}
         </p>
       </div>
 
@@ -141,31 +139,6 @@ export function DayTimes({
         </button>
       )}
 
-      <div className="day-alt">
-        {business.bookingRequestsEnabled && (
-          <button className="link-btn" type="button" onClick={onRequestOwnTime}>
-            Нужно другое время
-          </button>
-        )}
-
-        {links.length > 0 && (
-          <p className="day-contacts">
-            <span>Написать напрямую:</span>
-            {links.map((link) => (
-              <a
-                key={link.type}
-                className={`contact contact--${link.type}`}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ContactIcon type={link.type} />
-                {CONTACT_LABELS[link.type]}
-              </a>
-            ))}
-          </p>
-        )}
-      </div>
     </section>
   );
 }

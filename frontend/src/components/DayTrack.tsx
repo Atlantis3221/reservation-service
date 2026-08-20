@@ -18,26 +18,32 @@ function timeOfDay(datetime: string): string {
   return datetime.split('T')[1].slice(0, 5);
 }
 
-/** Высота дорожки: весь день влезает в экран при любой длине смены */
-const TRACK_HEIGHT = 300;
-const MIN_BLOCK = 22;
+/**
+ * Сколько минут закрытого времени показать до открытия и после закрытия.
+ * Без них границы смены оказывались на самом краю и не читались как границы.
+ */
+const CLOSED_PAD = 60;
+
+/** Высота одного часа. Час — минимальная бронь, поэтому и линия на каждый час. */
+const HOUR_PX = 30;
+const MIN_BLOCK = 20;
 
 /**
- * Рабочий день одной дорожкой: сверху открытие, снизу закрытие, внутри —
- * брони плотными блоками, свободное — пустая дорожка.
+ * Календарь дня: часовая сетка, как в обычном расписании. Рабочее время
+ * залито, закрытое — нет, границы смены нарисованы линиями с подписями.
  *
- * Раньше свободное время показывалось зелёной штриховкой на бесконечной
- * часовой сетке: непонятно, где кончается рабочий день, и 16-часовая смена
- * занимала 960px. Здесь границы смены подписаны явно, а масштаб
- * подстраивается под её длину — прокрутки нет вообще.
+ * Раньше здесь была штриховка на сетке в три часа: где кончается рабочий
+ * день, по ней прочитать было нельзя, а часовые подписи прятались под
+ * бронями.
  */
 export function DayTrack({ daySlots, nowMinutes }: Props) {
   const model = useMemo(() => {
     const available = daySlots.filter((s) => s.status === 'available');
     if (available.length === 0) return null;
 
-    const starts = available.map((s) => timeToMinutes(timeOfDay(s.startDatetime)));
-    const dayStart = Math.min(...starts);
+    const dayStart = Math.min(
+      ...available.map((s) => timeToMinutes(timeOfDay(s.startDatetime))),
+    );
     const crossesMidnight = available.some(
       (s) => timeToMinutes(timeOfDay(s.endDatetime)) <= timeToMinutes(timeOfDay(s.startDatetime)),
     );
@@ -50,8 +56,7 @@ export function DayTrack({ daySlots, nowMinutes }: Props) {
       return end <= timeToMinutes(timeOfDay(s.startDatetime)) ? end + MINUTES_IN_DAY : end;
     }));
 
-    const span = dayEnd - dayStart;
-    if (span <= 0) return null;
+    if (dayEnd <= dayStart) return null;
 
     const busy: Busy[] = daySlots
       .filter((s) => s.status !== 'available')
@@ -65,80 +70,77 @@ export function DayTrack({ daySlots, nowMinutes }: Props) {
       .filter((b) => b.end > dayStart && b.start < dayEnd)
       .sort((a, b) => a.start - b.start);
 
-    // Часовые отметки — только круглые часы, и не чаще, чем читаемо:
-    // на смене 10:00–02:00 подпись каждый час превращается в лапшу.
-    const everyHours = span > 10 * 60 ? 3 : span > 6 * 60 ? 2 : 1;
-    const ticks: number[] = [];
-    const firstHour = Math.ceil(dayStart / 60) * 60;
-    for (let m = firstHour; m < dayEnd; m += 60 * everyHours) {
-      // Слишком близко к подписанным границам смены — подписи сольются
-      if (m - dayStart > 40 && dayEnd - m > 40) ticks.push(m);
-    }
+    // Полотно шире смены: сверху и снизу видно закрытое время, поэтому
+    // линии открытия и закрытия читаются как границы, а не как края картинки.
+    const from = Math.floor((dayStart - CLOSED_PAD) / 60) * 60;
+    const to = Math.ceil((dayEnd + CLOSED_PAD) / 60) * 60;
 
-    return { dayStart, dayEnd, span, busy, ticks };
+    const hours: number[] = [];
+    for (let m = from; m <= to; m += 60) hours.push(m);
+
+    return { dayStart, dayEnd, from, to, busy, hours };
   }, [daySlots]);
 
   if (!model) return null;
 
-  const { dayStart, dayEnd, span, busy, ticks } = model;
-  const y = (minutes: number): number => ((minutes - dayStart) / span) * TRACK_HEIGHT;
+  const { dayStart, dayEnd, from, to, busy, hours } = model;
+  const height = ((to - from) / 60) * HOUR_PX;
+  const y = (minutes: number): number => ((minutes - from) / 60) * HOUR_PX;
 
+  const span = dayEnd - dayStart;
   const busyMinutes = busy.reduce(
     (sum, b) => sum + (Math.min(b.end, dayEnd) - Math.max(b.start, dayStart)),
     0,
   );
 
   return (
-    <section className="track-wrap">
-      <div className="track-head">
-        <h3>Как занят день</h3>
+    <section className="cal">
+      <div className="cal-head">
+        <h3>Расписание дня</h3>
         <span>{Math.round((busyMinutes / span) * 100)}% занято</span>
       </div>
 
-      <div className="track-body">
-        <div className="track-cap">
-          <span className="track-cap-time">{minutesToTime(dayStart)}</span>
-          <span className="track-cap-word">открытие</span>
-        </div>
-
-        {/* Часы отдельной колонкой, а не поверх дорожки: подписи, нарисованные
-            внутри, прятались под бронями и читались как зачёркнутые. */}
-        <div className="track-hours">
-          {ticks.map((m) => (
+      <div className="cal-body" style={{ height }}>
+        <div className="cal-hours">
+          {hours.map((m) => (
             <span key={m} style={{ top: y(m) }}>{minutesToTime(m)}</span>
           ))}
         </div>
 
-        <div className="track" style={{ height: TRACK_HEIGHT }}>
-          {ticks.map((m) => (
-            <div key={m} className="track-tick" style={{ top: y(m) }} aria-hidden="true" />
+        <div className="cal-grid">
+          {hours.map((m) => (
+            <div key={m} className="cal-hourline" style={{ top: y(m) }} aria-hidden="true" />
           ))}
+
+          {/* Рабочее время — заливка, закрытое остаётся фоном страницы */}
+          <div
+            className="cal-open"
+            style={{ top: y(dayStart), height: y(dayEnd) - y(dayStart) }}
+            aria-hidden="true"
+          />
+
+          <div className="cal-edge" style={{ top: y(dayStart) }}>
+            <span>открытие {minutesToTime(dayStart)}</span>
+          </div>
+          <div className="cal-edge" style={{ top: y(dayEnd) }}>
+            <span>закрытие {minutesToTime(dayEnd)}</span>
+          </div>
 
           {busy.map((b) => {
             const top = y(Math.max(b.start, dayStart));
-            const height = Math.max(y(Math.min(b.end, dayEnd)) - top, MIN_BLOCK);
+            const blockHeight = Math.max(y(Math.min(b.end, dayEnd)) - top, MIN_BLOCK);
             return (
-              <div key={b.id} className="track-busy" style={{ top, height }}>
-                <span>{minutesToTime(b.start)}–{minutesToTime(b.end)}</span>
+              <div key={b.id} className="cal-busy" style={{ top, height: blockHeight }}>
+                <span>занято {minutesToTime(b.start)}–{minutesToTime(b.end)}</span>
               </div>
             );
           })}
 
-          {nowMinutes !== null && nowMinutes > dayStart && nowMinutes < dayEnd && (
-            <div className="track-now" style={{ top: y(nowMinutes) }} aria-hidden="true" />
+          {nowMinutes !== null && nowMinutes > from && nowMinutes < to && (
+            <div className="cal-now" style={{ top: y(nowMinutes) }} aria-hidden="true" />
           )}
         </div>
-
-        <div className="track-cap">
-          <span className="track-cap-time">{minutesToTime(dayEnd)}</span>
-          <span className="track-cap-word">закрытие</span>
-        </div>
       </div>
-
-      <p className="track-legend">
-        <span className="track-legend-free" /> свободно
-        <span className="track-legend-busy" /> занято
-      </p>
     </section>
   );
 }

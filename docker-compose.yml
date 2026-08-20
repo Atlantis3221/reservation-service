@@ -13,6 +13,10 @@ services:
       - ./backend/.env
     environment:
       - NODE_ENV=production
+      # Расписание считается по Москве: «сегодня», отсечение прошедшего
+      # времени и ночная очистка читают локальное время контейнера. Без TZ
+      # он живёт в UTC, и клиенту три часа предлагались уже прошедшие слоты.
+      - TZ=Europe/Moscow
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro

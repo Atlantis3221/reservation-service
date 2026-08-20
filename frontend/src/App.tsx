@@ -3,11 +3,12 @@ import { publicApi, type BusinessInfo, type DaySlot, type FreeSlot } from './api
 import { DateRail } from './components/DateRail';
 import { DayTimes } from './components/DayTimes';
 import { DayTrack } from './components/DayTrack';
+import { BookingAlt } from './components/BookingAlt';
 import { MonthSheet } from './components/MonthSheet';
 import { BookingSheet, type BookingDraft } from './components/BookingSheet';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { useKeyboardInset } from './hooks/useKeyboardInset';
-import { MINUTES_IN_DAY, addDays, toDateKey } from './lib/day';
+import { MINUTES_IN_DAY, addDays, durationRules, durationSummary, nowInBusinessTz } from './lib/day';
 import './App.css';
 
 const LANDING_URL = 'https://slotik.tech';
@@ -72,7 +73,9 @@ function BusinessPage({ slug }: { slug: string }) {
   // не стирает уже введённые имя и телефон.
   const [draft, setDraft] = useState<BookingDraft>({ name: '', phone: '', comment: '' });
 
-  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  // «Сегодня» — по часам заведения, а не зрителя: иначе клиент из другого
+  // часового пояса открывает страницу на дне, который для бани ещё не начался.
+  const todayKey = useMemo(() => nowInBusinessTz().dateKey, []);
   const freeDateSet = useMemo(() => new Set(freeDates), [freeDates]);
 
   useEffect(() => {
@@ -161,8 +164,7 @@ function BusinessPage({ slug }: { slug: string }) {
    */
   const trackNow = useMemo(() => {
     if (!selectedDate) return null;
-    const now = new Date();
-    const minutes = now.getHours() * 60 + now.getMinutes();
+    const { minutes } = nowInBusinessTz();
     if (selectedDate === todayKey) return minutes;
     if (addDays(selectedDate, 1) === todayKey) return minutes + MINUTES_IN_DAY;
     return null;
@@ -197,7 +199,7 @@ function BusinessPage({ slug }: { slug: string }) {
     <div className="page">
       <header className="page-head">
         <h1>{business.name}</h1>
-        <p>Онлайн-запись</p>
+        <p>Онлайн-запись · {durationSummary(durationRules(business))}</p>
       </header>
 
       <DateRail
@@ -208,26 +210,30 @@ function BusinessPage({ slug }: { slug: string }) {
         onOpenMonth={() => setMonthOpen(true)}
       />
 
+      {/* Расписание — один блок: сетка времени и календарь дня стоят рядом
+          и ничем не разделены. Календарь не отдельный режим, а вторая
+          проекция того же дня. */}
       {selectedDate && (
-        <DayTimes
-          dateKey={selectedDate}
-          todayKey={todayKey}
-          business={business}
-          freeSlots={freeSlots}
-          daySlots={daySlots}
-          loading={loadingDay}
-          nextFreeDate={nextFreeDate}
-          onPick={(slot) => setSheet({ slot })}
-          onGoToDate={setSelectedDate}
-          onRequestOwnTime={() => setSheet({ slot: null })}
-        />
+        <div className="schedule">
+          <DayTimes
+            dateKey={selectedDate}
+            todayKey={todayKey}
+            business={business}
+            freeSlots={freeSlots}
+            daySlots={daySlots}
+            loading={loadingDay}
+            nextFreeDate={nextFreeDate}
+            onPick={(slot) => setSheet({ slot })}
+            onGoToDate={setSelectedDate}
+          />
+
+          {!loadingDay && daySlots.length > 0 && (
+            <DayTrack daySlots={daySlots} nowMinutes={trackNow} />
+          )}
+        </div>
       )}
 
-      {/* Календарь дня — не отдельный режим, а картинка под сеткой времени:
-          видно смену целиком, а выбор остаётся в одном месте. */}
-      {selectedDate && !loadingDay && daySlots.length > 0 && (
-        <DayTrack daySlots={daySlots} nowMinutes={trackNow} />
-      )}
+      <BookingAlt business={business} onRequestOwnTime={() => setSheet({ slot: null })} />
 
       <footer className="page-foot">
         <a href="/privacy">Обработка персональных данных</a>
