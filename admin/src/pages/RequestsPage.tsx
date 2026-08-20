@@ -7,10 +7,12 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: 'Отклонена',
 };
 
+// Тёплые приглушённые тона из дизайн-системы (shared/theme/tokens.css):
+// чистый светофор рядом с бумажным фоном выглядит кричаще.
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#f59e0b',
-  approved: '#10b981',
-  rejected: '#ef4444',
+  pending: '#9a6414',
+  approved: '#0e7a4e',
+  rejected: '#b4402f',
 };
 
 function formatDate(dateKey: string): string {

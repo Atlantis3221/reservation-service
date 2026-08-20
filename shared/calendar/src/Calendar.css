@@ -1,5 +1,14 @@
+/* Календарь: месяц, неделя и таймлайн дня. Компонент общий для клиентской
+   страницы и панели владельца, поэтому здесь нет собственной палитры —
+   только токены из shared/theme/tokens.css, который приложение импортирует
+   первым в своём базовом css.
+
+   Семантика цвета одна на весь продукт:
+     свободное время — акцент (штриховка), бронь — белая карточка с чернильным
+     текстом, закрытое — плоская бумага, ожидание — пунктир. */
+
 .gcal {
-  background: #fff;
+  background: transparent;
 }
 
 .gcal--day {
@@ -9,92 +18,95 @@
   min-height: 0;
 }
 
-/* Toolbar */
+/* ── Верхняя панель месяца ── */
 
 .gcal-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 4px 12px;
+  gap: 10px;
+  padding: 14px 14px 10px;
 }
 
 .gcal-nav {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
 .gcal-nav-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: transparent;
-  color: #6b7280;
+  color: var(--muted);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .gcal-nav-btn:hover {
-  background: #f3f4f6;
-  color: #1e1e2e;
+  background: var(--paper-2);
+  color: var(--ink);
 }
 
 .gcal-title {
   font-size: 1rem;
-  font-weight: 600;
-  color: #1e1e2e;
+  font-weight: 640;
+  color: var(--ink);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .gcal-today-btn {
   margin-left: auto;
-  padding: 4px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fff;
-  color: #4f46e5;
+  min-height: 32px;
+  padding: 6px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .gcal-today-btn:hover {
-  background: #f5f3ff;
-  border-color: #c4b5fd;
+  background: var(--paper-2);
+  border-color: var(--ink);
 }
 
 .gcal-today-btn--day {
   flex-shrink: 0;
-  margin-left: 4px;
-  padding: 4px 8px;
+  margin-left: auto;
+  padding: 6px 11px;
   font-size: 0.75rem;
 }
 
-/* Loading */
+/* ── Загрузка ── */
 
 .gcal-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 12px;
   padding: 64px 16px;
-  color: #6b7280;
+  color: var(--muted);
   font-size: 0.8125rem;
 }
 
 .gcal-spinner {
-  width: 22px;
-  height: 22px;
-  border: 2.5px solid #e5e7eb;
-  border-top-color: #4f46e5;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: gcal-spin 0.7s linear infinite;
 }
@@ -103,7 +115,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* Body */
+/* ── Сетка месяца ── */
 
 .gcal-body {
   display: flex;
@@ -111,33 +123,30 @@
 }
 
 .gcal-grid-wrap {
-  padding: 0 4px 12px;
+  padding: 0 10px 14px;
 }
-
-/* Weekday headers */
 
 .gcal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  padding: 8px 0 4px;
+  padding: 4px 0 6px;
 }
 
 .gcal-weekday {
   text-align: center;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #9ca3af;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 400;
+  color: var(--faint);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   padding: 4px 0;
 }
-
-/* Day grid */
 
 .gcal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
 }
 
 .gcal-day {
@@ -147,93 +156,222 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 4px;
-  min-height: 48px;
+  padding: 3px;
+  min-height: 46px;
   background: none;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--r);
   cursor: default;
   font-family: inherit;
-  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.gcal-day--clickable {
-  cursor: pointer;
-}
-
-.gcal-day--clickable:hover {
-  background: rgba(99, 102, 241, 0.04);
-}
+.gcal-day--clickable { cursor: pointer; }
 
 .gcal-day-number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
-  font-weight: 500;
-  color: #374151;
+  font-weight: 400;
+  color: var(--ink-soft);
   line-height: 1;
-  transition: all 0.15s;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
-/* Today */
+.gcal-day--clickable:hover .gcal-day-number {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+/* Сегодня — обводка, выбранный день — заливка акцентом. Раньше и то и другое
+   было залито, и «сегодня» путали с выбором. */
 .gcal-day--today .gcal-day-number {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff;
-  font-weight: 600;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
-/* Other month */
-.gcal-day--other .gcal-day-number {
-  color: #c4c7cc;
-}
-
-/* Past */
+.gcal-day--other .gcal-day-number,
 .gcal-day--past .gcal-day-number {
-  color: #c4c7cc;
+  color: var(--faint);
+  opacity: 0.65;
 }
 
-/* Selected */
-.gcal-day--selected .gcal-day-number {
-  background: #ede9fe;
-  color: #4f46e5;
-  font-weight: 600;
-}
-
+.gcal-day--selected .gcal-day-number,
 .gcal-day--selected.gcal-day--today .gcal-day-number {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: var(--accent);
   color: #fff;
-  box-shadow: 0 0 0 3px #ede9fe;
+  font-weight: 500;
+  box-shadow: none;
 }
 
-/* Unavailable dates */
-.gcal-day--no-slots {
-  opacity: 0.35;
+.gcal-day--clickable.gcal-day--selected:hover .gcal-day-number {
+  background: var(--accent-deep);
+  color: #fff;
 }
 
-/* Day Timeline */
+/* Дни без записи гасим, но не прячем: человек должен видеть, что день есть */
+.gcal-day--no-slots { opacity: 0.4; }
+
+/* Свободное время помечаем точкой — иначе доступность читается только
+   по оттенку серого */
+.gcal-day--has-slots::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.gcal-day--selected.gcal-day--has-slots::after {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ── Неделя (режим дня) ── */
+
+.gcal-weeknav-row {
+  display: flex;
+  align-items: center;
+  /* row-gap работает только когда «Сегодня» переносится на вторую строку */
+  gap: 6px 0;
+  padding: 8px 10px 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+}
+
+.gcal-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gcal-back-btn:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+/* Неделя не сжимается ниже 240px: семь кружков по 33px иначе начинали
+   налезать друг на друга. Если из-за этого «Сегодня» не влезает в строку,
+   flex-wrap сам переносит её вниз — без завязки на ширину экрана. */
+.gcal-weeknav {
+  display: flex;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-width: 240px;
+  gap: 2px;
+}
+
+.gcal-weeknav-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gcal-weeknav-day:hover { background: var(--paper-2); }
+
+.gcal-weeknav-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 400;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gcal-weeknav-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.gcal-weeknav-day--selected .gcal-weeknav-num {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.gcal-weeknav-day--today:not(.gcal-weeknav-day--selected) .gcal-weeknav-num {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.gcal-weeknav-day--past:not(.gcal-weeknav-day--selected) .gcal-weeknav-num,
+.gcal-weeknav-day--past:not(.gcal-weeknav-day--selected) .gcal-weeknav-label {
+  color: var(--faint);
+  opacity: 0.6;
+}
+
+.gcal-weeknav-day--no-slots:not(.gcal-weeknav-day--selected) { opacity: 0.4; }
+
+/* ── Таймлайн дня ── */
+
+.gcal-timeline-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 
 .gcal-timeline {
   display: grid;
-  grid-template-columns: 52px 1fr;
-  margin: 0 4px 0;
-  padding-top: 8px;
+  grid-template-columns: 50px 1fr;
+  margin: 0;
+  padding: 14px 10px 18px 0;
 }
 
-.gcal-tl-hours {
-  position: relative;
-}
+.gcal-tl-hours { position: relative; }
 
 .gcal-tl-hour {
   position: absolute;
   right: 0;
-  padding-right: 12px;
+  padding-right: 10px;
+  font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 500;
-  color: #9ca3af;
+  font-weight: 400;
+  color: var(--faint);
   line-height: 1;
   transform: translateY(-50%);
   white-space: nowrap;
@@ -242,6 +380,7 @@
 .gcal-tl-grid {
   position: relative;
   min-height: 120px;
+  border-left: 1px solid var(--line);
 }
 
 .gcal-tl-gridline {
@@ -249,15 +388,33 @@
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px solid var(--line);
+}
+
+/* Свободное время. Без этого блока пустая сетка выглядела так же,
+   как «заведение не работает». */
+.gcal-tl-open {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: var(--r-sm);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(14, 122, 78, 0.14),
+    rgba(14, 122, 78, 0.14) 6px,
+    rgba(14, 122, 78, 0.05) 6px,
+    rgba(14, 122, 78, 0.05) 13px
+  );
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  z-index: 0;
 }
 
 .gcal-tl-block {
   position: absolute;
-  left: 6px;
-  right: 6px;
-  border-radius: 10px;
-  padding: 6px 10px;
+  left: 5px;
+  right: 5px;
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
   font-size: 0.8125rem;
   display: flex;
   flex-direction: column;
@@ -272,38 +429,27 @@
   right: auto;
 }
 
+/* Бронь — занятое время: плотная заливка и чернильная полоса слева.
+   Белая карточка на белом фоне выглядела как свободное место. */
 .gcal-tl-block--booked {
-  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-  color: #4338ca;
-  border: 1px solid #c7d2fe;
+  background: var(--paper-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong), inset 3px 0 0 var(--ink-soft);
+  padding-left: 12px;
 }
 
-/* Свободное время. Без этого блока пустая сетка выглядела так же,
-   как «заведение не работает». */
-.gcal-tl-open {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  border-radius: 10px;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(16, 185, 129, 0.10),
-    rgba(16, 185, 129, 0.10) 8px,
-    rgba(16, 185, 129, 0.04) 8px,
-    rgba(16, 185, 129, 0.04) 16px
-  );
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  z-index: 0;
-}
-
+/* Закрытое время — глухая бумага без акцентов */
 .gcal-tl-block--blocked {
-  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
-  color: #6b7280;
+  background: var(--paper-3);
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
 .gcal-tl-block-time {
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-weight: 500;
   font-size: 0.75rem;
+  letter-spacing: -0.01em;
 }
 
 .gcal-tl-block-note {
@@ -311,17 +457,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.6875rem;
-  opacity: 0.8;
+  color: var(--muted);
 }
 
-/* Midnight separator (cross-midnight schedules) */
+.gcal-tl-block-client {
+  font-size: 0.75rem;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gcal-tl-block-phone {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Полночь у смен через ночь ── */
 
 .gcal-tl-midnight {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1.5px dashed #c4b5fd;
+  border-top: 1px dashed var(--line-strong);
   z-index: 2;
   pointer-events: none;
 }
@@ -330,163 +493,30 @@
   position: absolute;
   right: 6px;
   top: -9px;
+  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 500;
-  color: #7c3aed;
-  background: #fff;
-  padding: 0 4px;
-  border-radius: 4px;
+  color: var(--muted);
+  background: var(--card);
+  padding: 0 5px;
+  border-radius: var(--r-xs);
   white-space: nowrap;
-  letter-spacing: 0.02em;
 }
 
 .gcal-empty {
   padding: 48px 16px;
   text-align: center;
-  color: #6b7280;
+  color: var(--muted);
   font-size: 0.875rem;
 }
 
-/* Week navigation */
-
-.gcal-weeknav-row {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0 4px 4px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.gcal-back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: #6b7280;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.gcal-back-btn:hover {
-  background: #f3f4f6;
-  color: #1e1e2e;
-}
-
-.gcal-weeknav {
-  display: flex;
-  justify-content: space-between;
-  flex: 1 1 200px;
-  min-width: 0;
-  gap: 2px;
-}
-
-.gcal-weeknav-day {
-  min-width: 0;
-}
-
-@media (max-width: 400px) {
-  /* Кнопка «Сегодня» переезжает под ряд дней: на 360px она обрезалась краем.
-     Стрелка «назад» при этом остаётся в одной строке с днями. */
-  .gcal-today-btn--day {
-    order: 3;
-    flex-basis: 100%;
-    margin: 2px 0 0;
-    align-self: center;
-    max-width: 120px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
-
-.gcal-timeline-wrap {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.gcal-weeknav-day {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  padding: 8px 0;
-  background: none;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.12s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.gcal-weeknav-day:hover {
-  background: #f3f4f6;
-}
-
-.gcal-weeknav-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.gcal-weeknav-num {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  transition: all 0.15s;
-}
-
-.gcal-weeknav-day--selected .gcal-weeknav-num {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff;
-  font-weight: 600;
-}
-
-.gcal-weeknav-day--today:not(.gcal-weeknav-day--selected) .gcal-weeknav-num {
-  background: #ede9fe;
-  color: #4f46e5;
-  font-weight: 600;
-  box-shadow: 0 0 0 1.5px #c4b5fd;
-}
-
-.gcal-weeknav-day--past:not(.gcal-weeknav-day--selected) .gcal-weeknav-num {
-  color: #c4c7cc;
-}
-
-.gcal-weeknav-day--past:not(.gcal-weeknav-day--selected) .gcal-weeknav-label {
-  color: #d1d5db;
-}
-
-/* Unavailable week nav dates */
-.gcal-weeknav-day--no-slots:not(.gcal-weeknav-day--selected) {
-  opacity: 0.35;
-}
-
-/* Current time indicator */
+/* ── Текущее время ── */
 
 .gcal-tl-now {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
-  border-top: 2px solid #ef4444;
+  border-top: 1.5px solid var(--danger);
   z-index: 3;
   pointer-events: none;
 }
@@ -494,128 +524,78 @@
 .gcal-tl-now::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: -5px;
-  width: 8px;
-  height: 8px;
+  left: -3px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger);
 }
 
-/* Pending (ghost) slot */
+/* ── Ожидание подтверждения ── */
 
 .gcal-tl-block--pending {
-  background: rgba(79, 70, 229, 0.12);
-  color: #4f46e5;
-  border: 2px dashed #4f46e5;
-  animation: gcal-pending-pulse 1.5s ease-in-out infinite;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  animation: gcal-pending-pulse 1.8s var(--ease) infinite;
 }
 
 @keyframes gcal-pending-pulse {
-  0%, 100% { opacity: 0.7; }
+  0%, 100% { opacity: 0.75; }
   50% { opacity: 1; }
 }
 
-/* Booking request blocks */
-
-.gcal-tl-block--request {
-  border: 2px dashed #f59e0b;
-  background: rgba(245, 158, 11, 0.10);
-  color: #92400e;
-}
-
+/* Заявки: пунктир = «ещё не решено» */
+.gcal-tl-block--request,
 .gcal-tl-block--request-pending {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.10);
-  color: #92400e;
+  background: var(--warn-wash);
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1.5px rgba(154, 100, 20, 0.45);
 }
 
 .gcal-tl-block--request-approved {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.10);
-  color: #065f46;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  box-shadow: inset 0 0 0 1.5px var(--accent-line);
 }
 
-/* Interactive mode (admin) */
+/* ── Режим владельца: по сетке можно кликать ── */
 
-.gcal-tl-grid--interactive {
-  cursor: crosshair;
-}
+.gcal-tl-grid--interactive { cursor: crosshair; }
 
 .gcal-tl-block--interactive {
   cursor: pointer;
-  transition: opacity 0.15s, box-shadow 0.15s;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
 .gcal-tl-block--interactive:hover {
-  opacity: 0.85;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px var(--ink), var(--shadow);
 }
 
-.gcal-tl-block-client {
-  font-size: 0.75rem;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* Клиенту показываем только свободные интервалы */
+.gcal-compact-day { padding: 0; }
 
-.gcal-tl-block-phone {
-  font-size: 0.6875rem;
-  opacity: 0.7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Responsive */
+/* ── Адаптив ── */
 
 @media (max-width: 480px) {
-  .gcal-day {
-    min-height: 40px;
-  }
+  .gcal-day { min-height: 42px; }
 
   .gcal-day-number {
-    width: 28px;
-    height: 28px;
-    font-size: 0.75rem;
-    border-radius: 10px;
-  }
-
-  .gcal-tl-hour {
-    font-size: 0.625rem;
-  }
-
-  .gcal-weeknav-num {
     width: 32px;
     height: 32px;
+    font-size: 0.75rem;
+  }
+
+  .gcal-tl-hour { font-size: 0.625rem; }
+
+  .gcal-timeline { grid-template-columns: 44px 1fr; }
+
+  .gcal-weeknav-num {
+    width: 33px;
+    height: 33px;
     font-size: 0.8125rem;
   }
-
-  .gcal-weeknav-label {
-    font-size: 0.625rem;
-  }
 }
 
-/* Компактный день: клиенту показываем только свободные интервалы */
-.gcal-compact-day {
-  padding: 0;
-}
-
-/* Дни с записью помечаем точкой — иначе доступность читается только
-   по оттенку серого */
-.gcal-day--has-slots::after {
-  content: '';
-  position: absolute;
-  bottom: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #10b981;
-}
-
-.gcal-day--today.gcal-day--has-slots::after {
-  background: rgba(255, 255, 255, 0.9);
-}

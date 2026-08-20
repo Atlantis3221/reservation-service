@@ -1,0 +1,94 @@
+/**
+ * Токены дизайн-системы Slotik. Один источник правды для клиентской страницы,
+ * панели владельца и общего календаря — тот же язык, что на лендинге:
+ * тёплая бумага, чернильный текст, один изумрудный акцент.
+ *
+ * Импортируется первым в frontend/src/index.css и admin/src/styles.css.
+ * Шрифты подключает каждое приложение само: файлы лежат в его public/fonts.
+ */
+
+:root {
+  /* ── Текст ── */
+  --ink: #1b1a16;        /* заголовки, основные цифры */
+  --ink-soft: #45423a;   /* основной текст */
+  --muted: #6d6a60;      /* подписи, второстепенное */
+  --faint: #8d897d;      /* совсем тихое: сноски, плейсхолдеры */
+
+  /* ── Поверхности ── */
+  --paper: #f4f3ef;      /* фон приложения */
+  --paper-2: #edece6;    /* вложенные заливки, hover */
+  --paper-3: #e6e5dd;    /* нажатое состояние */
+  --card: #ffffff;       /* карточки, листы, поля ввода */
+  --line: #e0ded5;       /* разделители */
+  --line-strong: #c9c6ba; /* границы полей, акцентные линии */
+
+  /* ── Акцент ── */
+  --accent: #0e7a4e;
+  --accent-deep: #0a5f3c;   /* hover на кнопке */
+  --accent-bright: #0f8152; /* акцент на тёмном фоне */
+  --accent-wash: #e8f2ec;   /* заливка свободного времени */
+  --accent-line: #bcdcc8;   /* граница по заливке */
+  --accent-ring: rgba(14, 122, 78, 0.16); /* фокус-ринг */
+
+  /* ── Статусы. Тёплые, приглушённые: рядом с бумагой чистый
+     светофор выглядит кричаще. ── */
+  --danger: #b4402f;
+  --danger-wash: #fbecea;
+  --warn: #9a6414;
+  --warn-wash: #f8f0df;
+  --info: #2f6087;
+  --info-wash: #eaf0f6;
+
+  /* ── Тёмная поверхность (шапки, тёмные блоки) ── */
+  --dark: #191812;
+  --dark-line: #33312a;
+  --dark-muted: #a39f92;
+
+  /* ── Радиусы ── */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r: 13px;
+  --r-lg: 17px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* ── Тени. Мягкие и тёплые: чёрная тень на бумаге выглядит грязной. ── */
+  --shadow-sm: 0 1px 2px rgba(25, 24, 18, 0.06);
+  --shadow: 0 4px 14px -4px rgba(25, 24, 18, 0.12);
+  --shadow-lg: 0 18px 40px -16px rgba(25, 24, 18, 0.22);
+  --shadow-sheet: 0 -8px 40px -12px rgba(25, 24, 18, 0.2);
+
+  /* ── Движение. Спокойное и короткое: интерфейс не должен
+     заставлять себя ждать. ── */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Шрифты ── */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-serif: 'Lora', Georgia, 'Times New Roman', serif;
+
+  /* ── Раскладка ── */
+  --tap: 44px;           /* минимальная площадь нажатия на телефоне */
+  --header-h: 56px;
+  --content-w: 760px;
+}
+
+/* Полностью отключать анимации нельзя — исчезнут состояния кнопок; но всё,
+   что двигает элементы, при системной настройке должно замолчать. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur: 1ms;
+    --dur-slow: 1ms;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,5 +1,9 @@
-/* Шрифт с собственного домена: клиентская страница открывается с телефона,
-   и блокирующий запрос к Google Fonts заметно задерживал первый экран. */
+@import '../../shared/theme/tokens.css';
+
+/* Шрифты с собственного домена: клиентская страница открывается с телефона,
+   и блокирующий запрос к Google Fonts заметно задерживал первый экран.
+   Inter — текст, JetBrains Mono — время и даты, Lora Italic — редкие
+   акценты в заголовках. Все три — SIL Open Font License 1.1. */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
@@ -18,6 +22,42 @@
     U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
     U+2212, U+2215, U+FEFF, U+FFFD;
 }
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/lora-italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/lora-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 *,
 *::before,
@@ -28,13 +68,16 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
-  background: #fff;
-  color: #1e1e2e;
-  line-height: 1.5;
+  font-family: var(--font);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  /* Телефон в браузере: страница не должна «резинить» по горизонтали */
+  overflow-x: hidden;
 }
 
 #root {
@@ -42,5 +85,16 @@ body {
 }
 
 ::selection {
-  background: rgba(99, 102, 241, 0.15);
+  background: #d6ead9;
+  color: var(--ink);
+}
+
+/* Клавиатурный фокус виден всегда; мышиный клик рамку не рисует. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
