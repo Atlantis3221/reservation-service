@@ -6,6 +6,7 @@ export interface ClientBusiness {
   slug: string;
   createdAt: string;
   ownerChatId: string;
+  adminUserId: number | null;
   telegramUsername: string | null;
   phone: string | null;
   adminEmail: string | null;
@@ -74,6 +75,7 @@ export function getClientsReport(): ClientsReport {
       b.slug,
       b.created_at                          AS createdAt,
       b.owner_chat_id                       AS ownerChatId,
+      au.id                                 AS adminUserId,
       b.telegram_username                   AS telegramUsername,
       COALESCE(b.owner_phone, oa.phone)     AS phone,
       au.email                              AS adminEmail,
@@ -111,6 +113,7 @@ export function getClientsReport(): ClientsReport {
     slug: r.slug,
     createdAt: r.createdAt,
     ownerChatId: r.ownerChatId,
+    adminUserId: r.adminUserId ?? null,
     telegramUsername: r.telegramUsername ?? null,
     phone: r.phone ?? null,
     adminEmail: r.adminEmail ?? null,
