@@ -5,7 +5,8 @@ import { AuthProvider } from './auth';
 import { App } from './App';
 import './styles.css';
 
-const metrikaId = import.meta.env.VITE_METRIKA_COUNTER_ID || '108075065';
+const metrikaIdEnv = import.meta.env.VITE_METRIKA_COUNTER_ID;
+const metrikaId = metrikaIdEnv && metrikaIdEnv.trim() !== '' ? metrikaIdEnv : '108075065';
 if (metrikaId) {
   const id = Number(metrikaId);
   const w = window as any;
