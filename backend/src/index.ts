@@ -11,6 +11,7 @@ import { adminRouter } from './routes/admin';
 import { notifyError, getPublicHealth, initMonitor } from './services/monitor';
 import { clientsRouter } from './routes/clients';
 import { initDemo } from './services/demo';
+import { initScheduleExtension } from './services/schedule-extension';
 
 process.on('uncaughtException', (err) => {
   console.error('[fatal] Uncaught exception:', err);
@@ -82,6 +83,7 @@ app.listen(Number(PORT), '0.0.0.0', () => {
   checkDbIntegrity();
   initDemo();
   initCleanup();
+  initScheduleExtension();
 
   // Пишем состояние почты при старте, а не при первой отправке: иначе
   // «почему владельцу не пришло письмо» выясняется задним числом.

@@ -242,7 +242,9 @@ export function SettingsPage({ businessId, onChanged }: Props) {
           <h3 className="settings-section-title">Открыть запись</h3>
           <p className="settings-section-hint">
             Публикует расписание из часов работы выше. Существующие брони клиентов
-            сохранятся.
+            сохранятся. Дальше запись продлевается сама: каждую ночь открываем
+            следующие дни, чтобы вперёд всегда было 4 недели. Чтобы закрыть день
+            недели, выключите его в часах работы.
           </p>
 
           <DurationFields value={duration} onChange={setDuration} />
