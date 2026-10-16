@@ -37,6 +37,11 @@ vi.mock('../../services/clients-report', () => ({
         botMsgCount: 0,
         lastBotMsgAt: null,
         activated: false,
+        page7d: {
+          visits: 12, picked: 3, requestOpened: 1, booked: 1, requested: 0,
+          sources: { 'yandex.ru/maps': 7, '<vk>': 5 },
+        },
+        page30d: { visits: 0, picked: 0, requestOpened: 0, booked: 0, requested: 0, sources: {} },
       },
     ],
     orphanAdmins: [
@@ -103,6 +108,14 @@ describe('clients page — авторизация', () => {
     const body = await res.text();
     expect(body).toContain('&lt;тег&gt;');
     expect(body).not.toContain('<тег>');
+  });
+
+  it('показывает шаги страницы записи и экранирует источники', async () => {
+    const res = await fetch(base, { headers: { authorization: basic(PASSWORD) } });
+    const body = await res.text();
+    expect(body).toContain('12 → 4 → 1');
+    expect(body).toContain('yandex.ru/maps 7');
+    expect(body).toContain('&lt;vk&gt; 5');
   });
 
   it('отдаёт JSON по format=json', async () => {

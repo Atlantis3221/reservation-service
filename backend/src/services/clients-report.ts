@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { emptyPageFunnel, getBusinessPageFunnels, type PageFunnel } from './page-events';
 
 export interface ClientBusiness {
   id: number;
@@ -25,6 +26,9 @@ export interface ClientBusiness {
   lastBotMsgAt: string | null;
   /** Опубликовал ли хотя бы один слот — ключевая метрика активации. */
   activated: boolean;
+  /** Страница записи по шагам за 7 и 30 дней: зашли → выбрали время → отправили */
+  page7d: PageFunnel;
+  page30d: PageFunnel;
 }
 
 export interface OrphanAdmin {
@@ -106,6 +110,8 @@ export function getClientsReport(): ClientsReport {
   `).all() as any[];
 
   const linkStmt = db.prepare('SELECT type, url FROM contact_links WHERE business_id = ? ORDER BY type');
+  const funnels7d = getBusinessPageFunnels(7);
+  const funnels30d = getBusinessPageFunnels(30);
 
   const businesses: ClientBusiness[] = businessRows.map((r) => ({
     id: r.id,
@@ -131,6 +137,8 @@ export function getClientsReport(): ClientsReport {
     botMsgCount: r.botMsgCount ?? 0,
     lastBotMsgAt: r.lastBotMsgAt ?? null,
     activated: (r.slotsTotal ?? 0) > 0,
+    page7d: funnels7d.get(r.id) ?? emptyPageFunnel(),
+    page30d: funnels30d.get(r.id) ?? emptyPageFunnel(),
   }));
 
   // Зарегистрировались в админке, но бизнеса за ними нет — то есть отвалились

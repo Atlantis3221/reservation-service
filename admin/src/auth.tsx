@@ -18,6 +18,16 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+/**
+ * Помечает браузер владельца, чтобы его заходы на свою страницу записи не
+ * попадали в замер (frontend/src/lib/track.ts). Cookie общая на *.slotik.tech
+ * и после выхода остаётся: браузер всё равно владельца.
+ */
+function markOwnerBrowser(): void {
+  const domain = location.hostname.endsWith('slotik.tech') ? '; domain=.slotik.tech' : '';
+  document.cookie = `slotik_nostat=1; path=/; max-age=31536000; SameSite=Lax${domain}`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     token: localStorage.getItem('token'),
@@ -27,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (state.token) markOwnerBrowser();
+  }, [state.token]);
 
   useEffect(() => {
     if (!state.token) {

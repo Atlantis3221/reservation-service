@@ -8,6 +8,9 @@ import {
   getFreeSlots, getBookableDateKeys, isRangeBookable, rulesOf, checkDuration,
 } from '../services/free-slots';
 import { checkRateLimit } from '../services/rate-limit';
+import {
+  isBotUserAgent, isPageKind, isValidEvent, isValidVisitId, recordPageEvent,
+} from '../services/page-events';
 
 export const apiRouter = Router();
 
@@ -52,6 +55,51 @@ function parseClientContact(body: any): { data?: ClientContact; error?: string }
 
   return { data: { clientName, clientPhone, comment: comment || undefined } };
 }
+
+/** Событий замера с одного IP за 10 минут: живой человек столько не нащёлкает */
+const EVENT_LIMIT = 120;
+
+/**
+ * Замер страниц по шагам (services/page-events.ts). Отвечает 204 и на
+ * отброшенные события — роботу незачем знать, что его не посчитали.
+ * IP нужен только лимитеру и в базу не попадает.
+ */
+apiRouter.post('/events', (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const { page, event, visitId } = body;
+
+  if (!isPageKind(page) || !isValidEvent(page, event) || !isValidVisitId(visitId)) {
+    res.status(400).json({ error: 'Некорректное событие' });
+    return;
+  }
+
+  if (isBotUserAgent(req.headers['user-agent']) || !checkRateLimit(`event:${clientIp(req)}`, EVENT_LIMIT, WRITE_WINDOW_MS)) {
+    res.status(204).end();
+    return;
+  }
+
+  let businessId: number | null = null;
+  if (page === 'business') {
+    const business = typeof body.slug === 'string' ? getBusinessBySlug(body.slug) : null;
+    if (!business) {
+      res.status(204).end();
+      return;
+    }
+    businessId = business.id;
+  }
+
+  recordPageEvent({
+    page,
+    businessId,
+    event,
+    visitId,
+    referrer: typeof body.referrer === 'string' ? body.referrer : null,
+    utmSource: body.utmSource,
+    utmMedium: body.utmMedium,
+    utmCampaign: body.utmCampaign,
+  });
+  res.status(204).end();
+});
 
 // ---- Slug-based routes (мультитенант) ----
 

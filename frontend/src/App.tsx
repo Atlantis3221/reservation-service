@@ -6,6 +6,7 @@ import { DayTrack } from './components/DayTrack';
 import { BookingAlt } from './components/BookingAlt';
 import { MonthSheet } from './components/MonthSheet';
 import { BookingSheet, type BookingDraft } from './components/BookingSheet';
+import { trackBusiness } from './lib/track';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { useKeyboardInset } from './hooks/useKeyboardInset';
 import { MINUTES_IN_DAY, addDays, durationRules, durationSummary, nowInBusinessTz } from './lib/day';
@@ -81,7 +82,10 @@ function BusinessPage({ slug }: { slug: string }) {
   useEffect(() => {
     setLoading(true);
     publicApi.getBusiness(slug)
-      .then(setBusiness)
+      .then((b) => {
+        setBusiness(b);
+        trackBusiness(slug, 'view');
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -223,7 +227,10 @@ function BusinessPage({ slug }: { slug: string }) {
             daySlots={daySlots}
             loading={loadingDay}
             nextFreeDate={nextFreeDate}
-            onPick={(slot) => setSheet({ slot })}
+            onPick={(slot) => {
+              trackBusiness(slug, 'pick');
+              setSheet({ slot });
+            }}
             onGoToDate={setSelectedDate}
           />
 
@@ -233,7 +240,13 @@ function BusinessPage({ slug }: { slug: string }) {
         </div>
       )}
 
-      <BookingAlt business={business} onRequestOwnTime={() => setSheet({ slot: null })} />
+      <BookingAlt
+        business={business}
+        onRequestOwnTime={() => {
+          trackBusiness(slug, 'request_open');
+          setSheet({ slot: null });
+        }}
+      />
 
       <footer className="page-foot">
         <a href="/privacy">Обработка персональных данных</a>

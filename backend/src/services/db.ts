@@ -131,6 +131,7 @@ export const migrations: MigrationFn[] = [
   migrationV1,
   migrationV2,
   migrationV3,
+  migrationV4,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -518,4 +519,32 @@ function migrationV3(d: Database.Database): void {
   if (filled.changes > 0) {
     console.log(`[db] v3: длительность перенесена у ${filled.changes} заведений`);
   }
+}
+
+// ---- Migration V4: замер страницы записи по шагам ----
+
+/**
+ * События публичных страниц: открыли страницу заведения → выбрали время →
+ * отправили бронь или заявку. Без персональных данных: ни IP, ни имён, ни
+ * телефонов. visit_id — случайный идентификатор одного открытия страницы,
+ * живёт только в памяти вкладки, между визитами человека не связывает.
+ * business_id пустой у событий сайта (лендинг, регистрация).
+ */
+function migrationV4(d: Database.Database): void {
+  d.exec(`
+    CREATE TABLE IF NOT EXISTS page_events (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      page          TEXT    NOT NULL,
+      business_id   INTEGER,
+      event         TEXT    NOT NULL,
+      visit_id      TEXT    NOT NULL,
+      source        TEXT    NOT NULL,
+      utm_source    TEXT,
+      utm_medium    TEXT,
+      utm_campaign  TEXT,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  d.exec('CREATE INDEX IF NOT EXISTS idx_page_events_business ON page_events (business_id, created_at)');
+  d.exec('CREATE INDEX IF NOT EXISTS idx_page_events_page ON page_events (page, created_at)');
 }

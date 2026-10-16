@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, timingSafeEqual } from 'crypto';
 import { getClientsReport, type ClientsReport, type ClientBusiness } from '../services/clients-report';
+import type { PageFunnel } from '../services/page-events';
 
 export const clientsRouter = Router();
 
@@ -101,6 +102,17 @@ function renderContactLinks(b: ClientBusiness): string {
     .join(' ');
 }
 
+/** «12 → 3 → 1» — зашли → выбрали время/заявку → отправили, и откуда пришли. */
+function renderPageFunnel(f: PageFunnel): string {
+  if (!f.visits && !f.booked && !f.requested) return '<span class="muted">0</span>';
+  const chose = f.picked + f.requestOpened;
+  const sent = f.booked + f.requested;
+  const sources = Object.entries(f.sources)
+    .map(([src, n]) => `${escapeHtml(src)} ${n}`)
+    .join(', ');
+  return `<div class="mono">${f.visits} → ${chose} → ${sent}</div>${sources ? `<div class="muted">${sources}</div>` : ''}`;
+}
+
 function renderBusinessRow(b: ClientBusiness): string {
   const state = b.slotsBooked > 0
     ? '<span class="badge badge--good">есть брони</span>'
@@ -128,6 +140,8 @@ function renderBusinessRow(b: ClientBusiness): string {
       <td class="num">${b.slotsFuture}</td>
       <td class="mono">${escapeHtml(b.firstSlotDate ?? '—')} → ${escapeHtml(b.lastSlotDate ?? '—')}</td>
       <td class="num">${b.requestsTotal}${b.requestsPending ? ` <span class="pending">(${b.requestsPending})</span>` : ''}</td>
+      <td>${renderPageFunnel(b.page7d)}</td>
+      <td>${renderPageFunnel(b.page30d)}</td>
       <td>${b.bookingRequestsEnabled ? 'вкл' : '<span class="muted">выкл</span>'}</td>
       <td class="num">${b.botMsgCount}</td>
       <td>${renderContactLinks(b)}</td>
@@ -140,7 +154,7 @@ function renderPage(report: ClientsReport): string {
 
   const businessRows = report.businesses.length
     ? report.businesses.map(renderBusinessRow).join('')
-    : '<tr><td colspan="13" class="muted">Пока нет ни одного бизнеса</td></tr>';
+    : '<tr><td colspan="15" class="muted">Пока нет ни одного бизнеса</td></tr>';
 
   const orphanRows = report.orphanAdmins.length
     ? report.orphanAdmins
@@ -267,6 +281,8 @@ function renderPage(report: ClientsReport): string {
   <p class="note">
     «Активация» — опубликован хотя бы один слот. Бизнес без слотов означает, что владелец
     зарегистрировался, завёл заведение и ушёл, не дойдя до расписания.
+    «Страница» — замер страницы записи: открыли → выбрали время или заявку → отправили,
+    ниже — откуда пришли. Владелец, вошедший в панель, и роботы не считаются.
   </p>
 
   <h2>Бизнесы (${report.businesses.length})</h2>
@@ -283,6 +299,8 @@ function renderPage(report: ClientsReport): string {
           <th>Будущих</th>
           <th>Период расписания</th>
           <th>Заявок</th>
+          <th>Страница 7 дн.</th>
+          <th>Страница 30 дн.</th>
           <th>Форма заявок</th>
           <th>Сообщ. боту</th>
           <th>Контакты</th>

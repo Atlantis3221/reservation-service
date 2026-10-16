@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { publicApi, ApiError, type BusinessInfo, type FreeSlot } from '../api';
 import { Sheet } from './Sheet';
+import { trackBusiness } from '../lib/track';
 import {
   dateWithWeekday, durationChoices, durationRules, durationShort, shiftTime,
 } from '../lib/day';
@@ -118,6 +119,7 @@ export function BookingSheet({
           consent: true,
         });
         setDone('booked');
+        trackBusiness(business.slug, 'booked');
       } else {
         await publicApi.createRequest(business.slug, {
           preferredDate: date,
@@ -129,6 +131,7 @@ export function BookingSheet({
           consent: true,
         });
         setDone('requested');
+        trackBusiness(business.slug, 'requested');
       }
       onBooked();
     } catch (err) {
