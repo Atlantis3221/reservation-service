@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { emptyPageFunnel, getBusinessPageFunnels, type PageFunnel } from './page-events';
+import { getOwnerVisits } from './owner-visits';
 
 export interface ClientBusiness {
   id: number;
@@ -29,12 +30,18 @@ export interface ClientBusiness {
   /** Страница записи по шагам за 7 и 30 дней: зашли → выбрали время → отправили */
   page7d: PageFunnel;
   page30d: PageFunnel;
+  /** Последний заход владельца в панель (UTC); null — не заходил с выкатки замера 16.10.2026 */
+  lastSeenAt: string | null;
+  /** В сколько разных дней владелец заходил в панель после дня регистрации */
+  activeDays: number;
 }
 
 export interface OrphanAdmin {
   email: string;
   createdAt: string;
   linkedToTelegram: boolean;
+  lastSeenAt: string | null;
+  activeDays: number;
 }
 
 export interface RecentRequest {
@@ -112,6 +119,8 @@ export function getClientsReport(): ClientsReport {
   const linkStmt = db.prepare('SELECT type, url FROM contact_links WHERE business_id = ? ORDER BY type');
   const funnels7d = getBusinessPageFunnels(7);
   const funnels30d = getBusinessPageFunnels(30);
+  const visits = getOwnerVisits();
+  const noVisits = { lastSeenAt: null, activeDays: 0 };
 
   const businesses: ClientBusiness[] = businessRows.map((r) => ({
     id: r.id,
@@ -139,12 +148,13 @@ export function getClientsReport(): ClientsReport {
     activated: (r.slotsTotal ?? 0) > 0,
     page7d: funnels7d.get(r.id) ?? emptyPageFunnel(),
     page30d: funnels30d.get(r.id) ?? emptyPageFunnel(),
+    ...((r.adminUserId != null && visits.get(r.adminUserId)) || noVisits),
   }));
 
   // Зарегистрировались в админке, но бизнеса за ними нет — то есть отвалились
   // сразу после регистрации.
   const orphanRows = db.prepare(`
-    SELECT au.email, au.created_at AS createdAt, au.owner_chat_id AS ownerChatId
+    SELECT au.id, au.email, au.created_at AS createdAt, au.owner_chat_id AS ownerChatId
     FROM admin_users au
     WHERE au.owner_chat_id IS NULL
        OR NOT EXISTS (SELECT 1 FROM businesses b WHERE b.owner_chat_id = au.owner_chat_id)
@@ -155,6 +165,7 @@ export function getClientsReport(): ClientsReport {
     email: r.email,
     createdAt: r.createdAt,
     linkedToTelegram: !!r.ownerChatId,
+    ...(visits.get(r.id) ?? noVisits),
   }));
 
   const recentRequests = db.prepare(`

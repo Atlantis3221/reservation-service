@@ -41,6 +41,7 @@ import {
 } from '../repositories/booking-request.repository';
 import type { BookingRequestStatus } from '../types';
 import { waitForBookingRequest } from '../services/booking-events';
+import { recordOwnerVisit } from '../services/owner-visits';
 import {
   getAllDateKeys,
   getSlotsForDateAdmin,
@@ -151,13 +152,16 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): vo
     return;
   }
 
+  let userId: number;
   try {
-    const { userId } = verifyToken(header.slice(7));
-    req.adminUserId = userId;
-    next();
+    userId = verifyToken(header.slice(7)).userId;
   } catch {
     res.status(401).json({ error: 'Невалидный токен' });
+    return;
   }
+  req.adminUserId = userId;
+  recordOwnerVisit(userId);
+  next();
 }
 
 // ---- Auth (public) ----

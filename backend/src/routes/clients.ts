@@ -113,6 +113,12 @@ function renderPageFunnel(f: PageFunnel): string {
   return `<div class="mono">${f.visits} → ${chose} → ${sent}</div>${sources ? `<div class="muted">${sources}</div>` : ''}`;
 }
 
+/** Последний заход владельца в панель и в сколько дней после регистрации заходил. */
+function renderOwnerVisits(v: { lastSeenAt: string | null; activeDays: number }): string {
+  if (!v.lastSeenAt) return '<span class="muted">—</span>';
+  return `<div class="mono">${escapeHtml(fmtDateTime(v.lastSeenAt))}</div><div class="muted">дней после регистрации: ${v.activeDays}</div>`;
+}
+
 function renderBusinessRow(b: ClientBusiness): string {
   const state = b.slotsBooked > 0
     ? '<span class="badge badge--good">есть брони</span>'
@@ -142,6 +148,7 @@ function renderBusinessRow(b: ClientBusiness): string {
       <td class="num">${b.requestsTotal}${b.requestsPending ? ` <span class="pending">(${b.requestsPending})</span>` : ''}</td>
       <td>${renderPageFunnel(b.page7d)}</td>
       <td>${renderPageFunnel(b.page30d)}</td>
+      <td>${renderOwnerVisits(b)}</td>
       <td>${b.bookingRequestsEnabled ? 'вкл' : '<span class="muted">выкл</span>'}</td>
       <td class="num">${b.botMsgCount}</td>
       <td>${renderContactLinks(b)}</td>
@@ -154,7 +161,7 @@ function renderPage(report: ClientsReport): string {
 
   const businessRows = report.businesses.length
     ? report.businesses.map(renderBusinessRow).join('')
-    : '<tr><td colspan="15" class="muted">Пока нет ни одного бизнеса</td></tr>';
+    : '<tr><td colspan="16" class="muted">Пока нет ни одного бизнеса</td></tr>';
 
   const orphanRows = report.orphanAdmins.length
     ? report.orphanAdmins
@@ -164,10 +171,11 @@ function renderPage(report: ClientsReport): string {
         <td class="mono">${escapeHtml(u.email)}</td>
         <td class="mono">${escapeHtml(fmtDateTime(u.createdAt))}</td>
         <td>${u.linkedToTelegram ? 'Telegram привязан' : '<span class="muted">нет</span>'}</td>
+        <td>${renderOwnerVisits(u)}</td>
       </tr>`
         )
         .join('')
-    : '<tr><td colspan="3" class="muted">Нет — все зарегистрированные завели бизнес</td></tr>';
+    : '<tr><td colspan="4" class="muted">Нет — все зарегистрированные завели бизнес</td></tr>';
 
   const requestRows = report.recentRequests.length
     ? report.recentRequests
@@ -283,6 +291,8 @@ function renderPage(report: ClientsReport): string {
     зарегистрировался, завёл заведение и ушёл, не дойдя до расписания.
     «Страница» — замер страницы записи: открыли → выбрали время или заявку → отправили,
     ниже — откуда пришли. Владелец, вошедший в панель, и роботы не считаются.
+    «Владелец заходил» — последний заход в панель (UTC) и в сколько разных дней он заходил
+    после дня регистрации. Пишется с 16.10.2026: «—» у старых значит «не мерили», а не «не заходил».
   </p>
 
   <h2>Бизнесы (${report.businesses.length})</h2>
@@ -301,6 +311,7 @@ function renderPage(report: ClientsReport): string {
           <th>Заявок</th>
           <th>Страница 7 дн.</th>
           <th>Страница 30 дн.</th>
+          <th>Владелец заходил</th>
           <th>Форма заявок</th>
           <th>Сообщ. боту</th>
           <th>Контакты</th>
@@ -314,7 +325,7 @@ function renderPage(report: ClientsReport): string {
   <h2>Зарегистрировались, но бизнес не завели (${report.orphanAdmins.length})</h2>
   <div class="panel">
     <table>
-      <thead><tr><th>Email</th><th>Регистрация</th><th>Telegram</th></tr></thead>
+      <thead><tr><th>Email</th><th>Регистрация</th><th>Telegram</th><th>Заходил</th></tr></thead>
       <tbody>${orphanRows}</tbody>
     </table>
   </div>

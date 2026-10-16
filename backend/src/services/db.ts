@@ -132,6 +132,7 @@ export const migrations: MigrationFn[] = [
   migrationV2,
   migrationV3,
   migrationV4,
+  migrationV5,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -547,4 +548,26 @@ function migrationV4(d: Database.Database): void {
   `);
   d.exec('CREATE INDEX IF NOT EXISTS idx_page_events_business ON page_events (business_id, created_at)');
   d.exec('CREATE INDEX IF NOT EXISTS idx_page_events_page ON page_events (page, created_at)');
+}
+
+// ---- Migration V5: заходы владельца в панель ----
+
+/**
+ * Возвращается ли владелец в панель после дня регистрации — сигнал «живое
+ * заведение или проба», когда на письма не отвечают. last_seen_at — время
+ * последнего авторизованного запроса (UTC), owner_visit_days — по строке на
+ * каждый московский день, когда он заходил. Ни IP, ни User-Agent не храним.
+ * До выкатки заходы не писались: пусто значит «не мерили», а не «не заходил».
+ */
+function migrationV5(d: Database.Database): void {
+  if (!columnExists(d, 'admin_users', 'last_seen_at')) {
+    d.exec('ALTER TABLE admin_users ADD COLUMN last_seen_at TEXT');
+  }
+  d.exec(`
+    CREATE TABLE IF NOT EXISTS owner_visit_days (
+      admin_user_id  INTEGER NOT NULL,
+      day            TEXT    NOT NULL,
+      PRIMARY KEY (admin_user_id, day)
+    )
+  `);
 }

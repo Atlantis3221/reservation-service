@@ -42,10 +42,15 @@ vi.mock('../../services/clients-report', () => ({
           sources: { 'yandex.ru/maps': 7, '<vk>': 5 },
         },
         page30d: { visits: 0, picked: 0, requestOpened: 0, booked: 0, requested: 0, sources: {} },
+        lastSeenAt: '2026-10-17 09:30:00',
+        activeDays: 2,
       },
     ],
     orphanAdmins: [
-      { email: 'orphan@example.com', createdAt: '2026-08-01 10:00:00', linkedToTelegram: false },
+      {
+        email: 'orphan@example.com', createdAt: '2026-08-01 10:00:00', linkedToTelegram: false,
+        lastSeenAt: null, activeDays: 0,
+      },
     ],
     recentRequests: [],
   }),
@@ -116,6 +121,14 @@ describe('clients page — авторизация', () => {
     expect(body).toContain('12 → 4 → 1');
     expect(body).toContain('yandex.ru/maps 7');
     expect(body).toContain('&lt;vk&gt; 5');
+  });
+
+  it('показывает, когда владелец последний раз заходил в панель', async () => {
+    const res = await fetch(base, { headers: { authorization: basic(PASSWORD) } });
+    const body = await res.text();
+    expect(body).toContain('Владелец заходил');
+    expect(body).toContain('2026-10-17 09:30:00');
+    expect(body).toContain('дней после регистрации: 2');
   });
 
   it('отдаёт JSON по format=json', async () => {
