@@ -134,8 +134,20 @@ describe('clients page — авторизация', () => {
     const res = await fetch(base, { headers: { authorization: basic(PASSWORD) } });
     const body = await res.text();
     expect(body).toContain('Владелец заходил');
-    expect(body).toContain('2026-10-17 09:30:00');
+    expect(body).toContain('2026-10-17 12:30 МСК');
     expect(body).toContain('дней после регистрации: 2');
+  });
+
+  it('показывает время по Москве и подсвечивает новых за 7 дней', async () => {
+    const res = await fetch(base, { headers: { authorization: basic(PASSWORD) } });
+    const body = await res.text();
+    expect(body).toContain('Снято 2026-08-18 15:00 МСК');
+    expect(body).toContain('2026-08-18 13:00 МСК');
+    expect(body).toContain('2026-08-01 13:00 МСК');
+    expect(body).not.toMatch(/\d\d:\d\d:\d\d/);
+    // Заведение зарегистрировано за 2 часа до отчёта — новое; владелец без заведения — 17 дней назад.
+    expect(body.match(/<tr class="fresh">/g)).toHaveLength(1);
+    expect(body).not.toMatch(/orphan@example\.com[^<]*<span class="badge badge--fresh">/);
   });
 
   it('показывает воронку сайта по источникам и откуда пришёл владелец', async () => {

@@ -87,10 +87,28 @@ clientsRouter.get('/', (req: Request, res: Response) => {
   res.type('text/html; charset=utf-8').send(renderPage(report));
 });
 
+// В базе время UTC: SQLite пишет '2026-10-16 11:21:00', JSON-поля — ISO с Z.
+function parseUtc(value: string): number {
+  const iso = value.includes('T') ? value : value.replace(' ', 'T');
+  return Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : `${iso}Z`);
+}
+
+// Директор читает отчёт по Москве (M-0163). В Москве нет перехода на летнее время — всегда UTC+3.
 function fmtDateTime(value: string | null): string {
   if (!value) return '—';
-  return value.replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, '');
+  const ms = parseUtc(value);
+  if (Number.isNaN(ms)) return value;
+  return `${new Date(ms + 3 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} МСК`;
 }
+
+const WEEK_MS = 7 * 864e5;
+
+// Новые за 7 дней от момента снятия отчёта — подсвечены, чтобы сразу завести в CRM.
+function isFresh(createdAt: string, generatedAt: string): boolean {
+  return parseUtc(generatedAt) - parseUtc(createdAt) < WEEK_MS;
+}
+
+const FRESH_BADGE = ' <span class="badge badge--fresh">новый</span>';
 
 function renderContactLinks(b: ClientBusiness): string {
   if (!b.contactLinks.length) return '<span class="muted">—</span>';
@@ -141,7 +159,7 @@ function renderOwnerVisits(v: { lastSeenAt: string | null; activeDays: number })
   return `<div class="mono">${escapeHtml(fmtDateTime(v.lastSeenAt))}</div><div class="muted">дней после регистрации: ${v.activeDays}</div>`;
 }
 
-function renderBusinessRow(b: ClientBusiness): string {
+function renderBusinessRow(b: ClientBusiness, fresh: boolean): string {
   const state = b.slotsBooked > 0
     ? '<span class="badge badge--good">есть брони</span>'
     : b.activated
@@ -149,9 +167,9 @@ function renderBusinessRow(b: ClientBusiness): string {
       : '<span class="badge badge--bad">не активирован</span>';
 
   return `
-    <tr>
+    <tr${fresh ? ' class="fresh"' : ''}>
       <td>
-        <div class="biz-name">${escapeHtml(b.name)}</div>
+        <div class="biz-name">${escapeHtml(b.name)}${fresh ? FRESH_BADGE : ''}</div>
         <div class="muted mono">
           <a href="https://slotik.tech/${escapeHtml(b.slug)}" target="_blank" rel="noopener noreferrer">/${escapeHtml(b.slug)}</a>
         </div>
@@ -183,20 +201,23 @@ function renderPage(report: ClientsReport): string {
   const t = report.totals;
 
   const businessRows = report.businesses.length
-    ? report.businesses.map(renderBusinessRow).join('')
+    ? report.businesses.map((b) => renderBusinessRow(b, isFresh(b.createdAt, report.generatedAt))).join('')
     : '<tr><td colspan="17" class="muted">Пока нет ни одного бизнеса</td></tr>';
 
   const orphanRows = report.orphanAdmins.length
     ? report.orphanAdmins
         .map(
-          (u) => `
-      <tr>
-        <td class="mono">${escapeHtml(u.email)}</td>
+          (u) => {
+            const fresh = isFresh(u.createdAt, report.generatedAt);
+            return `
+      <tr${fresh ? ' class="fresh"' : ''}>
+        <td class="mono">${escapeHtml(u.email)}${fresh ? FRESH_BADGE : ''}</td>
         <td class="mono">${escapeHtml(fmtDateTime(u.createdAt))}</td>
         <td>${u.linkedToTelegram ? 'Telegram привязан' : '<span class="muted">нет</span>'}</td>
         <td>${renderOwnerVisits(u)}</td>
         <td>${renderSignupSource(u)}</td>
-      </tr>`
+      </tr>`;
+          }
         )
         .join('')
     : '<tr><td colspan="5" class="muted">Нет — все зарегистрированные завели бизнес</td></tr>';
@@ -238,6 +259,7 @@ function renderPage(report: ClientsReport): string {
     --good-bg: #dcfce7; --good-fg: #166534;
     --warn-bg: #fef3c7; --warn-fg: #92400e;
     --bad-bg: #fee2e2;  --bad-fg: #991b1b;
+    --fresh-bg: #eff6ff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -250,6 +272,7 @@ function renderPage(report: ClientsReport): string {
       --good-bg: #12351f; --good-fg: #6ee7a0;
       --warn-bg: #3a2d10; --warn-fg: #fcd34d;
       --bad-bg: #3a1618;  --bad-fg: #fca5a5;
+      --fresh-bg: #172338;
     }
   }
   * { box-sizing: border-box; }
@@ -289,6 +312,8 @@ function renderPage(report: ClientsReport): string {
   .badge--warn { background: var(--warn-bg); color: var(--warn-fg); }
   .badge--bad  { background: var(--bad-bg);  color: var(--bad-fg); }
   .pending { color: var(--warn-fg); }
+  tr.fresh td { background: var(--fresh-bg); }
+  .badge--fresh { background: var(--accent); color: var(--panel); margin-left: 4px; vertical-align: 1px; }
   .note {
     margin: 12px 0 0; padding: 12px 14px; border-radius: 10px;
     background: var(--panel); border: 1px solid var(--border); color: var(--muted); font-size: 13px;
@@ -298,7 +323,7 @@ function renderPage(report: ClientsReport): string {
 <body>
 <div class="wrap">
   <h1>Зарегистрированные клиенты</h1>
-  <p class="sub">Снято ${escapeHtml(fmtDateTime(report.generatedAt))} UTC · <a href="?format=json">JSON</a></p>
+  <p class="sub">Снято ${escapeHtml(fmtDateTime(report.generatedAt))} · время везде московское · новые сверху, за 7 дней подсвечены · <a href="?format=json">JSON</a></p>
 
   <div class="stats">
     <div class="stat"><div class="v">${t.businesses}</div><div class="k">бизнесов</div></div>
@@ -315,7 +340,7 @@ function renderPage(report: ClientsReport): string {
     зарегистрировался, завёл заведение и ушёл, не дойдя до расписания.
     «Страница» — замер страницы записи: открыли → выбрали время или заявку → отправили,
     ниже — откуда пришли. Владелец, вошедший в панель, и роботы не считаются.
-    «Владелец заходил» — последний заход в панель (UTC) и в сколько разных дней он заходил
+    «Владелец заходил» — последний заход в панель и в сколько разных дней он заходил
     после дня регистрации. Пишется с 16.10.2026: «—» у старых значит «не мерили», а не «не заходил».
     «Сайт» — свой замер без Яндекса: визиты на лендинг → открыли регистрацию → зарегистрировались,
     по источнику первого захода (utm, домен реферера, «yandex-ad» — клик из Директа без utm).
