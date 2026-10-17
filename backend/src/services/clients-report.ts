@@ -1,5 +1,7 @@
 import { getDb } from './db';
-import { emptyPageFunnel, getBusinessPageFunnels, type PageFunnel } from './page-events';
+import {
+  emptyPageFunnel, getBusinessPageFunnels, getSiteFunnel, type PageFunnel, type SiteFunnel,
+} from './page-events';
 import { getOwnerVisits } from './owner-visits';
 
 export interface ClientBusiness {
@@ -34,6 +36,9 @@ export interface ClientBusiness {
   lastSeenAt: string | null;
   /** В сколько разных дней владелец заходил в панель после дня регистрации */
   activeDays: number;
+  /** Откуда пришёл владелец: «utm:ads/A-002», домен реферера, «yandex-ad»; null — не мерили (до 17.10.2026) */
+  signupSource: string | null;
+  signupCampaign: string | null;
 }
 
 export interface OrphanAdmin {
@@ -42,6 +47,8 @@ export interface OrphanAdmin {
   linkedToTelegram: boolean;
   lastSeenAt: string | null;
   activeDays: number;
+  signupSource: string | null;
+  signupCampaign: string | null;
 }
 
 export interface RecentRequest {
@@ -66,6 +73,9 @@ export interface ClientsReport {
     orphanAdmins: number;
     bookingRequests: number;
   };
+  /** Воронка сайта: визит на лендинг → открыл регистрацию → зарегистрировался (с 17.10.2026) */
+  site7d: SiteFunnel;
+  site30d: SiteFunnel;
   businesses: ClientBusiness[];
   orphanAdmins: OrphanAdmin[];
   recentRequests: RecentRequest[];
@@ -90,6 +100,8 @@ export function getClientsReport(): ClientsReport {
       b.telegram_username                   AS telegramUsername,
       COALESCE(b.owner_phone, oa.phone)     AS phone,
       au.email                              AS adminEmail,
+      au.signup_source                      AS signupSource,
+      au.signup_campaign                    AS signupCampaign,
       oa.accepted_at                        AS agreementAcceptedAt,
       b.booking_requests_enabled            AS bookingRequestsEnabled,
       b.working_hours                       AS workingHours,
@@ -149,12 +161,15 @@ export function getClientsReport(): ClientsReport {
     page7d: funnels7d.get(r.id) ?? emptyPageFunnel(),
     page30d: funnels30d.get(r.id) ?? emptyPageFunnel(),
     ...((r.adminUserId != null && visits.get(r.adminUserId)) || noVisits),
+    signupSource: r.signupSource ?? null,
+    signupCampaign: r.signupCampaign ?? null,
   }));
 
   // Зарегистрировались в админке, но бизнеса за ними нет — то есть отвалились
   // сразу после регистрации.
   const orphanRows = db.prepare(`
-    SELECT au.id, au.email, au.created_at AS createdAt, au.owner_chat_id AS ownerChatId
+    SELECT au.id, au.email, au.created_at AS createdAt, au.owner_chat_id AS ownerChatId,
+           au.signup_source AS signupSource, au.signup_campaign AS signupCampaign
     FROM admin_users au
     WHERE au.owner_chat_id IS NULL
        OR NOT EXISTS (SELECT 1 FROM businesses b WHERE b.owner_chat_id = au.owner_chat_id)
@@ -166,6 +181,8 @@ export function getClientsReport(): ClientsReport {
     createdAt: r.createdAt,
     linkedToTelegram: !!r.ownerChatId,
     ...(visits.get(r.id) ?? noVisits),
+    signupSource: r.signupSource ?? null,
+    signupCampaign: r.signupCampaign ?? null,
   }));
 
   const recentRequests = db.prepare(`
@@ -198,6 +215,8 @@ export function getClientsReport(): ClientsReport {
       orphanAdmins: orphanAdmins.length,
       bookingRequests: requestCount,
     },
+    site7d: getSiteFunnel(7),
+    site30d: getSiteFunnel(30),
     businesses,
     orphanAdmins,
     recentRequests,

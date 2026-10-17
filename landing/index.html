@@ -450,6 +450,54 @@
     });
   </script>
 
+  <!-- Свой замер воронки (T-017): визит → открыл регистрацию → зарегистрировался.
+       Без cookies-трекинга и ПД: visitId живёт только в этой вкладке и уходит
+       в ссылку на регистрацию вместе с метками, чтобы регистрация досталась
+       источнику визита. ?nostat помечает браузер команды — его не считаем. -->
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(location.search);
+        var NOSTAT = 'slotik_nostat=1';
+        if (params.has('nostat')) {
+          var domain = /slotik\.tech$/.test(location.hostname) ? '; domain=.slotik.tech' : '';
+          document.cookie = NOSTAT + '; path=/; max-age=31536000; SameSite=Lax' + domain;
+        }
+        var visitId = window.crypto && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+
+        var keep = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'yclid'];
+        document.querySelectorAll('a[href^="https://admin.slotik.tech/register"]').forEach(function (a) {
+          var u = new URL(a.href);
+          keep.forEach(function (k) { if (params.get(k)) u.searchParams.set(k, params.get(k)); });
+          u.searchParams.set('sv', visitId);
+          a.href = u.toString();
+        });
+
+        if (document.cookie.split('; ').indexOf(NOSTAT) !== -1) return;
+        fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            page: 'site',
+            event: 'view',
+            visitId: visitId,
+            referrer: document.referrer || '',
+            utmSource: params.get('utm_source'),
+            utmMedium: params.get('utm_medium'),
+            utmCampaign: params.get('utm_campaign'),
+            utmContent: params.get('utm_content'),
+            yclid: params.get('yclid')
+          })
+        }).catch(function () {});
+      } catch (e) {
+        // Замер не должен ломать страницу.
+      }
+    })();
+  </script>
+
   <!-- Yandex.Metrika -->
   <script type="text/javascript">
     (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};

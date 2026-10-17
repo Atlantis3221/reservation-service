@@ -1,3 +1,5 @@
+import type { SignupVisit } from './lib/track';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/admin';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -155,10 +157,10 @@ export interface BusinessStatus {
 }
 
 export const api = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, visit?: SignupVisit) =>
     request<AuthResult>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, visit }),
     }),
 
   login: (email: string, password: string) =>

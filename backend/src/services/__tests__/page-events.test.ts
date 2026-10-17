@@ -10,15 +10,20 @@ vi.mock('../db', async (importOriginal) => ({
 
 import { migrations } from '../db';
 import {
-  getBusinessPageFunnels, isBotUserAgent, isValidEvent, recordPageEvent, referrerSource,
+  deviceFromUserAgent, getBusinessPageFunnels, getSiteFunnel, isBotUserAgent, isValidEvent,
+  recordPageEvent, recordSignup, referrerSource,
 } from '../page-events';
 
 const CHROME = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148';
 
 beforeEach(() => {
   testDb = new Database(':memory:');
-  // Таблица событий — ровно из миграции v4, чтобы тест ловил расхождение схемы.
+  // Таблица событий — ровно из миграций v4 и v6, чтобы тест ловил расхождение схемы.
+  testDb.exec(`CREATE TABLE admin_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+    owner_chat_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   migrations[3](testDb);
+  migrations[5](testDb);
 });
 
 afterEach(() => {
@@ -97,5 +102,69 @@ describe('getBusinessPageFunnels', () => {
 
     expect(getBusinessPageFunnels(7).get(1)?.visits).toBe(1);
     expect(getBusinessPageFunnels(30).get(1)?.visits).toBe(2);
+  });
+});
+
+describe('воронка сайта (T-017)', () => {
+  const site = (event: string, visitId: string, extra: Record<string, unknown> = {}) =>
+    recordPageEvent({ page: 'site', businessId: null, event, visitId, ...extra });
+  const addUser = (email: string) =>
+    testDb.prepare('INSERT INTO admin_users (email, password_hash) VALUES (?, ?)').run(email, 'x').lastInsertRowid as number;
+  const sourceOf = (id: number) =>
+    testDb.prepare('SELECT signup_source AS source, signup_campaign AS campaign FROM admin_users WHERE id = ?').get(id);
+
+  it('считает визит → открыл регистрацию → зарегистрировался по источнику первого захода', () => {
+    // Из рекламы: лендинг, потом регистрация (реферер уже slotik.tech, но источник — с лендинга)
+    site('view', 'visit-ad01', { utmSource: 'ads', utmMedium: 'yandex', utmCampaign: 'A-002', device: 'mobile' });
+    site('signup_open', 'visit-ad01', { referrer: 'https://slotik.tech/', utmSource: 'ads', utmCampaign: 'A-002' });
+    const user = addUser('owner@example.com');
+    recordSignup(user, { visitId: 'visit-ad01', referrer: 'https://slotik.tech/', utmSource: 'ads', utmCampaign: 'A-002' }, true, 'mobile');
+    // Посмотрел и ушёл
+    site('view', 'visit-vk01', { referrer: 'https://vk.com/wall-1', device: 'desktop' });
+    // Сразу на регистрацию, минуя лендинг
+    site('signup_open', 'visit-dir1');
+    // Клик из Директа без utm
+    site('view', 'visit-ycl1', { referrer: 'https://yandex.ru/search/', adClick: true });
+
+    const f = getSiteFunnel(7);
+    expect({ visits: f.visits, signupOpened: f.signupOpened, signups: f.signups }).toEqual({ visits: 3, signupOpened: 2, signups: 1 });
+    expect(f.mobileVisits).toBe(1);
+    expect(f.bySource).toEqual({
+      'utm:ads/A-002': { visits: 1, signupOpened: 1, signups: 1 },
+      'vk.com': { visits: 1, signupOpened: 0, signups: 0 },
+      direct: { visits: 0, signupOpened: 1, signups: 0 },
+      'yandex-ad': { visits: 1, signupOpened: 0, signups: 0 },
+    });
+    expect(Object.values(f.byDay)).toHaveLength(1);
+    expect(sourceOf(user)).toEqual({ source: 'utm:ads/A-002', campaign: 'A-002' });
+  });
+
+  it('браузер команды: источник владельцу пишем, в воронку — нет', () => {
+    const user = addUser('team@example.com');
+    recordSignup(user, { visitId: 'visit-team', utmSource: 'outreach', utmContent: 'L-041' }, false, 'desktop');
+    expect(getSiteFunnel(7).signups).toBe(0);
+    expect(sourceOf(user)).toEqual({ source: 'utm:outreach/L-041', campaign: 'L-041' });
+  });
+
+  it('без визита (старая вкладка панели) ничего не пишет', () => {
+    const user = addUser('old@example.com');
+    recordSignup(user, undefined, true, 'desktop');
+    recordSignup(user, { visitId: 'плохой id' }, true, 'desktop');
+    expect(getSiteFunnel(7).signups).toBe(0);
+    expect(sourceOf(user)).toEqual({ source: null, campaign: null });
+  });
+
+  it('не берёт визиты старше периода и страницы заведений', () => {
+    site('view', 'visit-old2');
+    testDb.prepare(`UPDATE page_events SET created_at = datetime('now', '-10 days')`).run();
+    recordPageEvent({ page: 'business', businessId: 1, event: 'view', visitId: 'visit-biz1' });
+    site('view', 'visit-new2');
+    expect(getSiteFunnel(7).visits).toBe(1);
+    expect(getSiteFunnel(30).visits).toBe(2);
+  });
+
+  it('устройство — по User-Agent', () => {
+    expect(deviceFromUserAgent(CHROME)).toBe('mobile');
+    expect(deviceFromUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15')).toBe('desktop');
   });
 });

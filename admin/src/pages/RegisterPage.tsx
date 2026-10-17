@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { reachGoal } from '../lib/metrika';
+import { signupVisit, trackSignupOpen } from '../lib/track';
 
 export function RegisterPage() {
   const { login } = useAuth();
@@ -11,12 +12,16 @@ export function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    trackSignupOpen();
+  }, []);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const result = await api.register(email, password);
+      const result = await api.register(email, password, signupVisit());
       reachGoal('signup');
       login(result.token, result.user);
     } catch (err: any) {

@@ -42,6 +42,8 @@ import {
 import type { BookingRequestStatus } from '../types';
 import { waitForBookingRequest } from '../services/booking-events';
 import { recordOwnerVisit } from '../services/owner-visits';
+import { deviceFromUserAgent, isBotUserAgent, recordSignup } from '../services/page-events';
+import { handlePageEvent } from './api';
 import {
   getAllDateKeys,
   getSlotsForDateAdmin,
@@ -166,10 +168,21 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): vo
 
 // ---- Auth (public) ----
 
+/** Замер воронки сайта: «открыл регистрацию» шлёт панель (T-017) */
+adminRouter.post('/events', handlePageEvent);
+
 adminRouter.post('/auth/register', (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, visit } = req.body;
     const result = register(email, password);
+    try {
+      const ua = req.headers['user-agent'];
+      const teamBrowser = /(?:^|;\s*)slotik_nostat=1(?:;|$)/.test(req.headers.cookie ?? '');
+      recordSignup(result.user.id, visit, !isBotUserAgent(ua) && !teamBrowser, deviceFromUserAgent(ua));
+    } catch (err) {
+      // Замер не должен мешать регистрации
+      console.error('recordSignup failed', err);
+    }
     res.json(result);
   } catch (err) {
     if (err instanceof AuthError) {

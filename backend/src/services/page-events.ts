@@ -27,6 +27,12 @@ export interface PageEventInput {
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
+  /** Метка лида в письмах (L-…) */
+  utmContent?: string | null;
+  /** Пришёл по клику из Директа (в ссылке был yclid) */
+  adClick?: boolean;
+  /** mobile / desktop — из User-Agent, сам User-Agent не храним */
+  device?: string | null;
 }
 
 const VISIT_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
@@ -76,6 +82,16 @@ export function referrerSource(referrer: string | null | undefined): string {
   return host.slice(0, 100);
 }
 
+export function deviceFromUserAgent(ua: string | undefined): 'mobile' | 'desktop' {
+  return ua && /Mobi|Android|iPhone|iPad|iPod/i.test(ua) ? 'mobile' : 'desktop';
+}
+
+/**
+ * Клик из Директа без utm (автотаргетинг, ручные объявления) иначе выглядел
+ * бы как переход из поиска Яндекса — отделяем по yclid.
+ */
+export const AD_CLICK_SOURCE = 'yandex-ad';
+
 function cleanUtm(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const v = value.trim().slice(0, 100);
@@ -86,18 +102,21 @@ export function recordPageEvent(input: PageEventInput): void {
   getDb()
     .prepare(
       `INSERT INTO page_events
-         (page, business_id, event, visit_id, source, utm_source, utm_medium, utm_campaign)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (page, business_id, event, visit_id, source,
+          utm_source, utm_medium, utm_campaign, utm_content, device)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.page,
       input.businessId,
       input.event,
       input.visitId,
-      referrerSource(input.referrer),
+      input.adClick ? AD_CLICK_SOURCE : referrerSource(input.referrer),
       cleanUtm(input.utmSource),
       cleanUtm(input.utmMedium),
       cleanUtm(input.utmCampaign),
+      cleanUtm(input.utmContent),
+      input.device ?? null,
     );
 }
 
@@ -170,4 +189,144 @@ export function getBusinessPageFunnels(days: number): Map<number, PageFunnel> {
   }
 
   return result;
+}
+
+// ---- Воронка сайта: лендинг → регистрация (T-017) ----
+
+/**
+ * Источник визита одной строкой: «utm:ads/A-002», «utm:outreach/L-041»,
+ * иначе домен реферера или «yandex-ad». Берётся с первого события визита —
+ * на лендинге, если человек пришёл через него.
+ */
+const SITE_SOURCE_SQL = `
+  CASE WHEN f.utm_source IS NOT NULL
+    THEN 'utm:' || f.utm_source || COALESCE('/' || COALESCE(f.utm_campaign, f.utm_content), '')
+    ELSE f.source END`;
+
+export interface SiteSteps {
+  /** Визитов на лендинг */
+  visits: number;
+  /** Визитов, где открыли регистрацию (в том числе прямо, минуя лендинг) */
+  signupOpened: number;
+  /** Визитов, закончившихся регистрацией */
+  signups: number;
+}
+
+export interface SiteFunnel extends SiteSteps {
+  bySource: Record<string, SiteSteps>;
+  /** По московским дням первого события визита */
+  byDay: Record<string, SiteSteps>;
+  /** Визитов на лендинг с телефона */
+  mobileVisits: number;
+}
+
+function emptySteps(): SiteSteps {
+  return { visits: 0, signupOpened: 0, signups: 0 };
+}
+
+function addSteps(into: SiteSteps, r: SiteSteps): void {
+  into.visits += r.visits;
+  into.signupOpened += r.signupOpened;
+  into.signups += r.signups;
+}
+
+/** Воронка сайта за последние `days` дней по уникальным визитам. */
+export function getSiteFunnel(days: number): SiteFunnel {
+  const since = `-${Math.max(1, Math.floor(days))} days`;
+  const rows = getDb().prepare(`
+    WITH v AS (
+      SELECT
+        visit_id,
+        MIN(id)                                     AS firstId,
+        MAX(event = 'view')                         AS viewed,
+        MAX(event = 'signup_open')                  AS opened,
+        MAX(event = 'signup')                       AS signed,
+        MAX(event = 'view' AND device = 'mobile')   AS mobile
+      FROM page_events
+      WHERE page = 'site' AND created_at >= datetime('now', ?)
+      GROUP BY visit_id
+    )
+    SELECT
+      ${SITE_SOURCE_SQL}                  AS src,
+      date(f.created_at, '+3 hours')      AS day,
+      SUM(v.viewed)                       AS visits,
+      SUM(v.opened)                       AS signupOpened,
+      SUM(v.signed)                       AS signups,
+      SUM(v.mobile)                       AS mobile
+    FROM v JOIN page_events f ON f.id = v.firstId
+    GROUP BY src, day
+  `).all(since) as any[];
+
+  const funnel: SiteFunnel = { ...emptySteps(), bySource: {}, byDay: {}, mobileVisits: 0 };
+  for (const r of rows) {
+    const steps: SiteSteps = { visits: r.visits ?? 0, signupOpened: r.signupOpened ?? 0, signups: r.signups ?? 0 };
+    addSteps(funnel, steps);
+    addSteps((funnel.bySource[r.src] ??= emptySteps()), steps);
+    addSteps((funnel.byDay[r.day] ??= emptySteps()), steps);
+    funnel.mobileVisits += r.mobile ?? 0;
+  }
+  return funnel;
+}
+
+/** Источник и кампания визита по его первому событию; null — визит не записан. */
+export function getVisitSource(visitId: string): { source: string; campaign: string | null } | null {
+  const row = getDb().prepare(`
+    SELECT ${SITE_SOURCE_SQL} AS source, COALESCE(f.utm_campaign, f.utm_content) AS campaign
+    FROM page_events f
+    WHERE f.page = 'site' AND f.visit_id = ?
+    ORDER BY f.id
+    LIMIT 1
+  `).get(visitId) as { source: string; campaign: string | null } | undefined;
+  return row ?? null;
+}
+
+/** Метки визита, которые панель присылает вместе с регистрацией. */
+export interface SignupVisit {
+  visitId?: unknown;
+  referrer?: unknown;
+  utmSource?: unknown;
+  utmMedium?: unknown;
+  utmCampaign?: unknown;
+  utmContent?: unknown;
+  yclid?: unknown;
+}
+
+function str(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Регистрация — последний шаг воронки сайта. Пишем её на сервере, а не из
+ * браузера: событие из браузера режут блокировщики и обрывает переход в
+ * онбординг. Владельцу запоминаем источник визита, с которого он пришёл.
+ * `counted` = false — робот или браузер команды (cookie slotik_nostat):
+ * источник сохраняем, в воронку не пишем.
+ */
+export function recordSignup(adminUserId: number, visit: SignupVisit | undefined, counted: boolean, device: string): void {
+  if (!visit || !isValidVisitId(visit.visitId)) return;
+  const input: PageEventInput = {
+    page: 'site',
+    businessId: null,
+    event: 'signup',
+    visitId: visit.visitId,
+    referrer: str(visit.referrer),
+    utmSource: str(visit.utmSource),
+    utmMedium: str(visit.utmMedium),
+    utmCampaign: str(visit.utmCampaign),
+    utmContent: str(visit.utmContent),
+    adClick: !!str(visit.yclid),
+    device,
+  };
+  if (counted) recordPageEvent(input);
+
+  const own = (() => {
+    const utm = cleanUtm(input.utmSource);
+    if (!utm) return { source: input.adClick ? AD_CLICK_SOURCE : referrerSource(input.referrer), campaign: null };
+    const campaign = cleanUtm(input.utmCampaign) ?? cleanUtm(input.utmContent);
+    return { source: `utm:${utm}${campaign ? `/${campaign}` : ''}`, campaign };
+  })();
+  const { source, campaign } = getVisitSource(visit.visitId) ?? own;
+  getDb()
+    .prepare('UPDATE admin_users SET signup_source = ?, signup_campaign = ? WHERE id = ?')
+    .run(source, campaign, adminUserId);
 }

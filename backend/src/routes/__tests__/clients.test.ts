@@ -44,14 +44,21 @@ vi.mock('../../services/clients-report', () => ({
         page30d: { visits: 0, picked: 0, requestOpened: 0, booked: 0, requested: 0, sources: {} },
         lastSeenAt: '2026-10-17 09:30:00',
         activeDays: 2,
+        signupSource: 'utm:ads/A-003',
+        signupCampaign: 'A-003',
       },
     ],
     orphanAdmins: [
       {
         email: 'orphan@example.com', createdAt: '2026-08-01 10:00:00', linkedToTelegram: false,
-        lastSeenAt: null, activeDays: 0,
+        lastSeenAt: null, activeDays: 0, signupSource: null, signupCampaign: null,
       },
     ],
+    site7d: {
+      visits: 40, signupOpened: 6, signups: 2, mobileVisits: 25, byDay: {},
+      bySource: { 'utm:ads/A-003': { visits: 30, signupOpened: 5, signups: 2 }, '<ref>': { visits: 10, signupOpened: 1, signups: 0 } },
+    },
+    site30d: { visits: 0, signupOpened: 0, signups: 0, mobileVisits: 0, byDay: {}, bySource: {} },
     recentRequests: [],
   }),
 }));
@@ -129,6 +136,16 @@ describe('clients page — авторизация', () => {
     expect(body).toContain('Владелец заходил');
     expect(body).toContain('2026-10-17 09:30:00');
     expect(body).toContain('дней после регистрации: 2');
+  });
+
+  it('показывает воронку сайта по источникам и откуда пришёл владелец', async () => {
+    const res = await fetch(base, { headers: { authorization: basic(PASSWORD) } });
+    const body = await res.text();
+    expect(body).toContain('Сайт за 7 дней: 40 → 6 → 2');
+    expect(body).toContain('utm:ads/A-003');
+    expect(body).toContain('&lt;ref&gt;');
+    expect(body).not.toContain('<ref>');
+    expect(body).toContain('Откуда пришёл');
   });
 
   it('отдаёт JSON по format=json', async () => {

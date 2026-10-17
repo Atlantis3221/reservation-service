@@ -9,7 +9,7 @@ import {
 } from '../services/free-slots';
 import { checkRateLimit } from '../services/rate-limit';
 import {
-  isBotUserAgent, isPageKind, isValidEvent, isValidVisitId, recordPageEvent,
+  deviceFromUserAgent, isBotUserAgent, isPageKind, isValidEvent, isValidVisitId, recordPageEvent,
 } from '../services/page-events';
 
 export const apiRouter = Router();
@@ -64,7 +64,7 @@ const EVENT_LIMIT = 120;
  * отброшенные события — роботу незачем знать, что его не посчитали.
  * IP нужен только лимитеру и в базу не попадает.
  */
-apiRouter.post('/events', (req: Request, res: Response) => {
+export function handlePageEvent(req: Request, res: Response): void {
   const body = req.body ?? {};
   const { page, event, visitId } = body;
 
@@ -73,7 +73,14 @@ apiRouter.post('/events', (req: Request, res: Response) => {
     return;
   }
 
-  if (isBotUserAgent(req.headers['user-agent']) || !checkRateLimit(`event:${clientIp(req)}`, EVENT_LIMIT, WRITE_WINDOW_MS)) {
+  // Регистрацию пишет сам сервер при создании аккаунта (recordSignup)
+  if (event === 'signup') {
+    res.status(204).end();
+    return;
+  }
+
+  const ua = req.headers['user-agent'];
+  if (isBotUserAgent(ua) || !checkRateLimit(`event:${clientIp(req)}`, EVENT_LIMIT, WRITE_WINDOW_MS)) {
     res.status(204).end();
     return;
   }
@@ -97,9 +104,14 @@ apiRouter.post('/events', (req: Request, res: Response) => {
     utmSource: body.utmSource,
     utmMedium: body.utmMedium,
     utmCampaign: body.utmCampaign,
+    utmContent: body.utmContent,
+    adClick: typeof body.yclid === 'string' && body.yclid.length > 0,
+    device: deviceFromUserAgent(ua),
   });
   res.status(204).end();
-});
+}
+
+apiRouter.post('/events', handlePageEvent);
 
 // ---- Slug-based routes (мультитенант) ----
 

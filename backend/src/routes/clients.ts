@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, timingSafeEqual } from 'crypto';
 import { getClientsReport, type ClientsReport, type ClientBusiness } from '../services/clients-report';
-import type { PageFunnel } from '../services/page-events';
+import type { PageFunnel, SiteFunnel } from '../services/page-events';
 
 export const clientsRouter = Router();
 
@@ -113,6 +113,28 @@ function renderPageFunnel(f: PageFunnel): string {
   return `<div class="mono">${f.visits} → ${chose} → ${sent}</div>${sources ? `<div class="muted">${sources}</div>` : ''}`;
 }
 
+/** Откуда пришёл владелец; «—» — зарегистрировался до замера (17.10.2026) */
+function renderSignupSource(v: { signupSource: string | null }): string {
+  return v.signupSource ? `<span class="mono">${escapeHtml(v.signupSource)}</span>` : '<span class="muted">—</span>';
+}
+
+/** Воронка сайта по источникам: визиты на лендинг → открыли регистрацию → зарегистрировались. */
+function renderSiteFunnel(f: SiteFunnel, title: string): string {
+  const rows = Object.entries(f.bySource)
+    .sort(([, a], [, b]) => b.signups - a.signups || b.signupOpened - a.signupOpened || b.visits - a.visits)
+    .map(([src, n]) => `
+      <tr><td class="mono">${escapeHtml(src)}</td><td class="num">${n.visits}</td><td class="num">${n.signupOpened}</td><td class="num">${n.signups}</td></tr>`)
+    .join('');
+  return `
+  <h2>${escapeHtml(title)}: ${f.visits} → ${f.signupOpened} → ${f.signups}</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Источник</th><th>Визитов на лендинг</th><th>Открыли регистрацию</th><th>Зарегистрировались</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="muted">Пока ни одного визита</td></tr>'}</tbody>
+    </table>
+  </div>`;
+}
+
 /** Последний заход владельца в панель и в сколько дней после регистрации заходил. */
 function renderOwnerVisits(v: { lastSeenAt: string | null; activeDays: number }): string {
   if (!v.lastSeenAt) return '<span class="muted">—</span>';
@@ -149,6 +171,7 @@ function renderBusinessRow(b: ClientBusiness): string {
       <td>${renderPageFunnel(b.page7d)}</td>
       <td>${renderPageFunnel(b.page30d)}</td>
       <td>${renderOwnerVisits(b)}</td>
+      <td>${renderSignupSource(b)}</td>
       <td>${b.bookingRequestsEnabled ? 'вкл' : '<span class="muted">выкл</span>'}</td>
       <td class="num">${b.botMsgCount}</td>
       <td>${renderContactLinks(b)}</td>
@@ -161,7 +184,7 @@ function renderPage(report: ClientsReport): string {
 
   const businessRows = report.businesses.length
     ? report.businesses.map(renderBusinessRow).join('')
-    : '<tr><td colspan="16" class="muted">Пока нет ни одного бизнеса</td></tr>';
+    : '<tr><td colspan="17" class="muted">Пока нет ни одного бизнеса</td></tr>';
 
   const orphanRows = report.orphanAdmins.length
     ? report.orphanAdmins
@@ -172,10 +195,11 @@ function renderPage(report: ClientsReport): string {
         <td class="mono">${escapeHtml(fmtDateTime(u.createdAt))}</td>
         <td>${u.linkedToTelegram ? 'Telegram привязан' : '<span class="muted">нет</span>'}</td>
         <td>${renderOwnerVisits(u)}</td>
+        <td>${renderSignupSource(u)}</td>
       </tr>`
         )
         .join('')
-    : '<tr><td colspan="4" class="muted">Нет — все зарегистрированные завели бизнес</td></tr>';
+    : '<tr><td colspan="5" class="muted">Нет — все зарегистрированные завели бизнес</td></tr>';
 
   const requestRows = report.recentRequests.length
     ? report.recentRequests
@@ -293,7 +317,12 @@ function renderPage(report: ClientsReport): string {
     ниже — откуда пришли. Владелец, вошедший в панель, и роботы не считаются.
     «Владелец заходил» — последний заход в панель (UTC) и в сколько разных дней он заходил
     после дня регистрации. Пишется с 16.10.2026: «—» у старых значит «не мерили», а не «не заходил».
+    «Сайт» — свой замер без Яндекса: визиты на лендинг → открыли регистрацию → зарегистрировались,
+    по источнику первого захода (utm, домен реферера, «yandex-ad» — клик из Директа без utm).
+    «Откуда пришёл» у владельца — источник визита, с которого он зарегистрировался. Пишется с 17.10.2026.
   </p>
+${renderSiteFunnel(report.site7d, 'Сайт за 7 дней')}
+${renderSiteFunnel(report.site30d, 'Сайт за 30 дней')}
 
   <h2>Бизнесы (${report.businesses.length})</h2>
   <div class="panel">
@@ -312,6 +341,7 @@ function renderPage(report: ClientsReport): string {
           <th>Страница 7 дн.</th>
           <th>Страница 30 дн.</th>
           <th>Владелец заходил</th>
+          <th>Откуда пришёл</th>
           <th>Форма заявок</th>
           <th>Сообщ. боту</th>
           <th>Контакты</th>
@@ -325,7 +355,7 @@ function renderPage(report: ClientsReport): string {
   <h2>Зарегистрировались, но бизнес не завели (${report.orphanAdmins.length})</h2>
   <div class="panel">
     <table>
-      <thead><tr><th>Email</th><th>Регистрация</th><th>Telegram</th><th>Заходил</th></tr></thead>
+      <thead><tr><th>Email</th><th>Регистрация</th><th>Telegram</th><th>Заходил</th><th>Откуда пришёл</th></tr></thead>
       <tbody>${orphanRows}</tbody>
     </table>
   </div>

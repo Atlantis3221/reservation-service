@@ -133,6 +133,7 @@ export const migrations: MigrationFn[] = [
   migrationV3,
   migrationV4,
   migrationV5,
+  migrationV6,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -570,4 +571,29 @@ function migrationV5(d: Database.Database): void {
       PRIMARY KEY (admin_user_id, day)
     )
   `);
+}
+
+// ---- Migration V6: откуда пришёл владелец ----
+
+/**
+ * Свой замер воронки сайта без Яндекса (T-017): визит на лендинг → открыл
+ * регистрацию → зарегистрировался. Метрика теряет визиты при сбоях и
+ * блокировщиках, а нам нужно знать источник каждой регистрации.
+ * utm_content — метка лида в письмах (L-…), device — mobile/desktop по
+ * User-Agent (сам User-Agent не храним). У владельца — источник и кампания
+ * визита, с которого он зарегистрировался; до выкатки — пусто, «не мерили».
+ */
+function migrationV6(d: Database.Database): void {
+  if (!columnExists(d, 'page_events', 'utm_content')) {
+    d.exec('ALTER TABLE page_events ADD COLUMN utm_content TEXT');
+  }
+  if (!columnExists(d, 'page_events', 'device')) {
+    d.exec('ALTER TABLE page_events ADD COLUMN device TEXT');
+  }
+  if (!columnExists(d, 'admin_users', 'signup_source')) {
+    d.exec('ALTER TABLE admin_users ADD COLUMN signup_source TEXT');
+  }
+  if (!columnExists(d, 'admin_users', 'signup_campaign')) {
+    d.exec('ALTER TABLE admin_users ADD COLUMN signup_campaign TEXT');
+  }
 }

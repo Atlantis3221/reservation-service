@@ -51,6 +51,13 @@
   (вебвизору на странице с телефоном не место). Браузер с cookie
   `slotik_nostat=1` не считается: её ставит панель при входе владельца, команда —
   открыв страницу с `?nostat`. Итог — колонки «Страница 7/30 дн.» в /admin/clients.
+- Воронка сайта меряется так же (T-017): лендинг шлёт `view` из инлайн-скрипта
+  и дописывает в ссылки на `admin.slotik.tech/register` свой visitId (`sv`),
+  utm и yclid; панель шлёт `signup_open` на `/admin/events`
+  (`admin/src/lib/track.ts`), а `signup` пишет сам сервер при регистрации и
+  кладёт владельцу `admin_users.signup_source`. Источник визита — по первому
+  событию: `utm:<source>/<campaign|content>`, домен реферера или `yandex-ad`
+  (yclid без utm). Итог — «Сайт за 7/30 дней» и «Откуда пришёл» в /admin/clients.
 - Заходы владельца в панель пишет `authMiddleware` (`services/owner-visits.ts`,
   не чаще раза в 10 мин): `admin_users.last_seen_at` и `owner_visit_days` по
   московским дням. В /admin/clients — `lastSeenAt` и `activeDays` (дни после
