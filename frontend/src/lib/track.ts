@@ -52,6 +52,7 @@ export function trackBusiness(slug: string, event: BusinessEvent): void {
         utmSource: params.get('utm_source'),
         utmMedium: params.get('utm_medium'),
         utmCampaign: params.get('utm_campaign'),
+        utmContent: params.get('utm_content'),
       }),
     }).catch(() => {});
   } catch {
