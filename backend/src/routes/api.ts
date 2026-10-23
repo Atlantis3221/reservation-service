@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getAvailableDateKeys, getSlotsForDateFull, bookRange } from '../services/schedule';
-import { getBusinessBySlug, getContactLinksWithFallback } from '../services/business';
+import { getBusinessBySlug, getContactLinksWithFallback, isExampleSlug } from '../services/business';
 import { createBookingRequest } from '../repositories/booking-request.repository';
 import { notifyBookingRequest, notifyNewBooking } from '../services/booking-notifications';
 import { emitNewBookingRequest } from '../services/booking-events';
@@ -130,6 +130,7 @@ apiRouter.get('/business/:slug', (req: Request<{ slug: string }>, res: Response)
     slotDurationMinutes: biz.slotDurationMinutes,
     minDurationMinutes: biz.minDurationMinutes,
     maxDurationMinutes: biz.maxDurationMinutes,
+    example: isExampleSlug(biz.slug),
   });
 });
 
@@ -151,11 +152,18 @@ apiRouter.get('/business/:slug/free-slots', (req: Request<{ slug: string }>, res
   res.json({ slots: getFreeSlots(biz.id, date, rulesOf(biz)) });
 });
 
+/** Место со страницы-примера о ней не знает: бронь и заявка оттуда не создаются */
+const EXAMPLE_ERROR = 'Это пример, запись не уходит';
+
 /** Мгновенная бронь свободного интервала — без звонка и без подтверждения */
 apiRouter.post('/business/:slug/book', (req: Request<{ slug: string }>, res: Response) => {
   const biz = getBusinessBySlug(req.params.slug);
   if (!biz) {
     res.status(404).json({ error: 'Заведение не найдено' });
+    return;
+  }
+  if (isExampleSlug(biz.slug)) {
+    res.status(403).json({ error: EXAMPLE_ERROR });
     return;
   }
 
@@ -217,6 +225,10 @@ apiRouter.post('/business/:slug/booking-requests', (req: Request<{ slug: string 
   const biz = getBusinessBySlug(req.params.slug);
   if (!biz) {
     res.status(404).json({ error: 'Заведение не найдено' });
+    return;
+  }
+  if (isExampleSlug(biz.slug)) {
+    res.status(403).json({ error: EXAMPLE_ERROR });
     return;
   }
   if (!biz.bookingRequestsEnabled) {

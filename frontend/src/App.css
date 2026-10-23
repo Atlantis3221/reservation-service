@@ -53,6 +53,19 @@
   margin-bottom: 20px;
 }
 
+/* Плашка страницы-примера (H-008): первое, что видит владелец по ссылке
+   из письма, — что это не его настоящая запись и место её не ведёт. */
+.example-note {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--warn-wash);
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
 .page-head h1 {
   font-size: 1.3125rem;
   font-weight: 650;

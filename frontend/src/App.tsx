@@ -6,6 +6,7 @@ import { DayTrack } from './components/DayTrack';
 import { BookingAlt } from './components/BookingAlt';
 import { MonthSheet } from './components/MonthSheet';
 import { BookingSheet, type BookingDraft } from './components/BookingSheet';
+import { Sheet } from './components/Sheet';
 import { trackBusiness } from './lib/track';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { useKeyboardInset } from './hooks/useKeyboardInset';
@@ -67,6 +68,8 @@ function BusinessPage({ slug }: { slug: string }) {
   const [loadingDay, setLoadingDay] = useState(false);
 
   const [sheet, setSheet] = useState<{ slot: FreeSlot | null } | null>(null);
+  // На примере выбор времени не открывает бронь, а объясняет, что это пример
+  const [exampleNote, setExampleNote] = useState(false);
   const [monthOpen, setMonthOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -146,6 +149,12 @@ function BusinessPage({ slug }: { slug: string }) {
       'content',
       `Онлайн-запись в «${business.name}». Выберите свободное время и забронируйте за минуту.`,
     );
+    if (business.example && !document.querySelector('meta[name="robots"]')) {
+      const robots = document.createElement('meta');
+      robots.name = 'robots';
+      robots.content = 'noindex, nofollow';
+      document.head.appendChild(robots);
+    }
   }, [business]);
 
   /**
@@ -201,6 +210,13 @@ function BusinessPage({ slug }: { slug: string }) {
 
   return (
     <div className="page">
+      {business.example && (
+        <p className="example-note" role="note">
+          Это пример: Slotik собрал страницу по часам работы с сайта места. Само место
+          Slotik не пользуется, запись отсюда не уходит. Удалим через 7 дней или по первому слову.
+        </p>
+      )}
+
       <header className="page-head">
         <h1>{business.name}</h1>
         <p>Онлайн-запись · {durationSummary(durationRules(business))}</p>
@@ -229,7 +245,8 @@ function BusinessPage({ slug }: { slug: string }) {
             nextFreeDate={nextFreeDate}
             onPick={(slot) => {
               trackBusiness(slug, 'pick');
-              setSheet({ slot });
+              if (business.example) setExampleNote(true);
+              else setSheet({ slot });
             }}
             onGoToDate={setSelectedDate}
           />
@@ -244,7 +261,8 @@ function BusinessPage({ slug }: { slug: string }) {
         business={business}
         onRequestOwnTime={() => {
           trackBusiness(slug, 'request_open');
-          setSheet({ slot: null });
+          if (business.example) setExampleNote(true);
+          else setSheet({ slot: null });
         }}
       />
 
@@ -261,6 +279,20 @@ function BusinessPage({ slug }: { slug: string }) {
           onSelect={setSelectedDate}
           onClose={() => setMonthOpen(false)}
         />
+      )}
+
+      {exampleNote && (
+        <Sheet
+          label="Это пример"
+          onClose={() => setExampleNote(false)}
+          footer={<button className="btn" type="button" onClick={() => setExampleNote(false)}>Понятно</button>}
+        >
+          <h3 className="sheet-title">Это пример, запись не уходит</h3>
+          <p className="sheet-sub">
+            Так клиент выбирает время: дальше он оставляет имя и телефон, а бронь сразу приходит
+            владельцу. С этой страницы запись никуда не отправится.
+          </p>
+        </Sheet>
       )}
 
       {sheet && selectedDate && (

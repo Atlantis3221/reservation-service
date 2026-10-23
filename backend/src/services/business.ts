@@ -26,6 +26,10 @@ export function generateSlug(name: string): string {
 
   if (slug.length < 3) slug = slug + '-mesto';
   if (isReservedSlug(slug)) slug = `${slug}-mesto`;
+  // Адрес primer-* делает страницу примером, где запись не уходит. Сам он
+  // достаётся только «Пример: …» — так команда называет примеры (H-008);
+  // настоящая «Пример студии» должна принимать брони.
+  if (slug.startsWith(EXAMPLE_SLUG_PREFIX) && !/^\s*пример\s*:/i.test(name)) slug = `mesto-${slug}`;
 
   const existing = getDb()
     .prepare('SELECT slug FROM businesses WHERE slug = ?')
@@ -55,6 +59,18 @@ export const RESERVED_SLUGS = new Set([
 
 export function isReservedSlug(slug: string): boolean {
   return RESERVED_SLUGS.has(slug);
+}
+
+/**
+ * Страница-пример (H-008): команда собирает месту, которое Slotik не
+ * пользуется, страницу записи по часам с его сайта и шлёт ссылку владельцу.
+ * Пометка — адрес с приставкой `primer-`: её ставят из панели сменой адреса,
+ * без кода. Запись с примера не уходит, в цифры он не попадает.
+ */
+export const EXAMPLE_SLUG_PREFIX = 'primer-';
+
+export function isExampleSlug(slug: string): boolean {
+  return slug.startsWith(EXAMPLE_SLUG_PREFIX);
 }
 
 export function isValidSlug(slug: string): boolean {

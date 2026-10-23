@@ -181,6 +181,47 @@ describe('путь холодного пользователя', () => {
     expect(status.body.upcomingBookings).toBe(1);
   });
 
+  it('пример (адрес primer-*) не принимает ни брони, ни заявки (H-008)', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Пример: корт', slug: 'primer-kort' });
+    expect(business.slug).toBe('primer-kort');
+    await call('PUT', '/admin/settings', { businessId: business.id, workingHours: allWeekHours() });
+    await call('POST', '/admin/settings/apply-schedule', { businessId: business.id, days: 7 });
+
+    const info = await call('GET', '/api/business/primer-kort');
+    expect(info.body.example).toBe(true);
+
+    // Время видно — пример показывает, как выглядит запись
+    const dates = await call('GET', '/api/business/primer-kort/available-dates');
+    const day = dates.body.dates[dates.body.dates.length - 1];
+    const slot = (await call('GET', `/api/business/primer-kort/free-slots?date=${day}`)).body.slots[0];
+    expect(slot).toBeDefined();
+
+    const client = { clientName: 'Пётр', clientPhone: '+7 900 111-22-33', consent: true };
+    const booked = await call('POST', '/api/business/primer-kort/book', {
+      date: day, startTime: slot.startTime, endTime: slot.endTime, ...client,
+    });
+    expect(booked.status).toBe(403);
+    expect(booked.body.error).toBe('Это пример, запись не уходит');
+
+    const requested = await call('POST', '/api/business/primer-kort/booking-requests', {
+      preferredDate: day, preferredStartTime: '12:00', preferredEndTime: '13:00', ...client,
+    });
+    expect(requested.status).toBe(403);
+
+    const status = await call('GET', `/admin/business-status?businessId=${business.id}`);
+    expect(status.body.upcomingBookings).toBe(0);
+    const count = getDb().prepare('SELECT COUNT(*) AS n FROM booking_requests WHERE business_id = ?').get(business.id) as any;
+    expect(count.n).toBe(0);
+
+    // «Пример: …» становится примером сам, а настоящая «Пример студии» — нет
+    const named = await call('POST', '/admin/businesses', { name: 'Пример: бильярд' });
+    expect(named.body.business.slug).toBe('primer-bilyard');
+    const { body: { business: real } } = await call('POST', '/admin/businesses', { name: 'Пример студии' });
+    expect(real.slug).toBe('mesto-primer-studii');
+    expect((await call('GET', `/api/business/${real.slug}`)).body.example).toBe(false);
+  });
+
   it('не отдаёт клиентские контакты в публичном API', async () => {
     await registerFreshUser();
     const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Студия' });

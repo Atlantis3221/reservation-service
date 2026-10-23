@@ -17,6 +17,8 @@ export interface BusinessInfo {
   minDurationMinutes?: number;
   /** Максимальная бронь; null — без ограничения, до конца свободного окна */
   maxDurationMinutes?: number | null;
+  /** Страница-пример (H-008): место Slotik не пользуется, запись не уходит */
+  example?: boolean;
 }
 
 export interface FreeSlot {

@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+# Страницы-примеры (H-008): место Slotik не пользуется — не для поиска
+Disallow: /primer-
 
 Sitemap: https://slotik.tech/sitemap.xml
