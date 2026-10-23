@@ -1,13 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Sheet } from './Sheet';
+import { useEffect, useMemo, useState } from 'react';
 import { fromDateKey, pad2 } from '../lib/day';
 
 interface Props {
   todayKey: string;
+  /** Даты, в которые реально есть что забронировать */
   freeDates: Set<string>;
   selected: string | null;
   onSelect: (dateKey: string) => void;
-  onClose: () => void;
 }
 
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
@@ -17,15 +16,17 @@ const MONTHS = [
 ];
 
 /**
- * Месяц на случай «а что через три недели». В первый экран он не выведен:
- * на телефоне сетка занимала две трети высоты и всё равно не отвечала на
- * главный вопрос — в какое время можно прийти.
+ * Месяц на всю ширину — первое, что видит клиент (директор, M-0337).
+ * Полоса дат рядом с таймлайном дня читалась как «непонятно, куда жать»:
+ * здесь нажимаются только дни со свободным временем, и они залиты цветом.
  */
-export function MonthSheet({ todayKey, freeDates, selected, onSelect, onClose }: Props) {
-  const [month, setMonth] = useState(() => {
-    const d = fromDateKey(selected || todayKey);
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
+export function MonthCalendar({ todayKey, freeDates, selected, onSelect }: Props) {
+  const [month, setMonth] = useState(() => monthOf(selected || todayKey));
+
+  // Выбранный день ушёл в другой месяц («Ближайшее свободное») — листаем за ним
+  useEffect(() => {
+    if (selected) setMonth(monthOf(selected));
+  }, [selected]);
 
   const cells = useMemo(() => {
     const first = new Date(month.year, month.month, 1);
@@ -37,8 +38,12 @@ export function MonthSheet({ todayKey, freeDates, selected, onSelect, onClose }:
     for (let d = 1; d <= daysInMonth; d++) {
       out.push(`${month.year}-${pad2(month.month + 1)}-${pad2(d)}`);
     }
-    return out;
-  }, [month]);
+    // Прошедшие недели не показываем: на телефоне они занимали полкалендаря
+    // серыми днями, по которым нельзя нажать
+    const weeks: Array<string | null>[] = [];
+    for (let i = 0; i < out.length; i += 7) weeks.push(out.slice(i, i + 7));
+    return weeks.filter((week) => week.some((d) => d !== null && d >= todayKey)).flat();
+  }, [month, todayKey]);
 
   // Назад в прошлое ходить некуда: забронировать вчерашний день нельзя.
   const atFirstMonth = useMemo(() => {
@@ -54,7 +59,7 @@ export function MonthSheet({ todayKey, freeDates, selected, onSelect, onClose }:
   }
 
   return (
-    <Sheet onClose={onClose} label="Выбор даты">
+    <section className="month" aria-label="Выбор дня">
       <div className="month-head">
         <h2 className="month-title">{MONTHS[month.month]} {month.year}</h2>
         <div className="month-nav">
@@ -81,34 +86,35 @@ export function MonthSheet({ todayKey, freeDates, selected, onSelect, onClose }:
         {cells.map((dateKey, i) => {
           if (!dateKey) return <span key={`pad-${i}`} className="month-cell month-cell--pad" />;
 
-          const past = dateKey < todayKey;
-          const free = freeDates.has(dateKey);
+          const free = dateKey >= todayKey && freeDates.has(dateKey);
 
           let cls = 'month-cell';
-          if (past) cls += ' month-cell--past';
+          if (free) cls += ' month-cell--free';
           if (dateKey === selected) cls += ' month-cell--on';
           if (dateKey === todayKey) cls += ' month-cell--today';
-          if (free && !past) cls += ' month-cell--free';
 
           return (
             <button
               key={dateKey}
               type="button"
               className={cls}
-              disabled={past}
-              onClick={() => { onSelect(dateKey); onClose(); }}
+              disabled={!free && dateKey !== selected}
+              aria-pressed={dateKey === selected}
+              aria-label={`${fromDateKey(dateKey).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}${free ? '' : ', записи нет'}`}
+              onClick={() => onSelect(dateKey)}
             >
               {Number(dateKey.slice(8))}
             </button>
           );
         })}
       </div>
-
-      <p className="month-legend">
-        <span className="month-legend-dot" /> есть свободное время
-      </p>
-    </Sheet>
+    </section>
   );
+}
+
+function monthOf(dateKey: string): { year: number; month: number } {
+  const d = fromDateKey(dateKey);
+  return { year: d.getFullYear(), month: d.getMonth() };
 }
 
 function Chevron({ dir }: { dir: 'left' | 'right' }) {

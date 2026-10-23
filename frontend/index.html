@@ -2,6 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <!-- В адресе может быть личная ссылка клиента (?zapis=…): наружу и на
+       лендинг с Метрикой уходит только домен, без пути и параметров -->
+  <meta name="referrer" content="strict-origin" />
   <!-- interactive-widget: браузер сам сжимает вьюпорт под клавиатуру, и нижний
        лист с формой не уезжает под неё. Где не поддерживается (iOS Safari) —
        добирает useKeyboardInset через visualViewport. -->

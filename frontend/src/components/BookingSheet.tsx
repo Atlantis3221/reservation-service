@@ -21,7 +21,8 @@ interface Props {
   draft: BookingDraft;
   onDraftChange: (draft: BookingDraft) => void;
   onClose: () => void;
-  onBooked: () => void;
+  /** clientToken — личная ссылка клиента на запись; у заявки её нет */
+  onBooked: (clientToken?: string) => void;
 }
 
 type Field = 'name' | 'phone' | 'time' | 'consent';
@@ -45,6 +46,7 @@ export function BookingSheet({
   const [error, setError] = useState('');
   const [invalid, setInvalid] = useState<Partial<Record<Field, string>>>({});
   const [done, setDone] = useState<'booked' | 'requested' | null>(null);
+  const [clientToken, setClientToken] = useState<string | null>(null);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -107,9 +109,10 @@ export function BookingSheet({
     setSubmitting(true);
     setError('');
 
+    let token: string | undefined;
     try {
       if (slot) {
-        await publicApi.book(business.slug, {
+        const booked = await publicApi.book(business.slug, {
           date,
           startTime: slot.startTime,
           endTime: slot.fullDay ? slot.endTime : endTime,
@@ -119,6 +122,8 @@ export function BookingSheet({
           consent: true,
         });
         setDone('booked');
+        token = booked.clientToken;
+        setClientToken(token ?? null);
         trackBusiness(business.slug, 'booked');
       } else {
         await publicApi.createRequest(business.slug, {
@@ -133,7 +138,7 @@ export function BookingSheet({
         setDone('requested');
         trackBusiness(business.slug, 'requested');
       }
-      onBooked();
+      onBooked(token);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось отправить');
     } finally {
@@ -158,6 +163,7 @@ export function BookingSheet({
                 : `${dateWithWeekday(date)}, ${slot?.startTime}–${endTime}. «${business.name}» получил вашу запись.`
               : 'Владелец свяжется с вами, чтобы подтвердить время.'}
           </p>
+          {clientToken && <BookingLink slug={business.slug} token={clientToken} />}
           <button className="btn" onClick={onClose} type="button">Готово</button>
         </div>
       </Sheet>
@@ -305,5 +311,33 @@ export function BookingSheet({
         )}
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * Личная ссылка клиента на запись (директор, M-0337): её можно сохранить
+ * или переслать — по ней видно место, день и время.
+ */
+function BookingLink({ slug, token }: { slug: string; token: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/${slug}?zapis=${token}`;
+
+  async function copy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      // Буфер обмена недоступен (старый браузер, не https) — ссылку видно, её можно выделить
+    }
+  }
+
+  return (
+    <div className="my-link">
+      <p className="my-link-label">Ваша ссылка на запись — сохраните её:</p>
+      <a className="my-link-url" href={url}>{url.replace(/^https?:\/\//, '')}</a>
+      <button className="btn-quiet" type="button" onClick={copy}>
+        {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+      </button>
+    </div>
   );
 }

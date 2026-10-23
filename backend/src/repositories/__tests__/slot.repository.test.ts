@@ -52,6 +52,7 @@ function createSchema(db: Database.Database): void {
       note         TEXT,
       client_name  TEXT,
       client_phone TEXT,
+      client_token TEXT,
       FOREIGN KEY (business_id) REFERENCES businesses(id)
     )
   `);

@@ -16,26 +16,22 @@
   padding: 26px 16px calc(28px + env(safe-area-inset-bottom));
 }
 
-/* Расписание — одно целое: сетка времени и календарь дня стоят рядом и
-   ничем не разделены. На телефоне складываются в столбик, на десктопе
-   встают в две колонки: узкая колонка в 460px оставляла полэкрана пустым. */
-.schedule {
-  display: grid;
-  gap: 26px;
-}
-
+/* Десктоп: календарь на всю ширину колонки, время под ним (директор,
+   M-0337). Две колонки «время | таймлайн» читались как два разных выбора. */
 @media (min-width: 760px) {
   .page {
-    max-width: 900px;
+    max-width: 640px;
     padding: 40px 28px 48px;
   }
+}
 
-  .schedule {
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 36px;
-    align-items: start;
-  }
-
+/* Шаги «день → время»: клиенту сразу видно, что и в каком порядке нажимать */
+.step {
+  margin: 26px 0 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.01em;
 }
 
 .sr-only {
@@ -81,106 +77,10 @@
   color: var(--muted);
 }
 
-/* ── Полоса дат ── */
-
-.rail {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-  margin-bottom: 26px;
-}
-
-.rail-track {
-  display: flex;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  /* Растворяем край: обрезанный день читается как «полоса продолжается».
-     scroll-snap здесь намеренно нет — при любом изменении раскладки
-     (открылся лист, спрятался скроллбар) браузер переснапливал полосу
-     и она уезжала на два дня в сторону. */
-  mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 16px), transparent 100%);
-}
-
-.rail-track::-webkit-scrollbar { display: none; }
-
-.rail-day {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 46px;
-  min-height: 58px;
-  padding: 6px 0;
-  border: none;
-  border-radius: var(--r);
-  background: transparent;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
-}
-
-.rail-dow {
-  font-size: 0.6875rem;
-  color: var(--faint);
-  transition: color var(--dur) var(--ease);
-}
-
-.rail-day--weekend .rail-dow { color: var(--muted); }
-
-.rail-num {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.15;
-  transition: color var(--dur) var(--ease);
-}
-
-/* Дни без свободного времени не прячем — человек должен видеть, что день
-   есть, просто занят */
-.rail-day--busy .rail-num { color: var(--faint); font-weight: 400; }
-
-.rail-day:hover:not(.rail-day--on) { background: var(--paper-2); }
-
-.rail-day--on {
-  background: var(--accent);
-}
-
-.rail-day--on .rail-num,
-.rail-day--on .rail-dow {
-  color: #fff;
-}
-
-.rail-more {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  border: none;
-  border-radius: var(--r);
-  background: var(--paper-2);
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
-}
-
-.rail-more:hover { background: var(--paper-3); color: var(--ink); }
-
 /* ── День ── */
 
-.day-head {
-  margin-bottom: 14px;
-}
-
 .day-title {
+  margin-bottom: 12px;
   font-size: 1.0625rem;
   font-weight: 640;
   color: var(--ink);
@@ -190,12 +90,6 @@
 }
 
 .day-title::first-letter { text-transform: uppercase; }
-
-.day-meta {
-  margin-top: 2px;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
 
 /* ── Сетка времени ── */
 
@@ -241,21 +135,6 @@
 .slot-hint {
   font-size: 0.75rem;
   color: var(--accent);
-}
-
-/* Занятое время. Зачёркнутое читается как «нельзя» без единого слова, а
-   тёплая серая заливка по светлоте заметно ниже зелёной — различие видно
-   краем глаза, не вчитываясь. */
-.slot--busy {
-  background: var(--paper-2);
-  color: var(--faint);
-  cursor: default;
-}
-
-.slot--busy .slot-time {
-  font-weight: 400;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
 }
 
 /* Сутки — одна широкая кнопка вместо сетки. Слова здесь набраны основным
@@ -320,150 +199,6 @@
 
 @keyframes pulse {
   50% { opacity: 0.45; }
-}
-
-/* ── Календарь дня ── */
-
-.cal-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.cal-head h3 {
-  font-size: 0.9375rem;
-  font-weight: 640;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-
-.cal-head span {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-/* Час — минимальная бронь, поэтому линия на каждый час: сетка в три часа
-   читалась как случайные отметки. */
-.cal-body {
-  display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 0 8px;
-}
-
-.cal-hours {
-  position: relative;
-}
-
-.cal-hours span {
-  position: absolute;
-  right: 0;
-  transform: translateY(-50%);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--faint);
-  white-space: nowrap;
-}
-
-.cal-grid {
-  position: relative;
-  height: 100%;
-  border-radius: var(--r-xs);
-}
-
-.cal-hourline {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px solid var(--line);
-}
-
-/* Рабочее время залито, закрытое остаётся фоном страницы: так видно, что
-   до открытия и после закрытия времени просто нет. */
-.cal-open {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background: var(--accent-wash);
-}
-
-/* Границы смены — линии, а не подписи над и под картинкой */
-.cal-edge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px solid var(--accent);
-  z-index: 3;
-  pointer-events: none;
-}
-
-/* Подпись светлая, линия — цветная: сама граница и так видна линией,
-   а две сплошные зелёные плашки добавляли странице веса. */
-.cal-edge span {
-  position: absolute;
-  right: 4px;
-  top: -8px;
-  padding: 1px 6px;
-  border-radius: var(--r-xs);
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--accent-line);
-  color: var(--accent-deep);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-/* Занято — плотная бумага с чернильной полосой слева, как в календаре
-   владельца. Чёрная плита читалась мгновенно, но перетягивала на себя весь
-   экран: занятое время — не то, на что клиент должен смотреть. */
-.cal-busy {
-  position: absolute;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  padding: 2px 8px 2px 10px;
-  border-top: 1px solid var(--paper);
-  border-bottom: 1px solid var(--paper);
-  box-sizing: border-box;
-  border-radius: var(--r-xs);
-  background: var(--paper-3);
-  box-shadow: inset 3px 0 0 var(--ink-soft);
-  z-index: 2;
-}
-
-.cal-busy span {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cal-now {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1.5px solid var(--danger);
-  z-index: 4;
-}
-
-.cal-now::before {
-  content: '';
-  position: absolute;
-  left: -3px;
-  top: -4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--danger);
 }
 
 /* ── Альтернативы записи ── */
@@ -859,15 +594,22 @@
 /* toLocaleDateString отдаёт «пятница» со строчной, а это начало фразы */
 .done p::first-letter { text-transform: uppercase; }
 
-/* ── Месяц в листе ── */
+/* ── Месяц ── */
+
+.month {
+  padding: 14px 12px 12px;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
 
 .month-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
-  padding-right: 34px;
+  margin-bottom: 8px;
+  padding-left: 6px;
 }
 
 .month-title {
@@ -933,50 +675,82 @@
 
 .month-cell--pad { cursor: default; }
 
-.month-cell:hover:not(:disabled):not(.month-cell--on) { background: var(--paper-2); }
-
-.month-cell--past {
+.month-cell:disabled {
   color: var(--faint);
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: default;
 }
 
-.month-cell--today { font-weight: 500; color: var(--ink); }
+.month-cell--today { font-weight: 600; }
 
-/* Доступность дня — точка. На залитом выбранном дне она белая. */
-.month-cell--free::after {
-  content: '';
-  position: absolute;
-  bottom: 7px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
+/* День со свободным временем залит, как кнопка времени: нажимается только он */
+.month-cell--free {
+  background: var(--accent-line);
+  color: var(--accent-deep);
+  font-weight: 500;
 }
 
-.month-cell--on {
+.month-cell--free:hover:not(.month-cell--on) { background: var(--accent); color: #fff; }
+
+.month-cell--on,
+.month-cell--on:disabled {
   background: var(--accent);
   color: #fff;
+  opacity: 1;
 }
 
-.month-cell--on::after { background: rgba(255, 255, 255, 0.9); }
+/* ── Моя запись (личная ссылка клиента) ── */
 
-.month-legend {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 16px 0 4px;
+.my {
+  margin-top: 18px;
+  padding: 16px 16px 14px;
+  border-radius: var(--r);
+  background: var(--accent-wash);
+}
+
+.my-kicker {
   font-size: 0.8125rem;
-  color: var(--faint);
+  font-weight: 600;
+  color: var(--accent);
 }
 
-.month-legend-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
+.my-when {
+  margin-top: 4px;
+  font-size: 1.0625rem;
+  font-weight: 640;
+  color: var(--ink);
+}
+
+.my-when::first-letter { text-transform: uppercase; }
+
+.my-where {
+  margin-top: 2px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.my .alt-contacts { margin-top: 10px; }
+
+.my-link {
+  display: grid;
+  gap: 8px;
+  margin: -8px 0 20px;
+  text-align: left;
+}
+
+.my-link-label {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.my-link-url {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--ink);
+  word-break: break-all;
 }
 
 /* ── Загрузка и ошибки ── */
@@ -1113,8 +887,6 @@
 
 @media (max-width: 380px) {
   .page { padding: 22px 14px calc(24px + env(safe-area-inset-bottom)); }
-
-  .rail-day { width: 42px; }
 
   .slots,
   .day-skeleton { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }

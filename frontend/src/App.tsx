@@ -1,16 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { publicApi, type BusinessInfo, type DaySlot, type FreeSlot } from './api';
-import { DateRail } from './components/DateRail';
+import { MonthCalendar } from './components/MonthCalendar';
 import { DayTimes } from './components/DayTimes';
-import { DayTrack } from './components/DayTrack';
 import { BookingAlt } from './components/BookingAlt';
-import { MonthSheet } from './components/MonthSheet';
+import { MyBooking } from './components/MyBooking';
 import { BookingSheet, type BookingDraft } from './components/BookingSheet';
 import { Sheet } from './components/Sheet';
 import { trackBusiness } from './lib/track';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { useKeyboardInset } from './hooks/useKeyboardInset';
-import { MINUTES_IN_DAY, addDays, durationRules, durationSummary, nowInBusinessTz } from './lib/day';
+import { durationRules, durationSummary, nowInBusinessTz } from './lib/day';
 import './App.css';
 
 const LANDING_URL = 'https://slotik.tech';
@@ -51,6 +50,11 @@ function RootRedirect() {
   );
 }
 
+/** Личная ссылка клиента на его запись: slotik.tech/<место>?zapis=<токен> */
+function readBookingParam(): string | null {
+  return new URLSearchParams(window.location.search).get('zapis');
+}
+
 function readDateParam(): string | null {
   const value = new URLSearchParams(window.location.search).get('date');
   return value && DATE_RE.test(value) ? value : null;
@@ -70,7 +74,7 @@ function BusinessPage({ slug }: { slug: string }) {
   const [sheet, setSheet] = useState<{ slot: FreeSlot | null } | null>(null);
   // На примере выбор времени не открывает бронь, а объясняет, что это пример
   const [exampleNote, setExampleNote] = useState(false);
-  const [monthOpen, setMonthOpen] = useState(false);
+  const [bookingToken, setBookingToken] = useState<string | null>(readBookingParam);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Черновик живёт на странице, а не в листе: случайный тап по фону больше
@@ -171,21 +175,16 @@ function BusinessPage({ slug }: { slug: string }) {
     return upcoming || null;
   }, [freeDates, selectedDate, todayKey]);
 
-  /**
-   * «Сейчас» в координатах дорожки дня: у смены через полночь минуты после
-   * неё лежат в тех же сутках расписания, поэтому сдвигаются на 1440.
-   */
-  const trackNow = useMemo(() => {
-    if (!selectedDate) return null;
-    const { minutes } = nowInBusinessTz();
-    if (selectedDate === todayKey) return minutes;
-    if (addDays(selectedDate, 1) === todayKey) return minutes + MINUTES_IN_DAY;
-    return null;
-  }, [selectedDate, todayKey]);
-
-  const handleBooked = useCallback(() => {
+  const handleBooked = useCallback((clientToken?: string) => {
     setRefreshKey((k) => k + 1);
     setDraft({ name: '', phone: '', comment: '' });
+    // Ссылка на запись сразу в адресной строке: обновил или сохранил
+    // страницу — запись перед глазами
+    if (!clientToken) return;
+    setBookingToken(clientToken);
+    const url = new URL(window.location.href);
+    url.searchParams.set('zapis', clientToken);
+    window.history.replaceState({}, '', url.toString());
   }, []);
 
   if (loading) {
@@ -222,25 +221,24 @@ function BusinessPage({ slug }: { slug: string }) {
         <p>Онлайн-запись · {durationSummary(durationRules(business))}</p>
       </header>
 
-      <DateRail
+      {bookingToken && <MyBooking business={business} token={bookingToken} />}
+
+      <h2 className="step">Выберите день</h2>
+      <MonthCalendar
         todayKey={todayKey}
         freeDates={freeDateSet}
         selected={selectedDate}
         onSelect={setSelectedDate}
-        onOpenMonth={() => setMonthOpen(true)}
       />
 
-      {/* Расписание — один блок: сетка времени и календарь дня стоят рядом
-          и ничем не разделены. Календарь не отдельный режим, а вторая
-          проекция того же дня. */}
       {selectedDate && (
-        <div className="schedule">
+        <>
+          <h2 className="step">Выберите время</h2>
           <DayTimes
             dateKey={selectedDate}
-            todayKey={todayKey}
             business={business}
             freeSlots={freeSlots}
-            daySlots={daySlots}
+            hasSchedule={daySlots.length > 0}
             loading={loadingDay}
             nextFreeDate={nextFreeDate}
             onPick={(slot) => {
@@ -250,11 +248,7 @@ function BusinessPage({ slug }: { slug: string }) {
             }}
             onGoToDate={setSelectedDate}
           />
-
-          {!loadingDay && daySlots.length > 0 && (
-            <DayTrack daySlots={daySlots} nowMinutes={trackNow} />
-          )}
-        </div>
+        </>
       )}
 
       <BookingAlt
@@ -270,16 +264,6 @@ function BusinessPage({ slug }: { slug: string }) {
         <a href="/privacy">Обработка персональных данных</a>
         <a href={LANDING_URL} target="_blank" rel="noopener">Работает на slotik.tech</a>
       </footer>
-
-      {monthOpen && (
-        <MonthSheet
-          todayKey={todayKey}
-          freeDates={freeDateSet}
-          selected={selectedDate}
-          onSelect={setSelectedDate}
-          onClose={() => setMonthOpen(false)}
-        />
-      )}
 
       {exampleNote && (
         <Sheet

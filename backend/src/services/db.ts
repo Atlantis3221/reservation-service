@@ -134,6 +134,7 @@ export const migrations: MigrationFn[] = [
   migrationV4,
   migrationV5,
   migrationV6,
+  migrationV7,
 ];
 
 function tableExists(d: Database.Database, name: string): boolean {
@@ -596,4 +597,16 @@ function migrationV6(d: Database.Database): void {
   if (!columnExists(d, 'admin_users', 'signup_campaign')) {
     d.exec('ALTER TABLE admin_users ADD COLUMN signup_campaign TEXT');
   }
+}
+
+/**
+ * Личная ссылка клиента на его запись (директор, M-0337): случайный токен у
+ * брони. По нему клиент видит, куда и когда записан, без входа и без
+ * телефона в адресе. У старых броней токена нет — ссылки у них не было.
+ */
+function migrationV7(d: Database.Database): void {
+  if (!columnExists(d, 'slots', 'client_token')) {
+    d.exec('ALTER TABLE slots ADD COLUMN client_token TEXT');
+  }
+  d.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_slots_client_token ON slots(client_token) WHERE client_token IS NOT NULL');
 }

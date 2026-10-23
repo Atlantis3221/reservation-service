@@ -172,6 +172,15 @@ describe('путь холодного пользователя', () => {
       consent: true,
     });
     expect(booked.status).toBe(200);
+    expect(booked.body.clientToken).toMatch(/^[a-f0-9]{32}$/);
+
+    // Личная ссылка клиента открывает его запись — и только в своём заведении
+    const mine = await call('GET', `/api/business/${business.slug}/booking/${booked.body.clientToken}`);
+    expect(mine.status).toBe(200);
+    expect(mine.body).toMatchObject({ date: day, startTime: slot.startTime, endTime: slot.endTime, clientName: 'Пётр' });
+    expect(mine.body.clientPhone).toBeUndefined();
+    expect((await call('GET', `/api/business/demo-other/booking/${booked.body.clientToken}`)).status).toBe(404);
+    expect((await call('GET', `/api/business/${business.slug}/booking/${'0'.repeat(32)}`)).status).toBe(404);
 
     const afterBooking = await call('GET', `/api/business/${business.slug}/free-slots?date=${day}`);
     expect(afterBooking.body.slots.map((s: any) => s.startTime)).not.toContain(slot.startTime);

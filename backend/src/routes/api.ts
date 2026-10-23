@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
+import { randomBytes } from 'crypto';
 import { getAvailableDateKeys, getSlotsForDateFull, bookRange } from '../services/schedule';
 import { getBusinessBySlug, getContactLinksWithFallback, isExampleSlug } from '../services/business';
 import { createBookingRequest } from '../repositories/booking-request.repository';
+import { getBookingByClientToken } from '../repositories/slot.repository';
 import { notifyBookingRequest, notifyNewBooking } from '../services/booking-notifications';
 import { emitNewBookingRequest } from '../services/booking-events';
 import {
@@ -197,6 +199,8 @@ apiRouter.post('/business/:slug/book', (req: Request<{ slug: string }>, res: Res
     return;
   }
 
+  // Личная ссылка клиента на его запись: показываем её сразу после брони
+  const clientToken = randomBytes(16).toString('hex');
   const booking = bookRange(
     biz.id,
     date,
@@ -205,6 +209,7 @@ apiRouter.post('/business/:slug/book', (req: Request<{ slug: string }>, res: Res
     contact.data.comment,
     contact.data.clientName,
     contact.data.clientPhone,
+    clientToken,
   );
 
   notifyNewBooking(biz, {
@@ -217,7 +222,30 @@ apiRouter.post('/business/:slug/book', (req: Request<{ slug: string }>, res: Res
   });
   emitNewBookingRequest(biz.id);
 
-  res.json({ ok: true, id: booking.id });
+  res.json({ ok: true, id: booking.id, clientToken });
+});
+
+const CLIENT_TOKEN_RE = /^[a-f0-9]{32}$/;
+
+/**
+ * Запись клиента по его личной ссылке: место, дата и время. Телефон не
+ * отдаём — он и так у клиента. Чужое заведение или отменённая бронь — 404.
+ */
+apiRouter.get('/business/:slug/booking/:token', (req: Request<{ slug: string; token: string }>, res: Response) => {
+  const biz = getBusinessBySlug(req.params.slug);
+  const booking = biz && CLIENT_TOKEN_RE.test(req.params.token)
+    ? getBookingByClientToken(req.params.token)
+    : null;
+  if (!biz || !booking || booking.businessId !== biz.id) {
+    res.status(404).json({ error: 'Запись не найдена' });
+    return;
+  }
+  res.json({
+    date: booking.dateKey,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    clientName: booking.clientName,
+  });
 });
 
 /** Заявка на своё время — когда ни один свободный интервал не подошёл */

@@ -153,3 +153,14 @@ describe('migration v1 — idempotent on existing database', () => {
     expect(admin.cnt).toBe(1);
   });
 });
+
+describe('migration v7 — личная ссылка клиента на бронь', () => {
+  it('добавляет client_token и не даёт двум броням один токен', () => {
+    testDb.exec("CREATE TABLE slots (id INTEGER PRIMARY KEY, status TEXT)");
+    migrations[6](testDb);
+    migrations[6](testDb); // повторный прогон не падает
+
+    testDb.prepare("INSERT INTO slots (status, client_token) VALUES ('booked', 'a'), ('booked', NULL), ('available', NULL)").run();
+    expect(() => testDb.prepare("INSERT INTO slots (status, client_token) VALUES ('booked', 'a')").run()).toThrow();
+  });
+});

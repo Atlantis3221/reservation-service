@@ -172,15 +172,43 @@ export function bookRange(
   note?: string,
   clientName?: string,
   clientPhone?: string,
+  /** Личная ссылка клиента на бронь — пишется в той же строке, без второго запроса */
+  clientToken?: string,
 ): { id: number; count: number } {
   const result = getDb()
     .prepare(
-      `INSERT INTO slots (business_id, date_key, start_time, end_time, status, note, client_name, client_phone)
-       VALUES (?, ?, ?, ?, 'booked', ?, ?, ?)`
+      `INSERT INTO slots (business_id, date_key, start_time, end_time, status, note, client_name, client_phone, client_token)
+       VALUES (?, ?, ?, ?, 'booked', ?, ?, ?, ?)`
     )
-    .run(businessId, dateKey, startTime, endTime, note ?? null, clientName ?? null, clientPhone ?? null);
+    .run(businessId, dateKey, startTime, endTime, note ?? null, clientName ?? null, clientPhone ?? null, clientToken ?? null);
 
   return { id: Number(result.lastInsertRowid), count: 1 };
+}
+
+export interface ClientBooking {
+  businessId: number;
+  dateKey: string;
+  startTime: string;
+  endTime: string;
+  clientName: string | null;
+}
+
+/**
+ * Бронь по личной ссылке клиента. Отменённая бронь удаляется из slots,
+ * поэтому по её ссылке ничего не находится — это и есть «запись отменена».
+ */
+export function getBookingByClientToken(token: string): ClientBooking | null {
+  const row = getDb()
+    .prepare("SELECT business_id, date_key, start_time, end_time, client_name FROM slots WHERE client_token = ? AND status = 'booked'")
+    .get(token) as any;
+  if (!row) return null;
+  return {
+    businessId: row.business_id,
+    dateKey: row.date_key,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    clientName: row.client_name ?? null,
+  };
 }
 
 export function updateBooking(

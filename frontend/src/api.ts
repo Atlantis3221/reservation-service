@@ -65,6 +65,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
+/** Запись клиента по его личной ссылке */
+export interface MyBookingInfo {
+  date: string;
+  startTime: string;
+  endTime: string;
+  clientName: string | null;
+}
+
 export interface BookingPayload {
   date: string;
   startTime: string;
@@ -98,10 +106,13 @@ export const publicApi = {
     request<{ slots: FreeSlot[] }>(`/business/${slug}/free-slots?date=${date}`).then((r) => r.slots || []),
 
   book: (slug: string, payload: BookingPayload) =>
-    request<{ ok: boolean; id: number }>(`/business/${slug}/book`, {
+    request<{ ok: boolean; id: number; clientToken?: string }>(`/business/${slug}/book`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  getMyBooking: (slug: string, token: string) =>
+    request<MyBookingInfo>(`/business/${slug}/booking/${encodeURIComponent(token)}`),
 
   createRequest: (slug: string, payload: RequestPayload) =>
     request<{ ok: boolean; id: number }>(`/business/${slug}/booking-requests`, {
