@@ -204,6 +204,19 @@ function renderPage(report: ClientsReport): string {
     ? report.businesses.map((b) => renderBusinessRow(b, isFresh(b.createdAt, report.generatedAt))).join('')
     : '<tr><td colspan="17" class="muted">Пока нет ни одного бизнеса</td></tr>';
 
+  const ex = report.examples;
+  const exampleRows = ex.pages.length
+    ? ex.pages.map((p) => `
+      <tr>
+        <td><div>${escapeHtml(p.name)}</div><div class="mono muted">/${escapeHtml(p.slug)}</div></td>
+        <td class="mono">${escapeHtml(fmtDateTime(p.createdAt))}</td>
+        <td>${renderPageFunnel(p.page7d)}</td>
+        <td>${renderPageFunnel(p.page30d)}</td>
+        <td class="mono">${p.firstVisitAt ? escapeHtml(fmtDateTime(p.firstVisitAt)) : '<span class="muted">не открывали</span>'}</td>
+        <td class="mono">${p.leads.length ? escapeHtml(p.leads.join(', ')) : '<span class="muted">—</span>'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" class="muted">Примеров нет</td></tr>';
+
   const orphanRows = report.orphanAdmins.length
     ? report.orphanAdmins
         .map(
@@ -374,6 +387,19 @@ ${renderSiteFunnel(report.site30d, 'Сайт за 30 дней')}
         </tr>
       </thead>
       <tbody>${businessRows}</tbody>
+    </table>
+  </div>
+
+  <h2>Примеры (${ex.total}): открыли ${ex.opened}, выбрали время на ${ex.chose}</h2>
+  <p class="note">
+    Страницы-примеры (адрес primer-*): команда собрала их местам, которые Slotik не пользуются,
+    и отправила владельцам (H-008). Запись с них не уходит, в итоги и таблицу бизнесов выше они не входят,
+    аккаунт с ними — тоже. «Лид» — метка из ссылки в письме.
+  </p>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Пример</th><th>Создан</th><th>Страница 7 дн.</th><th>Страница 30 дн.</th><th>Первый заход</th><th>Лид</th></tr></thead>
+      <tbody>${exampleRows}</tbody>
     </table>
   </div>
 

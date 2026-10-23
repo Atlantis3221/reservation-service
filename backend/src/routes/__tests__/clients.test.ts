@@ -46,6 +46,7 @@ vi.mock('../../services/clients-report', () => ({
         activeDays: 2,
         signupSource: 'utm:ads/A-003',
         signupCampaign: 'A-003',
+        example: false,
       },
     ],
     orphanAdmins: [
@@ -59,6 +60,23 @@ vi.mock('../../services/clients-report', () => ({
       bySource: { 'utm:ads/A-003': { visits: 30, signupOpened: 5, signups: 2 }, '<ref>': { visits: 10, signupOpened: 1, signups: 0 } },
     },
     site30d: { visits: 0, signupOpened: 0, signups: 0, mobileVisits: 0, byDay: {}, bySource: {} },
+    examples: {
+      total: 2, opened: 1, chose: 1,
+      pages: [
+        {
+          name: 'Пример: теннис', slug: 'primer-tennis', createdAt: '2026-10-21 18:00:00',
+          page7d: { visits: 1, picked: 1, requestOpened: 0, booked: 0, requested: 0, sources: { 'utm:outreach': 1 } },
+          page30d: { visits: 1, picked: 1, requestOpened: 0, booked: 0, requested: 0, sources: { 'utm:outreach': 1 } },
+          firstVisitAt: '2026-10-22 08:15:00', leads: ['L-031'],
+        },
+        {
+          name: 'Пример: <лофт>', slug: 'primer-loft', createdAt: '2026-10-21 18:00:00',
+          page7d: { visits: 0, picked: 0, requestOpened: 0, booked: 0, requested: 0, sources: {} },
+          page30d: { visits: 0, picked: 0, requestOpened: 0, booked: 0, requested: 0, sources: {} },
+          firstVisitAt: null, leads: [],
+        },
+      ],
+    },
     recentRequests: [],
   }),
 }));
@@ -158,6 +176,15 @@ describe('clients page — авторизация', () => {
     expect(body).toContain('&lt;ref&gt;');
     expect(body).not.toContain('<ref>');
     expect(body).toContain('Откуда пришёл');
+  });
+
+  it('показывает примеры отдельным блоком: заходы, первый заход и лид (H-008)', async () => {
+    const html = await (await fetch(base, { headers: { authorization: basic(PASSWORD) } })).text();
+    expect(html).toContain('Примеры (2): открыли 1, выбрали время на 1');
+    expect(html).toContain('2026-10-22 11:15 МСК');
+    expect(html).toContain('L-031');
+    expect(html).toContain('не открывали');
+    expect(html).toContain('Пример: &lt;лофт&gt;');
   });
 
   it('отдаёт JSON по format=json', async () => {

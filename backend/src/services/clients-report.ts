@@ -3,6 +3,7 @@ import {
   emptyPageFunnel, getBusinessPageFunnels, getSiteFunnel, type PageFunnel, type SiteFunnel,
 } from './page-events';
 import { getOwnerVisits } from './owner-visits';
+import { EXAMPLE_SLUG_PREFIX, isExampleSlug } from './business';
 
 export interface ClientBusiness {
   id: number;
@@ -39,6 +40,21 @@ export interface ClientBusiness {
   /** Откуда пришёл владелец: «utm:ads/A-002», домен реферера, «yandex-ad»; null — не мерили (до 17.10.2026) */
   signupSource: string | null;
   signupCampaign: string | null;
+  /** Страница-пример (H-008, адрес primer-*): не клиент, в итоги не входит */
+  example: boolean;
+}
+
+/** Страница-пример: кто её открыл. Заходы — без владельца и роботов (T-020) */
+export interface ExamplePage {
+  name: string;
+  slug: string;
+  createdAt: string;
+  page7d: PageFunnel;
+  page30d: PageFunnel;
+  /** Первый заход (UTC); null — не открывали */
+  firstVisitAt: string | null;
+  /** utm_content заходов — лид из письма (L-…) */
+  leads: string[];
 }
 
 export interface OrphanAdmin {
@@ -76,6 +92,15 @@ export interface ClientsReport {
   /** Воронка сайта: визит на лендинг → открыл регистрацию → зарегистрировался (с 17.10.2026) */
   site7d: SiteFunnel;
   site30d: SiteFunnel;
+  /** Примеры H-008 отдельно: в totals и в businesses их нет */
+  examples: {
+    total: number;
+    /** Сколько примеров открыли хотя бы раз */
+    opened: number;
+    /** На скольких выбрали время или открыли заявку */
+    chose: number;
+    pages: ExamplePage[];
+  };
   businesses: ClientBusiness[];
   orphanAdmins: OrphanAdmin[];
   recentRequests: RecentRequest[];
@@ -163,6 +188,7 @@ export function getClientsReport(): ClientsReport {
     ...((r.adminUserId != null && visits.get(r.adminUserId)) || noVisits),
     signupSource: r.signupSource ?? null,
     signupCampaign: r.signupCampaign ?? null,
+    example: isExampleSlug(r.slug),
   }));
 
   // Зарегистрировались в админке, но бизнеса за ними нет — то есть отвалились
@@ -202,22 +228,52 @@ export function getClientsReport(): ClientsReport {
     LIMIT 50
   `).all() as RecentRequest[];
 
-  const adminCount = (db.prepare('SELECT COUNT(*) AS cnt FROM admin_users').get() as any)?.cnt ?? 0;
+  // Аккаунт, в котором команда собирает примеры, — не клиент
+  const adminCount = (db.prepare(`
+    SELECT COUNT(*) AS cnt FROM admin_users au
+    WHERE NOT EXISTS (SELECT 1 FROM businesses b
+                      WHERE b.owner_chat_id = au.owner_chat_id AND substr(b.slug, 1, ?) = ?)
+  `).get(EXAMPLE_SLUG_PREFIX.length, EXAMPLE_SLUG_PREFIX) as any)?.cnt ?? 0;
   const requestCount = (db.prepare('SELECT COUNT(*) AS cnt FROM booking_requests').get() as any)?.cnt ?? 0;
+
+  const examples = businesses.filter((b) => b.example);
+  const clients = businesses.filter((b) => !b.example);
+  const firstVisitStmt = db.prepare(`
+    SELECT MIN(created_at) AS firstVisitAt, GROUP_CONCAT(DISTINCT utm_content) AS leads
+    FROM page_events WHERE page = 'business' AND event = 'view' AND business_id = ?
+  `);
+  const pages: ExamplePage[] = examples.map((b) => {
+    const first = firstVisitStmt.get(b.id) as any;
+    return {
+      name: b.name,
+      slug: b.slug,
+      createdAt: b.createdAt,
+      page7d: b.page7d,
+      page30d: b.page30d,
+      firstVisitAt: first?.firstVisitAt ?? null,
+      leads: first?.leads ? String(first.leads).split(',') : [],
+    };
+  });
 
   return {
     generatedAt: new Date().toISOString(),
     totals: {
-      businesses: businesses.length,
-      activated: businesses.filter((b) => b.activated).length,
-      withBookings: businesses.filter((b) => b.slotsBooked > 0).length,
+      businesses: clients.length,
+      activated: clients.filter((b) => b.activated).length,
+      withBookings: clients.filter((b) => b.slotsBooked > 0).length,
       adminUsers: adminCount,
       orphanAdmins: orphanAdmins.length,
       bookingRequests: requestCount,
     },
     site7d: getSiteFunnel(7),
     site30d: getSiteFunnel(30),
-    businesses,
+    examples: {
+      total: pages.length,
+      opened: pages.filter((p) => p.firstVisitAt).length,
+      chose: pages.filter((p) => p.page30d.picked + p.page30d.requestOpened > 0).length,
+      pages,
+    },
+    businesses: clients,
     orphanAdmins,
     recentRequests,
   };
