@@ -866,14 +866,11 @@ export function registerHandlers(bot: Telegraf): void {
 
   // ---- /link ----
 
+  // Код выдаём и без заведений в боте: владелец, зарегистрированный на сайте,
+  // держит их под веб-аккаунтом, а привязка нужна ему, чтобы узнавать о бронях.
   bot.command('link', (ctx) => {
     const chatId = ctx.chat.id;
-    const businesses = getBusinessesByOwner(chatId);
-    if (businesses.length === 0) {
-      ctx.reply('Сначала зарегистрируйте заведение. Отправьте /start');
-      return;
-    }
-
+    conversations.delete(chatId);
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     createLinkCode(code, String(chatId), expiresAt);

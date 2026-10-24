@@ -651,6 +651,25 @@ export function registerHandlers(vk: VK): void {
     const reply = makeReply(ctx);
     const ownerId = vkOwnerId(peerId);
 
+    // /link — до диалога и проверки «нет заведений»: владелец, зарегистрированный
+    // на сайте, держит их под веб-аккаунтом, а привязка нужна ему для уведомлений.
+    // После «Принимаю» бот уже ждёт название — сбрасываем, иначе /link станет им.
+    if (text.toLowerCase() === '/link') {
+      conversations.delete(peerId);
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      createLinkCode(code, ownerId, expiresAt);
+
+      const adminUrl = process.env.ADMIN_URL || 'https://admin.slotik.tech';
+      reply(
+        `🔗 Код для привязки веб-панели:\n\n` +
+        `${code}\n\n` +
+        `Введите этот код на ${adminUrl} в разделе привязки.\n` +
+        `Код действителен 10 минут.`
+      );
+      return;
+    }
+
     // Active conversation
     const conv = conversations.get(peerId);
     if (conv) {
@@ -739,22 +758,6 @@ export function registerHandlers(vk: VK): void {
 
       deleteBusiness(biz.id);
       reply(`✅ «${biz.name}» (${biz.slug}) удалено вместе со всеми слотами.`);
-      return;
-    }
-
-    // /link
-    if (textLower === '/link') {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      createLinkCode(code, ownerId, expiresAt);
-
-      const adminUrl = process.env.ADMIN_URL || 'https://admin.slotik.tech';
-      reply(
-        `🔗 Код для привязки веб-панели:\n\n` +
-        `${code}\n\n` +
-        `Введите этот код на ${adminUrl} в разделе привязки.\n` +
-        `Код действителен 10 минут.`
-      );
       return;
     }
 
