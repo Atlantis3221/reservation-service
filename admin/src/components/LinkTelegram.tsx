@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { api, type Business } from '../api';
 
+/** Бот, через который владелец получает брони (README → «Бот») */
+const BOT_USERNAME = 'slotik_tech_bot';
+const BOT_URL = `https://t.me/${BOT_USERNAME}`;
+
 interface Props {
   onLinked: (businesses: Business[]) => void;
   onClose: () => void;
@@ -29,8 +33,10 @@ export function LinkTelegram({ onLinked, onClose }: Props) {
     <div className="link-panel">
       <div className="link-content">
         <p>
-          Отправьте <code>/link</code> боту в Telegram или VK, чтобы получить 6-значный код.
-          Введите его ниже для привязки заведений.
+          Откройте в Telegram бота{' '}
+          <a href={BOT_URL} target="_blank" rel="noopener noreferrer">@{BOT_USERNAME}</a>
+          , нажмите «Запустить» и отправьте ему <code>/link</code> — он пришлёт 6-значный код.
+          Введите код ниже, и брони будут приходить вам в Telegram.
         </p>
         <form onSubmit={handleSubmit} className="link-form">
           <input
