@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Calendar, type DaySlot, type PendingSlot, type BookingRequestBlock } from '@shared/calendar';
 import { api, type CalendarBookingRequest } from '../api';
 
@@ -28,9 +28,13 @@ interface Props {
   businessId: number | null;
   /** Обновляет сводку в панели: свободные слоты и горизонт записи меняются */
   onChanged?: () => void;
+  /** Открыть этот день снаружи (плашка «Ближайшая запись»); `at` — чтобы повторный клик сработал */
+  focus?: { date: string; at: number } | null;
+  /** День открыт — сбросить focus, иначе при возврате на вкладку календарь прыгнет назад */
+  onFocusHandled?: () => void;
 }
 
-export function CalendarPage({ businessId, onChanged }: Props) {
+export function CalendarPage({ businessId, onChanged, focus, onFocusHandled }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(() => {
     return localStorage.getItem(STORAGE_KEY) || null;
   });
@@ -89,6 +93,12 @@ export function CalendarPage({ businessId, onChanged }: Props) {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    if (!focus) return;
+    handleSelectDate(focus.date);
+    onFocusHandled?.();
+  }, [focus, handleSelectDate, onFocusHandled]);
 
   function closeSheet() {
     setSheet({ type: 'none' });

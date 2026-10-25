@@ -122,6 +122,35 @@ function subtract(windows: Interval[], busy: Interval[]): Interval[] {
 }
 
 /**
+ * Брони дня смены по порядку их настоящего начала: в смене за полночь бронь
+ * на 01:00 идёт после брони на 19:00 (минуты сдвинуты так же, как в getFreeSlots).
+ */
+export function bookingsOfDay(businessId: number, dateKey: string): Array<{
+  startMinutes: number;
+  startTime: string;
+  clientName: string | null;
+}> {
+  const rows = getDb()
+    .prepare('SELECT * FROM slots WHERE business_id = ? AND date_key = ?')
+    .all(businessId, dateKey) as any[];
+  const availableRows = rows.filter((r) => r.status === 'available');
+  const dayStartMin = availableRows.length > 0
+    ? Math.min(...availableRows.map((r) => timeToMinutes(r.start_time)))
+    : 0;
+  const dayCrossesMidnight = availableRows.some(
+    (r) => timeToMinutes(r.end_time) <= timeToMinutes(r.start_time),
+  );
+  return rows
+    .filter((r) => r.status === 'booked')
+    .map((r) => ({
+      startMinutes: toInterval(r, dayStartMin, dayCrossesMidnight).start,
+      startTime: r.start_time,
+      clientName: r.client_name ?? null,
+    }))
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+}
+
+/**
  * Разбивает свободные окна дня на варианты начала брони.
  * Это то, что клиент видит и нажимает: «10:00–12:00», «12:00–14:00», …
  */

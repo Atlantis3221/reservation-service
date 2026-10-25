@@ -32,7 +32,7 @@ import {
   getBusinessBySlug,
 } from '../services/business';
 import { sendPasswordResetEmail, isMailerConfigured } from '../services/mailer';
-import { getFreeSlots, rulesOf, humanDuration, MIN_STEP_MINUTES } from '../services/free-slots';
+import { getFreeSlots, bookingsOfDay, rulesOf, humanDuration, MIN_STEP_MINUTES } from '../services/free-slots';
 import {
   getBookingRequestsByBusiness,
   getBookingRequestsByDate,
@@ -441,14 +441,27 @@ adminRouter.get('/business-status', (req: AuthRequest, res: Response) => {
 
   let publishedUntil: string | null = null;
   let freeSlots = 0;
-  let upcomingBookings = 0;
-
   for (const dateKey of horizon) {
     const slots = getSlotsForDateAdmin(businessId, dateKey);
     if (slots.length === 0) continue;
     if (slots.some((slot) => slot.status === 'available')) publishedUntil = dateKey;
     freeSlots += getFreeSlots(businessId, dateKey, rulesOf(business)).length;
-    upcomingBookings += slots.filter((slot) => slot.status === 'booked').length;
+  }
+
+  // Брони, которые ещё не начались, и ближайшая из них — для плашки в панели:
+  // без мессенджера и почты владелец иначе не узнаёт, что к нему записались.
+  // Вчерашняя смена — потому что после полуночи идёт её ночной хвост.
+  let upcomingBookings = 0;
+  let nextBooking: { date: string; startTime: string; clientName: string | null } | null = null;
+  const now = Date.now();
+  const yesterday = toDateKey(new Date(now - 86_400_000));
+  for (const dateKey of [yesterday, ...horizon]) {
+    const dayStart = new Date(`${dateKey}T00:00:00`).getTime();
+    for (const b of bookingsOfDay(businessId, dateKey)) {
+      if (dayStart + b.startMinutes * 60_000 <= now) continue;
+      upcomingBookings++;
+      nextBooking ??= { date: dateKey, startTime: b.startTime, clientName: b.clientName };
+    }
   }
 
   res.json({
@@ -462,6 +475,7 @@ adminRouter.get('/business-status', (req: AuthRequest, res: Response) => {
     publishedUntil,
     freeSlots,
     upcomingBookings,
+    nextBooking,
     pendingRequests: countPendingRequests(businessId),
     today,
   });

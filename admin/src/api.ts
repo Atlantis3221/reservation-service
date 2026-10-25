@@ -160,6 +160,8 @@ export interface BusinessStatus {
   publishedUntil: string | null;
   freeSlots: number;
   upcomingBookings: number;
+  /** Ближайшая ещё не начавшаяся бронь; null — впереди броней нет */
+  nextBooking: { date: string; startTime: string; clientName: string | null } | null;
   pendingRequests: number;
   today: string;
 }

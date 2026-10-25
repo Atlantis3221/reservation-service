@@ -189,6 +189,59 @@ describe('путь холодного пользователя', () => {
     const status = await call('GET', `/admin/business-status?businessId=${business.id}`);
     expect(status.body.publishedUntil).not.toBeNull();
     expect(status.body.upcomingBookings).toBe(1);
+    expect(status.body.nextBooking).toEqual({ date: day, startTime: slot.startTime, clientName: 'Пётр' });
+  });
+
+  it('ближайшая бронь в смене за полночь — по настоящему времени начала', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Ночная баня' });
+    await call('PUT', '/admin/settings', {
+      businessId: business.id,
+      workingHours: allWeekHours('18:00', '03:00'),
+      slotDurationMinutes: 60,
+    });
+    await call('POST', '/admin/settings/apply-schedule', { businessId: business.id, days: 7 });
+    const dates = await call('GET', `/api/business/${business.slug}/available-dates`);
+    // Не последний день: дальше чем через неделю токен владельца уже истёк бы
+    const day = dates.body.dates[1];
+
+    for (const [startTime, endTime, clientName] of [['01:00', '02:00', 'Ночной'], ['19:00', '20:00', 'Вечерний']]) {
+      const booked = await call('POST', `/api/business/${business.slug}/book`, {
+        date: day, startTime, endTime, clientName, clientPhone: '+7 900 111-22-33', consent: true,
+      });
+      expect(booked.status).toBe(200);
+    }
+
+    const status = async () => (await call('GET', `/admin/business-status?businessId=${business.id}`)).body;
+
+    // Обе впереди: первой идёт 19:00, хотя по строке «01:00» меньше
+    let s = await status();
+    expect(s.upcomingBookings).toBe(2);
+    expect(s.nextBooking).toEqual({ date: day, startTime: '19:00', clientName: 'Вечерний' });
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // Вечер дня смены: 19:00 прошла, ночная ещё впереди
+      vi.setSystemTime(new Date(`${day}T20:30:00`));
+      s = await status();
+      expect(s.upcomingBookings).toBe(1);
+      expect(s.nextBooking).toEqual({ date: day, startTime: '01:00', clientName: 'Ночной' });
+
+      // После полуночи бронь живёт под вчерашней датой смены — и всё ещё видна
+      const next = new Date(`${day}T12:00:00`);
+      next.setDate(next.getDate() + 1);
+      const nextKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+      vi.setSystemTime(new Date(`${nextKey}T00:30:00`));
+      s = await status();
+      expect(s.nextBooking).toEqual({ date: day, startTime: '01:00', clientName: 'Ночной' });
+
+      vi.setSystemTime(new Date(`${nextKey}T01:30:00`));
+      s = await status();
+      expect(s.upcomingBookings).toBe(0);
+      expect(s.nextBooking).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('пример (адрес primer-*) не принимает ни брони, ни заявки (H-008)', async () => {
@@ -221,6 +274,7 @@ describe('путь холодного пользователя', () => {
 
     const status = await call('GET', `/admin/business-status?businessId=${business.id}`);
     expect(status.body.upcomingBookings).toBe(0);
+    expect(status.body.nextBooking).toBeNull();
     const count = getDb().prepare('SELECT COUNT(*) AS n FROM booking_requests WHERE business_id = ?').get(business.id) as any;
     expect(count.n).toBe(0);
 

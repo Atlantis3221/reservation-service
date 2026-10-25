@@ -28,6 +28,8 @@ export function DashboardPage() {
   const [status, setStatus] = useState<BusinessStatus | null>(null);
   const [burgerOpen, setBurgerOpen] = useState(false);
   const [showLink, setShowLink] = useState(false);
+  const [calendarFocus, setCalendarFocus] = useState<{ date: string; at: number } | null>(null);
+  const clearCalendarFocus = useCallback(() => setCalendarFocus(null), []);
 
   const selectedBiz = businesses.find((b) => b.id === selectedBizId) ?? null;
 
@@ -139,9 +141,10 @@ export function DashboardPage() {
             <button
               className="dash-banner-btn"
               onClick={() => {
-                const { tab } = banner.action!;
+                const { tab, date } = banner.action!;
                 if (tab === 'link') setShowLink(true);
                 else setActiveTab(tab);
+                if (date) setCalendarFocus({ date, at: Date.now() });
               }}
               type="button"
             >
@@ -153,7 +156,12 @@ export function DashboardPage() {
 
       <main className="dash-main">
         {activeTab === 'calendar' && (
-          <CalendarPage businessId={selectedBizId} onChanged={refreshStatus} />
+          <CalendarPage
+            businessId={selectedBizId}
+            onChanged={refreshStatus}
+            focus={calendarFocus}
+            onFocusHandled={clearCalendarFocus}
+          />
         )}
         {activeTab === 'requests' && (
           <RequestsPage businessId={selectedBizId} onChanged={refreshStatus} />
@@ -237,8 +245,8 @@ interface Banner {
   tone: 'warn' | 'info' | 'ok';
   title: string;
   hint: string;
-  /** `link` — открыть привязку мессенджера, а не вкладку */
-  action?: { label: string; tab: Tab | 'link' };
+  /** `link` — открыть привязку мессенджера, а не вкладку; `date` — открыть этот день в календаре */
+  action?: { label: string; tab: Tab | 'link'; date?: string };
 }
 
 /**
@@ -275,6 +283,21 @@ function buildBanner(status: BusinessStatus | null, hideLinkHint: boolean): Bann
       title: `Запись открыта только до ${formatShort(status.publishedUntil)}`,
       hint: 'Дальше клиенты не смогут записаться. Продлите расписание.',
       action: { label: 'Продлить', tab: 'settings' },
+    };
+  }
+
+  // Бронь — главная новость для владельца: без неё в месячном календаре день
+  // с записью выглядит как любой другой.
+  if (status.nextBooking) {
+    const { date, startTime, clientName } = status.nextBooking;
+    const more = status.upcomingBookings > 1 ? ` Всего записей впереди: ${status.upcomingBookings}.` : '';
+    return {
+      tone: 'ok',
+      title: `Ближайшая запись: ${formatShort(date)}, ${startTime}${clientName ? ` — ${clientName}` : ''}`,
+      hint: hideLinkHint
+        ? `Подробности — в календаре.${more}`
+        : `В меню «Привязать бота» — и следующие брони придут в Telegram.${more}`,
+      action: { label: 'Открыть день', tab: 'calendar', date },
     };
   }
 
