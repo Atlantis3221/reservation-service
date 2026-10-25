@@ -23,9 +23,14 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const WRITE_LIMIT = 5;
 const WRITE_WINDOW_MS = 10 * 60 * 1000;
 
-function clientIp(req: Request): string {
+// X-Real-IP nginx перезаписывает адресом соединения. В X-Forwarded-For первый
+// элемент присылает сам клиент — по нему лимиты обходились подменой заголовка,
+// поэтому из него берём только последний, дописанный прокси.
+export function clientIp(req: Request): string {
+  const real = req.headers['x-real-ip'];
+  if (typeof real === 'string' && real.trim()) return real.trim();
   const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  if (typeof forwarded === 'string') return forwarded.split(',').pop()!.trim();
   return req.ip || 'unknown';
 }
 

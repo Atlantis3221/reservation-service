@@ -39,6 +39,7 @@ import { initDb, getDb } from '../../services/db';
 import { adminRouter } from '../admin';
 import { apiRouter } from '../api';
 import { resetRateLimits } from '../../services/rate-limit';
+import { issueLinkCode } from '../../repositories/admin-user.repository';
 
 let server: Server;
 let baseUrl: string;
@@ -424,6 +425,78 @@ describe('сутки как длительность сеанса', () => {
     const res = await call('PUT', '/admin/settings', {
       businessId: business.id,
       slotDurationMinutes: 777,
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('коды привязки мессенджера', () => {
+  it('истёкший код не принимается, даже если истёк в те же сутки', async () => {
+    await registerFreshUser();
+    const expired = new Date(Date.now() - 60_000).toISOString();
+    getDb()
+      .prepare('INSERT INTO link_codes (code, owner_chat_id, expires_at) VALUES (?, ?, ?)')
+      .run('654321', '555000222', expired);
+
+    const res = await call('POST', '/admin/link-telegram', { code: '654321' });
+    expect(res.status).toBe(400);
+  });
+
+  it('код из бота привязывается один раз', async () => {
+    await registerFreshUser();
+    const code = issueLinkCode('555000333');
+    expect(code).toMatch(/^\d{6}$/);
+
+    expect((await call('POST', '/admin/link-telegram', { code })).status).toBe(200);
+    expect((await call('POST', '/admin/link-telegram', { code })).status).toBe(400);
+  });
+
+  it('перебор кодов упирается в лимит попыток', async () => {
+    await registerFreshUser();
+    const code = issueLinkCode('555000444');
+    for (let i = 0; i < 10; i++) {
+      const res = await call('POST', '/admin/link-telegram', { code: '000000' });
+      expect(res.status).toBe(400);
+    }
+    // Даже верный код после лимита не проходит
+    const blocked = await call('POST', '/admin/link-telegram', { code });
+    expect(blocked.status).toBe(429);
+  });
+
+  it('лимит на адрес не обходится подменой X-Forwarded-For и новыми аккаунтами', async () => {
+    const statuses: number[] = [];
+    for (let user = 0; user < 4; user++) {
+      await registerFreshUser();
+      for (let i = 0; i < 8; i++) {
+        const res = await fetch(baseUrl + '/admin/link-telegram', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Real-IP': '203.0.113.7',
+            'X-Forwarded-For': `10.0.${user}.${i}, 203.0.113.7`,
+          },
+          body: JSON.stringify({ code: '000000' }),
+        });
+        statuses.push(res.status);
+      }
+    }
+    expect(statuses.slice(0, 30).every((s) => s === 400)).toBe(true);
+    expect(statuses.slice(30)).toEqual([429, 429]);
+  });
+
+  it('истёкшая ссылка сброса пароля не принимается', async () => {
+    const reg = await registerFreshUser();
+    const userId = getDb().prepare('SELECT id FROM admin_users WHERE email = ?')
+      .get(`owner${emailSeq}@test.ru`) as { id: number };
+    expect(reg.status).toBe(200);
+    getDb()
+      .prepare('INSERT INTO reset_tokens (token, admin_user_id, expires_at) VALUES (?, ?, ?)')
+      .run('expired-token', userId.id, new Date(Date.now() - 60_000).toISOString());
+
+    const res = await call('POST', '/admin/auth/reset-password', {
+      token: 'expired-token',
+      newPassword: 'newpassword123',
     });
     expect(res.status).toBe(400);
   });

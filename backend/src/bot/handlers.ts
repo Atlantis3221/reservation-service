@@ -42,7 +42,7 @@ import {
 } from '../repositories/booking-request.repository';
 import { toDateKey, fmtDate, getMondayOfWeek, getNextWeekday, resolveDay } from '../utils/date';
 import { trackUnrecognizedCommand } from '../services/monitor';
-import { createLinkCode, getAdminUserByOwnerChatId, createResetToken } from '../repositories/admin-user.repository';
+import { issueLinkCode, getAdminUserByOwnerChatId, createResetToken } from '../repositories/admin-user.repository';
 import crypto from 'crypto';
 import type { Business } from '../types';
 
@@ -871,9 +871,7 @@ export function registerHandlers(bot: Telegraf): void {
   bot.command('link', (ctx) => {
     const chatId = ctx.chat.id;
     conversations.delete(chatId);
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    createLinkCode(code, String(chatId), expiresAt);
+    const code = issueLinkCode(String(chatId));
 
     const adminUrl = process.env.ADMIN_URL || 'https://admin.slotik.tech';
     ctx.reply(

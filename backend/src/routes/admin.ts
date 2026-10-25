@@ -43,7 +43,8 @@ import type { BookingRequestStatus } from '../types';
 import { waitForBookingRequest } from '../services/booking-events';
 import { recordOwnerVisit } from '../services/owner-visits';
 import { deviceFromUserAgent, isBotUserAgent, recordSignup } from '../services/page-events';
-import { handlePageEvent } from './api';
+import { handlePageEvent, clientIp } from './api';
+import { checkRateLimit } from '../services/rate-limit';
 import {
   getAllDateKeys,
   getSlotsForDateAdmin,
@@ -350,7 +351,22 @@ adminRouter.post('/businesses', (req: AuthRequest, res: Response) => {
   res.json({ business, businesses: getBusinessesByOwner(ownerChatId) });
 });
 
+// Код — шесть цифр: без лимита его можно перебрать и привязать к себе чужой
+// мессенджер, а с ним — заведения с телефонами клиентов.
+const LINK_ATTEMPTS_PER_USER = 10;
+const LINK_ATTEMPTS_PER_IP = 30;
+const LINK_WINDOW_MS = 15 * 60 * 1000;
+
 adminRouter.post('/link-telegram', (req: AuthRequest, res: Response) => {
+  if (
+    // Сначала IP: с заблокированного адреса не заводим новых ключей на пользователей
+    !checkRateLimit(`link-ip:${clientIp(req)}`, LINK_ATTEMPTS_PER_IP, LINK_WINDOW_MS) ||
+    !checkRateLimit(`link:${req.adminUserId}`, LINK_ATTEMPTS_PER_USER, LINK_WINDOW_MS)
+  ) {
+    res.status(429).json({ error: 'Слишком много попыток. Попробуйте через 15 минут.' });
+    return;
+  }
+
   const { code } = req.body;
   if (!code) {
     res.status(400).json({ error: 'Код обязателен' });

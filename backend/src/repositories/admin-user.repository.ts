@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { getDb } from '../services/db';
 
 export interface AdminUserRow {
@@ -57,25 +58,38 @@ export function updatePassword(adminUserId: number, passwordHash: string): void 
 
 // ---- Link codes ----
 
-export function createLinkCode(code: string, ownerChatId: string, expiresAt: string): void {
-  getDb()
-    .prepare('INSERT INTO link_codes (code, owner_chat_id, expires_at) VALUES (?, ?, ?)')
+// expires_at пишется ISO (`2026-10-24T00:09:25.000Z`), а datetime('now') —
+// `2026-10-24 00:09:25`. Строками их сравнивать нельзя: «T» больше пробела,
+// и истёкший код проходил до конца суток UTC. Поэтому — через datetime().
+const LIVE = `used = 0 AND datetime(expires_at) > datetime('now')`;
+
+export const LINK_CODE_TTL_MS = 10 * 60 * 1000;
+
+/** Выдаёт шестизначный код привязки, не совпадающий ни с одним живым. */
+export function issueLinkCode(ownerChatId: string): string {
+  const db = getDb();
+  const isLive = db.prepare(`SELECT 1 FROM link_codes WHERE code = ? AND ${LIVE}`);
+  let code = '';
+  do {
+    code = String(randomInt(100000, 1000000));
+  } while (isLive.get(code));
+
+  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MS).toISOString();
+  db.prepare('INSERT INTO link_codes (code, owner_chat_id, expires_at) VALUES (?, ?, ?)')
     .run(code, ownerChatId, expiresAt);
+  return code;
 }
 
 export function consumeLinkCode(code: string): string | null {
   const row = getDb()
-    .prepare(
-      `SELECT * FROM link_codes
-       WHERE code = ? AND used = 0 AND expires_at > datetime('now')`
-    )
-    .get(code) as { owner_chat_id: string } | undefined;
+    .prepare(`SELECT id, owner_chat_id FROM link_codes WHERE code = ? AND ${LIVE} ORDER BY id DESC`)
+    .get(code) as { id: number; owner_chat_id: string } | undefined;
 
   if (!row) return null;
 
   getDb()
-    .prepare('UPDATE link_codes SET used = 1 WHERE code = ?')
-    .run(code);
+    .prepare('UPDATE link_codes SET used = 1 WHERE id = ?')
+    .run(row.id);
 
   return row.owner_chat_id;
 }
@@ -91,8 +105,7 @@ export function createResetToken(token: string, adminUserId: number, expiresAt: 
 export function consumeResetToken(token: string): number | null {
   const row = getDb()
     .prepare(
-      `SELECT * FROM reset_tokens
-       WHERE token = ? AND used = 0 AND expires_at > datetime('now')`
+      `SELECT * FROM reset_tokens WHERE token = ? AND ${LIVE}`
     )
     .get(token) as { admin_user_id: number } | undefined;
 
