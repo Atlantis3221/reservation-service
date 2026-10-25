@@ -13,7 +13,7 @@ interface Props {
  * `web:<id>` — это собственный владелец веб-аккаунта, а не привязанный мессенджер.
  * Без этой проверки панель врала, что Telegram уже подключён.
  */
-function linkedPlatform(ownerChatId: string | null): string | null {
+export function linkedPlatform(ownerChatId: string | null): string | null {
   if (!ownerChatId || ownerChatId.startsWith('web:')) return null;
   return ownerChatId.startsWith('vk:') ? 'VK' : 'Telegram';
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth';
 import { api, type BusinessStatus } from '../api';
 import { BusinessSwitcher } from '../components/BusinessSwitcher';
-import { BurgerMenu } from '../components/BurgerMenu';
+import { BurgerMenu, linkedPlatform } from '../components/BurgerMenu';
 import { LinkTelegram } from '../components/LinkTelegram';
 import { ShareLink } from '../components/ShareLink';
 import { CalendarPage } from './CalendarPage';
@@ -22,7 +22,7 @@ function daysUntil(dateKey: string, todayKey: string): number {
 }
 
 export function DashboardPage() {
-  const { user, businesses, setBusinesses, logout } = useAuth();
+  const { user, businesses, setBusinesses, logout, reload } = useAuth();
   const [selectedBizId, setSelectedBizId] = useState<number | null>(businesses[0]?.id ?? null);
   const [activeTab, setActiveTab] = useState<Tab>('calendar');
   const [status, setStatus] = useState<BusinessStatus | null>(null);
@@ -75,12 +75,15 @@ export function DashboardPage() {
 
   function handleLinked(bizs: typeof businesses) {
     setBusinesses(bizs);
+    // Профиль перечитываем: ownerChatId сменился с web:<id> на мессенджер,
+    // иначе плашка и меню до перезагрузки говорят «не привязан».
+    reload();
     setShowLink(false);
     refreshStatus();
   }
 
   const publicUrl = selectedBiz ? getPublicUrl(selectedBiz.slug) : '';
-  const banner = buildBanner(status);
+  const banner = buildBanner(status, showLink || !!linkedPlatform(user?.ownerChatId ?? null));
 
   return (
     <div className="dash">
@@ -135,7 +138,11 @@ export function DashboardPage() {
           {banner.action && (
             <button
               className="dash-banner-btn"
-              onClick={() => setActiveTab(banner.action!.tab)}
+              onClick={() => {
+                const { tab } = banner.action!;
+                if (tab === 'link') setShowLink(true);
+                else setActiveTab(tab);
+              }}
               type="button"
             >
               {banner.action.label}
@@ -230,7 +237,8 @@ interface Banner {
   tone: 'warn' | 'info' | 'ok';
   title: string;
   hint: string;
-  action?: { label: string; tab: Tab };
+  /** `link` — открыть привязку мессенджера, а не вкладку */
+  action?: { label: string; tab: Tab | 'link' };
 }
 
 /**
@@ -238,7 +246,7 @@ interface Banner {
  * Молчание — худший вариант: раньше пустой календарь выглядел так же,
  * как рабочий.
  */
-function buildBanner(status: BusinessStatus | null): Banner | null {
+function buildBanner(status: BusinessStatus | null, hideLinkHint: boolean): Banner | null {
   if (!status) return null;
 
   if (!status.publishedUntil) {
@@ -267,6 +275,17 @@ function buildBanner(status: BusinessStatus | null): Banner | null {
       title: `Запись открыта только до ${formatShort(status.publishedUntil)}`,
       hint: 'Дальше клиенты не смогут записаться. Продлите расписание.',
       action: { label: 'Продлить', tab: 'settings' },
+    };
+  }
+
+  // Веб-владелец без мессенджера о брони не узнаёт: почта на проде может быть
+  // выключена, а сам в панель он не возвращается (H-007: 4 из 4 не вернулись).
+  if (!hideLinkHint) {
+    return {
+      tone: 'info',
+      title: 'Как вы узнаете о новой брони?',
+      hint: 'Подключите Telegram — каждая бронь сразу придёт сообщением.',
+      action: { label: 'Подключить Telegram', tab: 'link' },
     };
   }
 
