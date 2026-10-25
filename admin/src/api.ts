@@ -127,6 +127,14 @@ export interface DayWorkingHours {
 
 export type WorkingHoursConfig = Record<string, DayWorkingHours>;
 
+/** Заготовка для онбординга из страницы-примера (H-008) */
+export interface PrimerTemplate {
+  name: string;
+  workingHours: WorkingHoursConfig | null;
+  slotDurationMinutes: number;
+  minDurationMinutes: number;
+}
+
 export interface BusinessSettings {
   name: string;
   slug: string;
@@ -157,6 +165,9 @@ export interface BusinessStatus {
 }
 
 export const api = {
+  primerTemplate: (slug: string) =>
+    request<PrimerTemplate>(`/primer/${encodeURIComponent(slug)}`),
+
   register: (email: string, password: string, visit?: SignupVisit) =>
     request<AuthResult>('/auth/register', {
       method: 'POST',

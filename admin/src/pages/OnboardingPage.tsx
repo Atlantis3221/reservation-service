@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type WorkingHoursConfig } from '../api';
 import { useAuth } from '../auth';
 import { getPublicUrl } from '../lib/url';
 import { reachGoal } from '../lib/metrika';
 import { ShareLink } from '../components/ShareLink';
+import { forgetPrimer, rememberedPrimer } from '../lib/primer';
 import {
   WorkingHoursForm,
   defaultWorkingHours,
@@ -30,6 +31,34 @@ export function OnboardingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ slug: string; name: string; freeSlots: number } | null>(null);
+  const [fromPrimer, setFromPrimer] = useState(false);
+  const [namePlaceholder, setNamePlaceholder] = useState('Например, Баня на Пруду');
+
+  // Пришёл со страницы-примера — подставляем её часы и длительность. Название
+  // примера — категория («теннисный корт»), не имя места: только подсказкой.
+  useEffect(() => {
+    const slug = rememberedPrimer();
+    if (!slug) return;
+    let cancelled = false;
+    api.primerTemplate(slug)
+      .then((tpl) => {
+        if (cancelled) return;
+        if (tpl.name) setNamePlaceholder(`Например, ${tpl.name[0].toUpperCase()}${tpl.name.slice(1)}`);
+        const hours = tpl.workingHours;
+        if (!hours || !DAY_KEYS.some((k) => hours[k]?.enabled)) return;
+        // Дня нет в примере — выходной, а не 10–22 по умолчанию
+        const filled: WorkingHoursConfig = {};
+        for (const k of DAY_KEYS) filled[k] = hours[k] ?? { enabled: false, start: '10:00', end: '22:00' };
+        setWorkingHours(filled);
+        const known = (m: number) => SLOT_DURATIONS.some((d) => d.minutes === m);
+        if (known(tpl.minDurationMinutes)) setDuration(tpl.minDurationMinutes);
+        else if (known(tpl.slotDurationMinutes)) setDuration(tpl.slotDurationMinutes);
+        setFromPrimer(true);
+      })
+      // Пример удалили или сеть моргнула — обычный онбординг; ключ сотрёт публикация
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const hasWorkingDay = DAY_KEYS.some((k) => workingHours[k]?.enabled);
 
@@ -68,6 +97,7 @@ export function OnboardingPage() {
       const published = await api.applySchedule(business.id, HORIZON_DAYS);
       reachGoal('schedule_published', { source: 'onboarding', freeSlots: published.freeSlots });
       reachGoal('onboarding_completed');
+      forgetPrimer();
 
       setResult({ slug: business.slug, name: business.name, freeSlots: published.freeSlots });
       setStep('done');
@@ -96,14 +126,16 @@ export function OnboardingPage() {
           <section className="onb-card">
             <h1>Как называется ваше заведение?</h1>
             <p className="onb-sub">
-              Это название клиенты увидят на странице записи. Можно поменять позже.
+              {fromPrimer
+                ? 'Впишите название вашего места — его увидят клиенты. Часы работы из примера уже подставили.'
+                : 'Это название клиенты увидят на странице записи. Можно поменять позже.'}
             </p>
             <input
               className="onb-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-              placeholder="Например, Баня на Пруду"
+              placeholder={namePlaceholder}
               maxLength={100}
               autoFocus
             />
@@ -118,6 +150,7 @@ export function OnboardingPage() {
           <section className="onb-card">
             <h1>Когда вы работаете?</h1>
             <p className="onb-sub">
+              {fromPrimer && 'Часы взяли со страницы-примера — проверьте. '}
               Из этого сложится расписание, которое увидят клиенты. Отдельные дни
               можно будет закрыть или изменить в календаре.
             </p>

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './auth';
 import { App } from './App';
+import { rememberPrimerFromUrl } from './lib/primer';
 import './styles.css';
 
 const metrikaIdEnv = import.meta.env.VITE_METRIKA_COUNTER_ID;
@@ -18,6 +19,9 @@ if (metrikaId) {
   document.head.appendChild(s);
   w.ym(id, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true });
 }
+
+// До роутов: вошедший в браузере уходит с /register мимо RegisterPage
+rememberPrimerFromUrl();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -28,6 +28,8 @@ import {
   moveBusinessesToOwner,
   isValidSlug,
   isSlugTaken,
+  isExampleSlug,
+  getBusinessBySlug,
 } from '../services/business';
 import { sendPasswordResetEmail, isMailerConfigured } from '../services/mailer';
 import { getFreeSlots, rulesOf, humanDuration, MIN_STEP_MINUTES } from '../services/free-slots';
@@ -253,6 +255,27 @@ adminRouter.post('/auth/reset-password', (req: Request, res: Response) => {
     }
     throw err;
   }
+});
+
+/**
+ * Заготовка из страницы-примера (H-008): владелец места жмёт на примере
+ * «Сделать такую себе», и онбординг подставляет часы. Название примера —
+ * категория («теннисный корт»), панель берёт его только в подсказку. Отдаём
+ * только примеры — их страница и так публичная.
+ */
+adminRouter.get('/primer/:slug', (req: Request<{ slug: string }>, res: Response) => {
+  const slug = String(req.params.slug);
+  const biz = isExampleSlug(slug) ? getBusinessBySlug(slug) : null;
+  if (!biz) {
+    res.status(404).json({ error: 'Пример не найден' });
+    return;
+  }
+  res.json({
+    name: biz.name.replace(/^\s*пример\s*:\s*/i, '').trim(),
+    workingHours: biz.workingHours,
+    slotDurationMinutes: biz.slotDurationMinutes,
+    minDurationMinutes: biz.minDurationMinutes,
+  });
 });
 
 // ---- Protected ----

@@ -62,6 +62,11 @@
   line-height: 1.45;
 }
 
+.example-note a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .page-head h1 {
   font-size: 1.3125rem;
   font-weight: 650;
@@ -513,6 +518,13 @@
   font-weight: 600;
   cursor: pointer;
   transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+a.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .btn:hover:not(:disabled) { background: var(--accent-deep); }

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { reachGoal } from '../lib/metrika';
 import { signupVisit, trackSignupOpen } from '../lib/track';
+import { rememberedPrimer } from '../lib/primer';
 
 export function RegisterPage() {
   const { login } = useAuth();
@@ -11,6 +12,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fromPrimer] = useState(() => rememberedPrimer() !== null);
 
   useEffect(() => {
     trackSignupOpen();
@@ -35,7 +37,11 @@ export function RegisterPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>Регистрация</h1>
-        <p className="auth-subtitle">Создайте аккаунт для управления заведениями</p>
+        <p className="auth-subtitle">
+          {fromPrimer
+            ? 'Создайте аккаунт — часы работы из примера подставим сами'
+            : 'Создайте аккаунт для управления заведениями'}
+        </p>
 
         <form onSubmit={handleSubmit}>
           <div className="field">

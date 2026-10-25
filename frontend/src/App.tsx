@@ -13,6 +13,7 @@ import { durationRules, durationSummary, nowInBusinessTz } from './lib/day';
 import './App.css';
 
 const LANDING_URL = 'https://slotik.tech';
+const ADMIN_URL = 'https://admin.slotik.tech';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function getPathSegment(): string | null {
@@ -31,6 +32,23 @@ export default function App() {
   if (!segment) return <RootRedirect />;
 
   return <BusinessPage slug={segment} />;
+}
+
+/**
+ * Регистрация с заготовкой из примера (H-008): панель подставит часы.
+ * Источник регистрации — utm:primer/<slug>; лид из ссылки письма
+ * (utm_content) остаётся в событиях сайта.
+ */
+function claimUrl(slug: string): string {
+  const params = new URLSearchParams({
+    primer: slug,
+    utm_source: 'primer',
+    utm_medium: 'page',
+    utm_campaign: slug,
+  });
+  const lead = new URLSearchParams(window.location.search).get('utm_content');
+  if (lead) params.set('utm_content', lead);
+  return `${ADMIN_URL}/register?${params}`;
 }
 
 /**
@@ -211,8 +229,10 @@ function BusinessPage({ slug }: { slug: string }) {
     <div className="page">
       {business.example && (
         <p className="example-note" role="note">
-          Это пример: Slotik собрал страницу по часам работы с сайта места. Само место
-          Slotik не пользуется, запись отсюда не уходит. Удалим через 7 дней или по первому слову.
+          Это пример: Slotik собрал страницу для этого места, часы работы — примерные. Само
+          место Slotik не пользуется, запись отсюда не уходит. Удалим через 7 дней или по первому
+          слову. <a href={claimUrl(slug)}>Это ваше место? Сделайте такую страницу себе</a> — часы
+          уже будут заполнены.
         </p>
       )}
 
@@ -269,12 +289,21 @@ function BusinessPage({ slug }: { slug: string }) {
         <Sheet
           label="Это пример"
           onClose={() => setExampleNote(false)}
-          footer={<button className="btn" type="button" onClick={() => setExampleNote(false)}>Понятно</button>}
+          footer={(
+            <>
+              <a className="btn" href={claimUrl(slug)}>Сделать такую себе</a>
+              <button className="btn-quiet" type="button" onClick={() => setExampleNote(false)}>Понятно</button>
+            </>
+          )}
         >
           <h3 className="sheet-title">Это пример, запись не уходит</h3>
           <p className="sheet-sub">
             Так клиент выбирает время: дальше он оставляет имя и телефон, а бронь сразу приходит
             владельцу. С этой страницы запись никуда не отправится.
+          </p>
+          <p className="sheet-sub">
+            Это ваше место? Зарегистрируйтесь — часы работы уже будут заполнены, останется
+            вписать название, проверить часы и открыть запись.
           </p>
         </Sheet>
       )}

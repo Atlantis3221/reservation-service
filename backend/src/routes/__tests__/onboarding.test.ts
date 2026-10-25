@@ -232,6 +232,25 @@ describe('путь холодного пользователя', () => {
     expect((await call('GET', `/api/business/${real.slug}`)).body.example).toBe(false);
   });
 
+  it('пример отдаёт заготовку для онбординга без входа, обычное заведение — нет (H-008)', async () => {
+    await registerFreshUser();
+    const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Пример: теннисный корт' });
+    const hours = allWeekHours('08:00', '23:00');
+    await call('PUT', '/admin/settings', { businessId: business.id, workingHours: hours, slotDurationMinutes: 60 });
+    await call('POST', '/admin/businesses', { name: 'Баня Ромашка' });
+
+    token = '';
+    const tpl = await call('GET', `/admin/primer/${business.slug}`);
+    expect(tpl.status).toBe(200);
+    expect(tpl.body.name).toBe('теннисный корт');
+    expect(tpl.body.workingHours.mon).toEqual({ enabled: true, start: '08:00', end: '23:00' });
+    expect(tpl.body.slotDurationMinutes).toBe(60);
+    expect(tpl.body).not.toHaveProperty('ownerChatId');
+
+    expect((await call('GET', '/admin/primer/banya-romashka')).status).toBe(404);
+    expect((await call('GET', '/admin/primer/primer-net-takogo')).status).toBe(404);
+  });
+
   it('не отдаёт клиентские контакты в публичном API', async () => {
     await registerFreshUser();
     const { body: { business } } = await call('POST', '/admin/businesses', { name: 'Студия' });
