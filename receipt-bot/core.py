@@ -104,6 +104,9 @@ class Store:
             payer TEXT NOT NULL, occurred_at TEXT NOT NULL, kopecks INTEGER NOT NULL CHECK(kopecks>0),
             source TEXT NOT NULL, source_key TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0,
             UNIQUE(chat_id, source, source_key));
+          CREATE TABLE IF NOT EXISTS treasury_resets(
+            id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL, reset_at TEXT NOT NULL,
+            initiated_by INTEGER NOT NULL, previous_kopecks INTEGER NOT NULL);
         ''')
 
     def register(self, uid, month):
@@ -131,7 +134,8 @@ class Store:
         datetime.strptime(month + '-01', '%Y-%m-%d')
         row = self.db.execute('SELECT COUNT(*) n, COALESCE(SUM(kopecks),0) total FROM receipts WHERE user_id=? AND confirmed=1 AND occurred_at>=? AND occurred_at<?',
                               (uid, month + '-01', next_month(month) + '-01')).fetchone()
-        return f'За {month}\nПереводов: {row["n"]}\nИтого: {money(row["total"])}'
+        return (f'За {month}\nПереводов: {row["n"]}\nЗа месяц: {money(row["total"])}'
+                f'\nЗа всё время: {money(self.total(uid))}')
 
     def total(self, uid):
         return self.db.execute('SELECT COALESCE(SUM(kopecks),0) FROM receipts WHERE user_id=? AND confirmed=1',
@@ -175,18 +179,38 @@ class Store:
         count = sum(row['n'] for row in rows)
         total = sum(row['total'] for row in rows)
         by_payer = '\n'.join(f'• {row["payer"]}: {money(row["total"])} ({row["n"]})' for row in rows)
-        return f'За {month}\nПлатежей: {count}\nИтого: {money(total)}' + ('\n\nПо плательщикам:\n' + by_payer if rows else '')
+        return (f'За {month}\nПлатежей: {count}\nЗа месяц: {money(total)}'
+                f'\nЗа всё время: {money(self.group_history_total(chat_id))}'
+                f'\nСейчас в казне: {money(self.group_total(chat_id))}'
+                + ('\n\nПо плательщикам за месяц:\n' + by_payer if rows else ''))
 
     def group_balance(self, chat_id):
-        rows = self.db.execute('SELECT payer,COUNT(*) n,SUM(kopecks) total FROM group_entries WHERE chat_id=? AND confirmed=1 GROUP BY payer ORDER BY total DESC,payer',
-                               (chat_id,)).fetchall()
+        cutoff = self.group_reset_at(chat_id)
+        rows = self.db.execute('SELECT payer,COUNT(*) n,SUM(kopecks) total FROM group_entries WHERE chat_id=? AND confirmed=1 AND occurred_at>=? GROUP BY payer ORDER BY total DESC,payer',
+                               (chat_id, cutoff)).fetchall()
         total = sum(row['total'] for row in rows)
         lines = '\n'.join(f'• {row["payer"]}: {money(row["total"])} ({row["n"]})' for row in rows)
-        return f'Баланс группы за всё время: {money(total)}' + ('\n' + lines if lines else '')
+        return (f'Сейчас в казне: {money(total)}\nЗа всё время: {money(self.group_history_total(chat_id))}'
+                + ('\n' + lines if lines else ''))
 
-    def group_total(self, chat_id):
+    def group_reset_at(self, chat_id):
+        row = self.db.execute('SELECT MAX(reset_at) FROM treasury_resets WHERE chat_id=?', (chat_id,)).fetchone()
+        return row[0] or ''
+
+    def group_history_total(self, chat_id):
         return self.db.execute('SELECT COALESCE(SUM(kopecks),0) FROM group_entries WHERE chat_id=? AND confirmed=1',
                                (chat_id,)).fetchone()[0]
+
+    def group_total(self, chat_id):
+        return self.db.execute('SELECT COALESCE(SUM(kopecks),0) FROM group_entries WHERE chat_id=? AND confirmed=1 AND occurred_at>=?',
+                               (chat_id, self.group_reset_at(chat_id))).fetchone()[0]
+
+    def group_reset(self, chat_id, initiated_by, reset_at):
+        with self.db:
+            previous = self.group_total(chat_id)
+            self.db.execute('INSERT INTO treasury_resets(chat_id,reset_at,initiated_by,previous_kopecks) VALUES (?,?,?,?)',
+                            (chat_id, reset_at, initiated_by, previous))
+        return previous
 
     def group_due(self, current_month):
         return self.db.execute('SELECT * FROM group_chats WHERE next_report<?', (current_month,)).fetchall()

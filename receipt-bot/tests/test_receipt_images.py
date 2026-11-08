@@ -48,7 +48,7 @@ class ReceiptImageTests(unittest.TestCase):
                         self.assertNotEqual(hashlib.sha256(recompressed).hexdigest(), digest)
                         self.assertEqual(recognize(recompressed), receipt)
                         self.assertFalse(store.add(1, receipt, hashlib.sha256(recompressed).hexdigest())[1])
-                self.assertEqual(store.report(1, '2026-11'), 'За 2026-11\nПереводов: 4\nИтого: 4 000,00 ₽')
+                self.assertEqual(store.report(1, '2026-11'), 'За 2026-11\nПереводов: 4\nЗа месяц: 4 000,00 ₽\nЗа всё время: 4 000,00 ₽')
                 self.assertIn('Переводов: 0', store.report(1, '2026-10'))
                 for name in ['photo_2026-11-08_18-08-17.jpg', 'photo_2026-11-08_18-09-45.jpg']:
                     with self.subTest(rejected=name), self.assertRaises(ValueError):

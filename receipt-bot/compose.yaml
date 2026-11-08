@@ -1,12 +1,22 @@
 services:
+  xray:
+    image: ghcr.io/xtls/xray-core:26.9.9
+    container_name: reservation-receipt-xray
+    restart: unless-stopped
+    command: ["run", "-c", "/usr/local/etc/xray/config.json"]
+    volumes:
+      - ./xray-config.json:/usr/local/etc/xray/config.json:ro
   bot:
     build: .
     container_name: reservation-receipt-bot
     restart: unless-stopped
+    depends_on:
+      - xray
     env_file: .env
     environment:
       DB_PATH: /app/data/receipts.sqlite3
       TZ: Asia/Tomsk
       PYTHONUNBUFFERED: '1'
+      TELEGRAM_PROXY_URL: http://xray:10809
     volumes:
       - ../data/receipt-bot:/app/data

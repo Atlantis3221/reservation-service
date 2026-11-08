@@ -82,7 +82,7 @@ class StoreTests(unittest.TestCase):
         self.assertFalse(self.store.add(1, parse_receipt(SAMPLE), 'a')[1])
         self.assertTrue(self.store.cancel(1, row['id']))
         self.assertEqual(self.store.total(1), 0)
-        self.assertIn('Итого: 0,00 ₽', self.store.report(1, '2026-11'))
+        self.assertIn('За месяц: 0,00 ₽', self.store.report(1, '2026-11'))
         self.assertFalse(self.store.cancel(1, row['id']))
         self.assertTrue(self.store.add(1, parse_receipt(SAMPLE), 'a')[1])
 

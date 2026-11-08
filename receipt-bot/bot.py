@@ -45,8 +45,8 @@ async def enable(update, context):
         await update.message.reply_text('Команда /enable нужна в групповом чате.')
         return
     member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    if member.status not in ('creator', 'administrator'):
-        await update.message.reply_text('Включить учёт может администратор группы.')
+    if member.status not in ('creator', 'administrator', 'member'):
+        await update.message.reply_text('Включить учёт может участник группы.')
         return
     context.bot_data['store'].group_enable(update.effective_chat.id, month_now(context))
     await update.message.reply_text('Учёт включён. Квитанции добавляются сразу; отправивший может отменить запись кнопкой. '
@@ -60,6 +60,7 @@ async def start(update, context):
     await update.message.reply_text('Отправьте квитанцию фото или файлом PNG/JPEG/WebP. '
         'Распознанный перевод добавится сразу; если данные неверны, нажмите «Отменить».\n'
         '/month — текущий месяц\n/month 2026-11 — выбранный месяц\n'
+        '/balance — текущая казна\n/reset — обнулить казну (администратор группы)\n'
         'Отчёт за закрытый месяц приходит первого числа после 00:05. Дата берётся из квитанции.')
 
 
@@ -95,6 +96,20 @@ async def chatid(update, context):
     if not group_chat(update) or not allowed(update, context):
         return
     await update.message.reply_text(f'ID этой группы: {update.effective_chat.id}')
+
+
+async def reset(update, context):
+    if not group_chat(update) or not allowed(update, context):
+        return
+    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+    if member.status not in ('creator', 'administrator'):
+        await update.message.reply_text('Обнулить казну может администратор группы.')
+        return
+    store = context.bot_data['store']
+    timestamp = datetime.now(context.bot_data['tz']).replace(tzinfo=None).isoformat(timespec='seconds')
+    previous = store.group_reset(update.effective_chat.id, update.effective_user.id, timestamp)
+    await update.message.reply_text(f'Казна обнулена. До обнуления: {money(previous)}. Сейчас в казне: 0,00 ₽. '
+        f'История платежей сохранена, за всё время: {money(store.group_history_total(update.effective_chat.id))}.')
 
 
 async def photo(update, context):
@@ -235,15 +250,19 @@ def main():
         raise SystemExit('Заполните BOT_TOKEN в .env')
     tz = ZoneInfo(os.environ.get('TZ', 'Asia/Tomsk'))
     store = Store(os.environ.get('DB_PATH', 'data/receipts.sqlite3'))
-    app = (Application.builder().token(token)
-           .connect_timeout(30).get_updates_connect_timeout(30)
-           .post_init(on_started).build())
+    builder = (Application.builder().token(token)
+               .connect_timeout(30).get_updates_connect_timeout(30))
+    proxy = os.environ.get('TELEGRAM_PROXY_URL')
+    if proxy:
+        builder = builder.proxy(proxy).get_updates_proxy(proxy)
+    app = builder.post_init(on_started).build()
     app.bot_data.update(store=store, tz=tz, allowed=ids)
     app.add_handler(CommandHandler(['start', 'help'], start))
     app.add_handler(CommandHandler('month', month))
     app.add_handler(CommandHandler('balance', balance))
     app.add_handler(CommandHandler('chatid', chatid))
     app.add_handler(CommandHandler('enable', enable))
+    app.add_handler(CommandHandler('reset', reset))
     app.add_handler(CallbackQueryHandler(confirm, pattern=r'^(?:g:)?(?:yes|no):\d+$'))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, payment_text))

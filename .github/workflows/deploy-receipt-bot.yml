@@ -39,29 +39,13 @@ jobs:
           printf 'Host *\n  ServerAliveInterval 30\n  ServerAliveCountMax 20\n  TCPKeepAlive yes\n' > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
-      - name: Check Telegram connectivity from server
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'NETWORK_SCRIPT'
-            set -e
-            cd "${{ secrets.DEPLOY_PATH }}"
-            echo 'Host DNS:'
-            getent ahostsv4 api.telegram.org | head -3 || true
-            echo 'Host HTTPS:'
-            curl -4 -sS -o /dev/null -w 'HTTP %{http_code}; remote IP %{remote_ip}\n' \
-              --connect-timeout 8 --max-time 12 https://api.telegram.org/ || true
-            if [ -n "$(docker-compose -f receipt-bot/compose.yaml ps -q bot 2>/dev/null)" ]; then
-              echo 'Container DNS and HTTPS:'
-              docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
-                'import socket,urllib.request; print(socket.getaddrinfo("api.telegram.org",443,type=socket.SOCK_STREAM)[0][4]); print(urllib.request.urlopen("https://api.telegram.org/",timeout=8).status)' || true
-            fi
-          NETWORK_SCRIPT
-
       - name: Sync receipt bot to server
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "mkdir -p ${{ secrets.DEPLOY_PATH }}/receipt-bot ${{ secrets.DEPLOY_PATH }}/data/receipt-bot"
           rsync -avz --delete \
             --exclude='.env' \
+            --exclude='xray-config.json' \
             --exclude='.venv/' \
             --exclude='__pycache__/' \
             --exclude='receipt-examples/' \
@@ -79,6 +63,18 @@ jobs:
           printf 'BOT_TOKEN=%s\nALLOWED_USER_IDS=\nTZ=Asia/Tomsk\nDB_PATH=/app/data/receipts.sqlite3\n' "$RECEIPT_BOT_TOKEN" \
             | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
               "umask 077; cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/.env"
+
+      - name: Install private Xray config
+        env:
+          RECEIPT_XRAY_CONFIG: ${{ secrets.RECEIPT_XRAY_CONFIG }}
+        run: |
+          test -n "$RECEIPT_XRAY_CONFIG" || {
+            echo '::error::RECEIPT_XRAY_CONFIG is not configured'
+            exit 1
+          }
+          printf '%s' "$RECEIPT_XRAY_CONFIG" \
+            | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "umask 077; cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chown 65532:65532 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chmod 640 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json"
 
       - name: Backup receipt database before restart
         run: |
@@ -105,7 +101,8 @@ jobs:
             container="$(docker-compose -f receipt-bot/compose.yaml ps -q bot)"
             test -n "$container"
             test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
+            docker-compose -f receipt-bot/compose.yaml ps xray
             docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
-              'import asyncio,os; from telegram import Bot; from telegram.request import HTTPXRequest; print(asyncio.run(Bot(os.environ["BOT_TOKEN"], request=HTTPXRequest(connect_timeout=30)).get_me()).username)'
+              'import asyncio,os; from telegram import Bot; from telegram.request import HTTPXRequest; print(asyncio.run(Bot(os.environ["BOT_TOKEN"], request=HTTPXRequest(connect_timeout=30, proxy=os.environ["TELEGRAM_PROXY_URL"])).get_me()).username)'
             echo 'Receipt bot container is running and Telegram token is valid'
           CHECK_SCRIPT
