@@ -106,7 +106,7 @@ jobs:
               'import socket,httpx; print("proxy DNS:",socket.gethostbyname("xray")); s=socket.create_connection(("xray",10809),5); s.close(); print("proxy TCP: connected");
           try:
            r=httpx.get("https://api.telegram.org/",proxy="http://xray:10809",timeout=12); print("Telegram via VPN HTTP:",r.status_code)
-          except Exception as e: print("Telegram via VPN error:",type(e).__name__,repr(e))'
+          except Exception as e: print("Telegram via VPN error:",type(e).__name__,repr(e))' </dev/null
             python3 -c \
               'import json,socket; x=json.load(open("receipt-bot/xray-config.json")); v=x["outbounds"][0]["settings"]["vnext"][0];
           try:
