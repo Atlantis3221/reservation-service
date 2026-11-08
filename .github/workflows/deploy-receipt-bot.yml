@@ -72,6 +72,7 @@ jobs:
             echo '::error::RECEIPT_XRAY_CONFIG is not configured'
             exit 1
           }
+          python3 -c 'import json,os; x=json.loads(os.environ["RECEIPT_XRAY_CONFIG"]); tags={o.get("tag") for o in x["outbounds"]}; refs={o.get("streamSettings",{}).get("sockopt",{}).get("dialerProxy") for o in x["outbounds"]}; assert (refs-{None}) <= tags, "Xray outbound references a missing dialer"; print("Xray config routing validated")'
           printf '%s' "$RECEIPT_XRAY_CONFIG" \
             | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
               "umask 077; cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chown 65532:65532 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chmod 640 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json"
