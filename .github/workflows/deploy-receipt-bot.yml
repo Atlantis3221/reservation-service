@@ -98,6 +98,17 @@ jobs:
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'CHECK_SCRIPT'
             set -e
             cd "${{ secrets.DEPLOY_PATH }}"
+            echo 'Server memory:'
+            free -m
+            echo 'Receipt container states:'
+            for service in bot xray; do
+              service_container="$(docker-compose -f receipt-bot/compose.yaml ps -q "$service")"
+              if [ -n "$service_container" ]; then
+                docker inspect -f '{{.Name}} running={{.State.Running}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} restarts={{.RestartCount}}' "$service_container"
+              fi
+            done
+            echo 'Recent receipt container logs:'
+            docker-compose -f receipt-bot/compose.yaml logs --tail=20 bot xray
             container="$(docker-compose -f receipt-bot/compose.yaml ps -q bot)"
             test -n "$container"
             test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
