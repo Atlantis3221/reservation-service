@@ -97,6 +97,23 @@ jobs:
             docker-compose -f receipt-bot/compose.yaml logs --tail=20 bot xray
           INSPECT_SCRIPT
 
+      - name: Diagnose VPN route
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'ROUTE_SCRIPT'
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            docker-compose -f receipt-bot/compose.yaml run --rm --no-deps -T bot python -c \
+              'import socket,httpx; print("proxy DNS:",socket.gethostbyname("xray")); s=socket.create_connection(("xray",10809),5); s.close(); print("proxy TCP: connected");
+          try:
+           r=httpx.get("https://api.telegram.org/",proxy="http://xray:10809",timeout=12); print("Telegram via VPN HTTP:",r.status_code)
+          except Exception as e: print("Telegram via VPN error:",type(e).__name__,repr(e))'
+            python3 -c \
+              'import json,socket; x=json.load(open("receipt-bot/xray-config.json")); v=x["outbounds"][0]["settings"]["vnext"][0];
+          try:
+           s=socket.create_connection((v["address"],v["port"]),8); s.close(); print("Happ server TCP: connected")
+          except Exception as e: print("Happ server TCP error:",type(e).__name__,repr(e))'
+          ROUTE_SCRIPT
+
       - name: Restart receipt bot
         timeout-minutes: 15
         run: |
