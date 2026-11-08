@@ -81,11 +81,21 @@ jobs:
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
             set -e
             cd "${{ secrets.DEPLOY_PATH }}"
-            if [ -f data/receipt-bot/receipts.sqlite3 ] && [ -n "$(docker-compose -f receipt-bot/compose.yaml ps -q bot 2>/dev/null)" ]; then
-              docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
+            if [ -f data/receipt-bot/receipts.sqlite3 ]; then
+              docker run --rm -v "$(pwd)/data/receipt-bot:/app/data" receipt-bot-bot python -c \
                 'import datetime,pathlib,sqlite3; p=pathlib.Path("/app/data"); d=p/"backups"; d.mkdir(exist_ok=True); name="receipts-deploy-"+datetime.datetime.now().strftime("%Y%m%d%H%M%S")+".sqlite3"; src=sqlite3.connect(p/"receipts.sqlite3"); dst=sqlite3.connect(d/name); src.backup(dst); dst.close(); src.close(); [(d/f.name).unlink() for f in sorted(d.glob("receipts-deploy-*.sqlite3"),reverse=True)[10:]]'
             fi
           BACKUP_SCRIPT
+
+      - name: Inspect existing receipt containers
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'INSPECT_SCRIPT'
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            free -m
+            docker-compose -f receipt-bot/compose.yaml ps -a
+            docker-compose -f receipt-bot/compose.yaml logs --tail=20 bot xray
+          INSPECT_SCRIPT
 
       - name: Restart receipt bot
         timeout-minutes: 15
