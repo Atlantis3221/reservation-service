@@ -2,10 +2,32 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core import Store, parse_payment_text
+from core import Store, parse_backfill, parse_payment_text
 
 
 class GroupTests(unittest.TestCase):
+    def test_manual_backfill_dates_amounts_and_duplicate_keys(self):
+        entries = parse_backfill('''/backfill
+2026-10-24 07:20:47 | Мария | 800 | receipt:1-114-452-984-464
+2026-11-02 14:20:00 | Мари | 800 | manual:mari_20261102
+2026-11-07 12:24:44 | Анастасия | 1600 | receipt:1-112-467-670-921''')
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(str(Path(directory) / 'db.sqlite3'))
+            try:
+                store.group_enable(-1001, '2026-11')
+                for payer, occurred, kopecks, source, key in entries:
+                    self.assertIsNotNone(store.group_add(-1001, 1, payer, occurred, kopecks, source, key, True))
+                    self.assertIsNone(store.group_add(-1001, 1, payer, occurred, kopecks, source, key, True))
+                self.assertIn('За месяц: 2 400,00 ₽', store.group_report(-1001, '2026-11'))
+                self.assertIn('За всё время: 3 200,00 ₽', store.group_report(-1001, '2026-11'))
+            finally:
+                store.db.close()
+        for bad in ('/backfill', '/backfill\n2026-11-02 | Мари | 800 | manual:test',
+                    '/backfill\n2026-11-02 14:20:00 | Мари | 800 | manual:',
+                    '/backfill\n2026-11-02 14:20:00 | Мари | 0 | manual:test'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                parse_backfill(bad)
+
     def test_reset_keeps_history_and_excludes_late_backfill(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / 'db.sqlite3')

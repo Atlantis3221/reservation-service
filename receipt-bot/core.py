@@ -76,6 +76,32 @@ def parse_payment_text(text, sender_name):
     return payer, kopecks
 
 
+def parse_backfill(text):
+    """Parse a small, manually checked set of historical group payments."""
+    lines = [line.strip() for line in text.splitlines()[1:] if line.strip()]
+    if not 1 <= len(lines) <= 30:
+        raise ValueError('Добавьте от 1 до 30 строк после /backfill.')
+    entries = []
+    for line in lines:
+        parts = [part.strip() for part in line.split('|')]
+        if len(parts) != 4:
+            raise ValueError('Формат строки: дата время | плательщик | сумма | receipt:номер или manual:ключ')
+        date, payer, amount, source_key = parts
+        try:
+            occurred = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').isoformat()
+            raw_kopecks = Decimal(amount.replace(' ', '').replace(',', '.')) * 100
+            kopecks = int(raw_kopecks)
+        except (ValueError, ArithmeticError) as error:
+            raise ValueError('Неверная дата или сумма в историческом платеже.') from error
+        if raw_kopecks != kopecks or not payer or len(payer) > 80 or not 0 < kopecks <= 1_000_000_000:
+            raise ValueError('Проверьте плательщика и сумму исторического платежа.')
+        source, sep, key = source_key.partition(':')
+        if not sep or source not in ('receipt', 'manual') or not re.fullmatch(r'[A-Za-zА-Яа-яЁё0-9_-]{4,80}', key):
+            raise ValueError('Укажите уникальный ключ receipt:номер или manual:ключ.')
+        entries.append((payer, occurred, kopecks, source, key))
+    return entries
+
+
 def next_month(month):
     year, num = map(int, month.split('-'))
     return f'{year + (num == 12):04d}-{num % 12 + 1:02d}'

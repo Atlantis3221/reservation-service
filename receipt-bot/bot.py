@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
-from core import Store, money, parse_payment_text
+from core import Store, money, parse_backfill, parse_payment_text
 from ocr import recognize
 
 log = logging.getLogger(__name__)
@@ -110,6 +110,27 @@ async def reset(update, context):
     previous = store.group_reset(update.effective_chat.id, update.effective_user.id, timestamp)
     await update.message.reply_text(f'Казна обнулена. До обнуления: {money(previous)}. Сейчас в казне: 0,00 ₽. '
         f'История платежей сохранена, за всё время: {money(store.group_history_total(update.effective_chat.id))}.')
+
+
+async def backfill(update, context):
+    if not group_chat(update) or not allowed(update, context):
+        return
+    try:
+        entries = parse_backfill(update.message.text)
+        today = datetime.now(context.bot_data['tz']).date()
+        if any(datetime.fromisoformat(entry[1]).date() > today for entry in entries):
+            raise ValueError('Дата исторического платежа находится в будущем.')
+    except ValueError as error:
+        await update.message.reply_text(str(error))
+        return
+    store = context.bot_data['store']
+    added = 0
+    for payer, occurred, kopecks, source, key in entries:
+        added += store.group_add(update.effective_chat.id, update.effective_user.id,
+                                 payer, occurred, kopecks, source, key, True) is not None
+    await update.message.reply_text(
+        f'История загружена: {added}; дублей пропущено: {len(entries) - added}.\n'
+        + store.group_report(update.effective_chat.id, month_now(context)))
 
 
 async def photo(update, context):
@@ -263,6 +284,7 @@ def main():
     app.add_handler(CommandHandler('chatid', chatid))
     app.add_handler(CommandHandler('enable', enable))
     app.add_handler(CommandHandler('reset', reset))
+    app.add_handler(CommandHandler('backfill', backfill))
     app.add_handler(CallbackQueryHandler(confirm, pattern=r'^(?:g:)?(?:yes|no):\d+$'))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, payment_text))
