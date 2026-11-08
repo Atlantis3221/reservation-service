@@ -39,6 +39,23 @@ jobs:
           printf 'Host *\n  ServerAliveInterval 30\n  ServerAliveCountMax 20\n  TCPKeepAlive yes\n' > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
+      - name: Check Telegram connectivity from server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'NETWORK_SCRIPT'
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            echo 'Host DNS:'
+            getent ahostsv4 api.telegram.org | head -3 || true
+            echo 'Host HTTPS:'
+            curl -4 -sS -o /dev/null -w 'HTTP %{http_code}; remote IP %{remote_ip}\n' \
+              --connect-timeout 8 --max-time 12 https://api.telegram.org/ || true
+            if [ -n "$(docker-compose -f receipt-bot/compose.yaml ps -q bot 2>/dev/null)" ]; then
+              echo 'Container DNS and HTTPS:'
+              docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
+                'import socket,urllib.request; print(socket.getaddrinfo("api.telegram.org",443,type=socket.SOCK_STREAM)[0][4]); print(urllib.request.urlopen("https://api.telegram.org/",timeout=8).status)' || true
+            fi
+          NETWORK_SCRIPT
+
       - name: Sync receipt bot to server
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
