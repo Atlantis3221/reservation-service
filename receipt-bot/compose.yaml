@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    container_name: reservation-receipt-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/receipts.sqlite3
+      TZ: Asia/Tomsk
+      PYTHONUNBUFFERED: '1'
+    volumes:
+      - ../data/receipt-bot:/app/data

@@ -1,0 +1,4 @@
+python-telegram-bot[job-queue]==22.5
+pytesseract==0.3.13
+Pillow==11.3.0
+python-dotenv==1.1.1
