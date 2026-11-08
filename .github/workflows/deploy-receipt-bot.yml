@@ -1,0 +1,94 @@
+name: Deploy receipt bot
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'receipt-bot/**'
+      - '.github/workflows/deploy-receipt-bot.yml'
+  workflow_dispatch:
+
+# Main service and receipt bot share a server; do not deploy them concurrently.
+concurrency:
+  group: deploy-master
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test receipt bot
+        run: |
+          pip install -r receipt-bot/requirements.txt
+          cd receipt-bot
+          python -m unittest discover -s tests -q
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          printf 'Host *\n  ServerAliveInterval 30\n  ServerAliveCountMax 20\n  TCPKeepAlive yes\n' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Sync receipt bot to server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p ${{ secrets.DEPLOY_PATH }}/receipt-bot ${{ secrets.DEPLOY_PATH }}/data/receipt-bot"
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='receipt-examples/' \
+            receipt-bot/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/receipt-bot/
+
+      - name: Generate receipt bot .env
+        env:
+          RECEIPT_BOT_TOKEN: ${{ secrets.RECEIPT_BOT_TOKEN }}
+        run: |
+          test -n "$RECEIPT_BOT_TOKEN" || {
+            echo '::error::RECEIPT_BOT_TOKEN is not configured'
+            exit 1
+          }
+          printf 'BOT_TOKEN=%s\nALLOWED_USER_IDS=\nTZ=Asia/Tomsk\nDB_PATH=/app/data/receipts.sqlite3\n' "$RECEIPT_BOT_TOKEN" \
+            | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "umask 077; cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/.env"
+
+      - name: Backup receipt database before restart
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            if [ -f data/receipt-bot/receipts.sqlite3 ] && [ -n "$(docker-compose -f receipt-bot/compose.yaml ps -q bot 2>/dev/null)" ]; then
+              docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
+                'import datetime,pathlib,sqlite3; p=pathlib.Path("/app/data"); d=p/"backups"; d.mkdir(exist_ok=True); name="receipts-deploy-"+datetime.datetime.now().strftime("%Y%m%d%H%M%S")+".sqlite3"; src=sqlite3.connect(p/"receipts.sqlite3"); dst=sqlite3.connect(d/name); src.backup(dst); dst.close(); src.close(); [(d/f.name).unlink() for f in sorted(d.glob("receipts-deploy-*.sqlite3"),reverse=True)[10:]]'
+            fi
+          BACKUP_SCRIPT
+
+      - name: Restart receipt bot
+        timeout-minutes: 15
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && docker-compose -f receipt-bot/compose.yaml up -d --build"
+
+      - name: Check receipt bot
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'CHECK_SCRIPT'
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            container="$(docker-compose -f receipt-bot/compose.yaml ps -q bot)"
+            test -n "$container"
+            test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
+            docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
+              'import asyncio,os; from telegram import Bot; print(asyncio.run(Bot(os.environ["BOT_TOKEN"]).get_me()).username)'
+            echo 'Receipt bot container is running and Telegram token is valid'
+          CHECK_SCRIPT

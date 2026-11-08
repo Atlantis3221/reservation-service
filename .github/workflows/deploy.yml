@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
+      - 'receipt-bot/**'
+      - '.github/workflows/deploy-receipt-bot.yml'
   workflow_dispatch:
 
 # Два пуша подряд запускали две сборки образа на одной машине одновременно.
@@ -34,16 +36,6 @@ jobs:
 
       - name: Run backend tests
         run: npm test --workspace=backend
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Test receipt bot
-        run: |
-          pip install -r receipt-bot/requirements.txt
-          cd receipt-bot
-          python -m unittest discover -s tests -q
 
       - name: Build frontend
         run: npm run build --workspace=frontend
@@ -122,19 +114,6 @@ jobs:
           printf '%s' "$ENV_CONTENT" | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cat > ${{ secrets.DEPLOY_PATH }}/backend/.env"
 
-      - name: Generate receipt bot .env
-        env:
-          RECEIPT_BOT_TOKEN: ${{ secrets.RECEIPT_BOT_TOKEN }}
-        run: |
-          if [ -z "$RECEIPT_BOT_TOKEN" ]; then
-            echo 'Receipt bot token is not configured; receipt bot deployment is skipped.'
-            exit 0
-          fi
-          umask 077
-          printf 'BOT_TOKEN=%s\nALLOWED_USER_IDS=\nTZ=Asia/Tomsk\nDB_PATH=/app/data/receipts.sqlite3\n' "$RECEIPT_BOT_TOKEN" \
-            | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/.env"
-
       - name: Backup database before restart
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
@@ -156,28 +135,11 @@ jobs:
             fi
           BACKUP_SCRIPT
 
-      - name: Backup receipt database before restart
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
-            set -e
-            cd "${{ secrets.DEPLOY_PATH }}"
-            if [ -f data/receipt-bot/receipts.sqlite3 ] && [ -n "$(docker-compose -f receipt-bot/compose.yaml ps -q bot 2>/dev/null)" ]; then
-              docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
-                'import datetime,pathlib,sqlite3; p=pathlib.Path("/app/data"); d=p/"backups"; d.mkdir(exist_ok=True); name="receipts-deploy-"+datetime.datetime.now().strftime("%Y%m%d%H%M%S")+".sqlite3"; src=sqlite3.connect(p/"receipts.sqlite3"); dst=sqlite3.connect(d/name); src.backup(dst); dst.close(); src.close(); [(d/f.name).unlink() for f in sorted(d.glob("receipts-deploy-*.sqlite3"),reverse=True)[10:]]'
-            fi
-          BACKUP_SCRIPT
-
       - name: Restart containers
         timeout-minutes: 25
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "cd ${{ secrets.DEPLOY_PATH }} && docker-compose up -d --build"
-
-      - name: Restart receipt bot
-        timeout-minutes: 15
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && if [ -s receipt-bot/.env ]; then docker-compose -f receipt-bot/compose.yaml up -d --build; fi"
 
       # Проверяем не только /health, но и что запущен именно новый код:
       # предыдущий деплой упал на перезапуске, статика обновилась, а бэкенд
@@ -202,18 +164,3 @@ jobs:
             exit 1
           fi
           echo "Backend is running the current build"
-
-      - name: Check receipt bot
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'CHECK_SCRIPT'
-            set -e
-            cd "${{ secrets.DEPLOY_PATH }}"
-            if [ ! -s receipt-bot/.env ]; then
-              echo 'Receipt bot is not configured yet'
-              exit 0
-            fi
-            container="$(docker-compose -f receipt-bot/compose.yaml ps -q bot)"
-            test -n "$container"
-            test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
-            echo 'Receipt bot container is running'
-          CHECK_SCRIPT
