@@ -76,6 +76,11 @@ jobs:
             | ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
               "umask 077; cat > ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chown 65532:65532 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json; chmod 640 ${{ secrets.DEPLOY_PATH }}/receipt-bot/xray-config.json"
 
+      - name: Restart VPN with current private config
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && docker-compose -f receipt-bot/compose.yaml up -d --force-recreate xray"
+
       - name: Backup receipt database before restart
         run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'BACKUP_SCRIPT'
