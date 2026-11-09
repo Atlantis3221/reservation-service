@@ -7,7 +7,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from core import Store, money, parse_backfill, parse_payment_text
@@ -15,6 +15,36 @@ from ocr import recognize
 
 log = logging.getLogger(__name__)
 MAX_BYTES = 10 * 1024 * 1024
+INFO_TEXT = (
+    'БРАТ БУХГАЛТЕР — учёт платежей в группе. Отправьте фото квитанции или файл PNG/JPEG/WebP: '
+    'бот запишет перевод и покажет остаток казны. Ошибочную запись можно убрать кнопкой «Отменить».\n\n'
+    'Команды:\n'
+    '/info — эта справка\n'
+    '/month — отчёт за текущий месяц\n'
+    '/month 2026-11 — отчёт за выбранный месяц\n'
+    '/balance — казна сейчас и сумма за всё время\n'
+    '/enable — включить учёт в группе\n'
+    '/chatid — ID группы для импорта истории\n'
+    '/reset — обнулить казну с сохранением истории; только администратор группы\n'
+    '/backfill — добавить проверенные старые платежи; формат описан ниже\n'
+    '/start и /help — эта же справка\n\n'
+    'Платёж текстом: «Оплатил 800 ₽» (от своего имени) или «Имя: 800 ₽». '
+    'Для /backfill укажите с новой строки: ГГГГ-ММ-ДД ЧЧ:ММ:СС | Имя | Сумма | receipt:номер. '
+    'Если номера нет, используйте manual:уникальный_ключ. Повторный импорт пропускает дубли.\n\n'
+    'Отчёт за закрытый месяц приходит первого числа после 00:05 по времени Томска. '
+    'Дата платежа по квитанции берётся из самой квитанции.'
+)
+BOT_COMMANDS = [
+    BotCommand('start', 'Начать работу и открыть справку'),
+    BotCommand('info', 'Все команды и правила учёта'),
+    BotCommand('help', 'Справка по боту'),
+    BotCommand('month', 'Отчёт за месяц'),
+    BotCommand('balance', 'Казна сейчас и за всё время'),
+    BotCommand('enable', 'Включить учёт в группе'),
+    BotCommand('chatid', 'Показать ID группы'),
+    BotCommand('reset', 'Обнулить казну, сохранив историю'),
+    BotCommand('backfill', 'Загрузить старые платежи'),
+]
 
 
 def allowed(update, context):
@@ -54,14 +84,10 @@ async def enable(update, context):
 
 
 async def start(update, context):
-    if not allowed(update, context):
+    if not group_chat(update) and not allowed(update, context):
         return
     register(update, context)
-    await update.message.reply_text('Отправьте квитанцию фото или файлом PNG/JPEG/WebP. '
-        'Распознанный перевод добавится сразу; если данные неверны, нажмите «Отменить».\n'
-        '/month — текущий месяц\n/month 2026-11 — выбранный месяц\n'
-        '/balance — текущая казна\n/reset — обнулить казну (администратор группы)\n'
-        'Отчёт за закрытый месяц приходит первого числа после 00:05. Дата берётся из квитанции.')
+    await update.message.reply_text(INFO_TEXT)
 
 
 async def month(update, context):
@@ -260,6 +286,7 @@ async def on_error(update, context):
 
 async def on_started(app):
     me = await app.bot.get_me()
+    await app.bot.set_my_commands(BOT_COMMANDS)
     print(f'Бот @{me.username} подключён к Telegram. Для группы: добавьте бота и отправьте /enable.', flush=True)
 
 
@@ -278,7 +305,7 @@ def main():
         builder = builder.proxy(proxy).get_updates_proxy(proxy)
     app = builder.post_init(on_started).build()
     app.bot_data.update(store=store, tz=tz, allowed=ids)
-    app.add_handler(CommandHandler(['start', 'help'], start))
+    app.add_handler(CommandHandler(['start', 'help', 'info'], start))
     app.add_handler(CommandHandler('month', month))
     app.add_handler(CommandHandler('balance', balance))
     app.add_handler(CommandHandler('chatid', chatid))

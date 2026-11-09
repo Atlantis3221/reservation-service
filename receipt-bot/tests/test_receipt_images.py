@@ -16,6 +16,7 @@ from ocr import recognize
 
 
 ROOT = Path(__file__).resolve().parents[1] / 'receipt-examples' / 'incoming'
+CHAT_SCREENSHOT = os.environ.get('RECEIPT_CHAT_SCREENSHOT')
 
 
 @unittest.skipUnless(os.environ.get('RUN_RECEIPT_IMAGE_TESTS') == '1', 'Local image integration tests are opt-in')
@@ -57,3 +58,13 @@ class ReceiptImageTests(unittest.TestCase):
                                  (ROOT / 'photo_2026-11-08_18-09-45.jpg').read_bytes())
             finally:
                 store.db.close()
+
+
+@unittest.skipUnless(CHAT_SCREENSHOT, 'Set RECEIPT_CHAT_SCREENSHOT to a private local sample')
+class MessengerScreenshotTests(unittest.TestCase):
+    def test_narrow_sber_receipt_inside_chat_screenshot(self):
+        receipt = recognize(Path(CHAT_SCREENSHOT).read_bytes())
+        self.assertEqual(receipt.occurred_at, '2026-11-08T17:59:14')
+        self.assertEqual(receipt.kopecks, 80000)
+        self.assertEqual(receipt.payer, 'Севил Менгиевна С.')
+        self.assertEqual(len(receipt.number), 32)
