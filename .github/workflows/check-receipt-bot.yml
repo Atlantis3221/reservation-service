@@ -2,15 +2,24 @@ name: Check receipt bot
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
 
 permissions:
   contents: read
+
+concurrency:
+  group: receipt-bot-health
+  cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up SSH
+        id: ssh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -18,27 +27,13 @@ jobs:
           umask 077
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Check containers and Telegram API
+        if: always()
         env:
+          SSH_SETUP_OUTCOME: ${{ steps.ssh.outcome }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'CHECK_SCRIPT'
-            set -eu
-            cd "${{ secrets.DEPLOY_PATH }}"
-            echo 'Container state:'
-            docker-compose -f receipt-bot/compose.yaml ps
-            for service in bot xray; do
-              container="$(docker-compose -f receipt-bot/compose.yaml ps -q "$service")"
-              test -n "$container"
-              docker inspect -f '{{.Name}} running={{.State.Running}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' "$container"
-              test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
-            done
-            echo 'Recent connection logs:'
-            docker-compose -f receipt-bot/compose.yaml logs --since=20m --tail=80 bot xray
-            echo 'Telegram Bot API:'
-            docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
-              'import asyncio,os,time; from telegram import Bot; from telegram.request import HTTPXRequest; start=time.monotonic(); me=asyncio.run(Bot(os.environ["BOT_TOKEN"],request=HTTPXRequest(connect_timeout=30,read_timeout=30,proxy=os.environ["TELEGRAM_PROXY_URL"])).get_me()); print("@%s, %.1fs" % (me.username,time.monotonic()-start))'
-          CHECK_SCRIPT
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: python3 receipt-bot/status_check.py
