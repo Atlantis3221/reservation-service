@@ -147,6 +147,6 @@ jobs:
             test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
             docker-compose -f receipt-bot/compose.yaml ps xray
             docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
-              'import asyncio,os; from telegram import Bot; from telegram.request import HTTPXRequest; print(asyncio.run(Bot(os.environ["BOT_TOKEN"], request=HTTPXRequest(connect_timeout=30, proxy=os.environ["TELEGRAM_PROXY_URL"])).get_me()).username)'
+              'import asyncio,os; from telegram import Bot; from telegram.request import HTTPXRequest; print(asyncio.run(Bot(os.environ["BOT_TOKEN"], request=HTTPXRequest(connect_timeout=30, read_timeout=30, proxy=os.environ["TELEGRAM_PROXY_URL"])).get_me()).username)'
             echo 'Receipt bot container is running and Telegram token is valid'
           CHECK_SCRIPT

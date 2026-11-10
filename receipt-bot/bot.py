@@ -281,7 +281,9 @@ async def reports(context):
 
 async def on_error(update, context):
     # Do not log tokens, message contents or receipt details.
-    log.error('Update failed: %s', type(context.error).__name__)
+    cause = context.error.__cause__
+    log.error('Update failed: %s (cause: %s)', type(context.error).__name__,
+              type(cause).__name__ if cause else 'unknown')
 
 
 async def on_started(app):
@@ -298,8 +300,11 @@ def main():
         raise SystemExit('Заполните BOT_TOKEN в .env')
     tz = ZoneInfo(os.environ.get('TZ', 'Asia/Tomsk'))
     store = Store(os.environ.get('DB_PATH', 'data/receipts.sqlite3'))
+    # Telegram requests can take longer than the library's five-second read
+    # timeout over the Xray route, even when the proxy itself is reachable.
     builder = (Application.builder().token(token)
-               .connect_timeout(30).get_updates_connect_timeout(30))
+               .connect_timeout(30).read_timeout(30)
+               .get_updates_connect_timeout(30).get_updates_read_timeout(30))
     proxy = os.environ.get('TELEGRAM_PROXY_URL')
     if proxy:
         builder = builder.proxy(proxy).get_updates_proxy(proxy)
