@@ -1,0 +1,44 @@
+name: Check receipt bot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Check containers and Telegram API
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s << 'CHECK_SCRIPT'
+            set -eu
+            cd "${{ secrets.DEPLOY_PATH }}"
+            echo 'Container state:'
+            docker-compose -f receipt-bot/compose.yaml ps
+            for service in bot xray; do
+              container="$(docker-compose -f receipt-bot/compose.yaml ps -q "$service")"
+              test -n "$container"
+              docker inspect -f '{{.Name}} running={{.State.Running}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' "$container"
+              test "$(docker inspect -f '{{.State.Running}}' "$container")" = true
+            done
+            echo 'Recent connection logs:'
+            docker-compose -f receipt-bot/compose.yaml logs --since=20m --tail=80 bot xray
+            echo 'Telegram Bot API:'
+            docker-compose -f receipt-bot/compose.yaml exec -T bot python -c \
+              'import asyncio,os,time; from telegram import Bot; from telegram.request import HTTPXRequest; start=time.monotonic(); me=asyncio.run(Bot(os.environ["BOT_TOKEN"],request=HTTPXRequest(connect_timeout=30,read_timeout=30,proxy=os.environ["TELEGRAM_PROXY_URL"])).get_me()); print("@%s, %.1fs" % (me.username,time.monotonic()-start))'
+          CHECK_SCRIPT

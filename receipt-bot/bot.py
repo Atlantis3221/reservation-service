@@ -23,6 +23,7 @@ INFO_TEXT = (
     '/month — отчёт за текущий месяц\n'
     '/month 2026-11 — отчёт за выбранный месяц\n'
     '/balance — казна сейчас и сумма за всё время\n'
+    '/ping — проверить связь с ботом\n'
     '/enable — включить учёт в группе\n'
     '/chatid — ID группы для импорта истории\n'
     '/reset — обнулить казну с сохранением истории; только администратор группы\n'
@@ -40,6 +41,7 @@ BOT_COMMANDS = [
     BotCommand('help', 'Справка по боту'),
     BotCommand('month', 'Отчёт за месяц'),
     BotCommand('balance', 'Казна сейчас и за всё время'),
+    BotCommand('ping', 'Проверить связь с ботом'),
     BotCommand('enable', 'Включить учёт в группе'),
     BotCommand('chatid', 'Показать ID группы'),
     BotCommand('reset', 'Обнулить казну, сохранив историю'),
@@ -85,9 +87,17 @@ async def enable(update, context):
 
 async def start(update, context):
     if not group_chat(update) and not allowed(update, context):
+        await update.message.reply_text('Бот на связи. Для учёта отправьте квитанцию в подключённую группу. '
+                                        'Проверить доступность можно здесь командой /ping.')
         return
     register(update, context)
     await update.message.reply_text(INFO_TEXT)
+
+
+async def ping(update, context):
+    if group_chat(update) and not allowed(update, context):
+        return
+    await update.message.reply_text('Бот на связи. /info — справка, /balance — казна группы.')
 
 
 async def month(update, context):
@@ -214,6 +224,9 @@ async def payment_text(update, context):
     try:
         payer, amount = parse_payment_text(update.message.text, sender_name(update.effective_user))
     except ValueError:
+        if re.search(r'(?:брат\s+бухгалтер|@bratbuhbot)', update.message.text, re.I) and \
+                re.search(r'(?:период|за\s+вс[её]|баланс|казн)', update.message.text, re.I):
+            await update.message.reply_text(context.bot_data['store'].group_balance(update.effective_chat.id))
         return
     occurred = update.message.date.astimezone(context.bot_data['tz']).replace(tzinfo=None).isoformat()
     key = f'{update.effective_chat.id}:{update.message.message_id}'
@@ -286,6 +299,21 @@ async def on_error(update, context):
               type(cause).__name__ if cause else 'unknown')
 
 
+async def connectivity_watchdog(context):
+    """Restart the polling process after a sustained loss of Bot API access."""
+    try:
+        await context.bot.get_me()
+    except Exception as error:
+        failures = context.bot_data.get('connectivity_failures', 0) + 1
+        context.bot_data['connectivity_failures'] = failures
+        log.warning('Telegram health check failed (%s/3): %s', failures, type(error).__name__)
+        if failures >= 3:
+            log.error('Telegram unreachable; restarting bot process')
+            context.application.stop_running()
+    else:
+        context.bot_data['connectivity_failures'] = 0
+
+
 async def on_started(app):
     me = await app.bot.get_me()
     await app.bot.set_my_commands(BOT_COMMANDS)
@@ -311,6 +339,7 @@ def main():
     app = builder.post_init(on_started).build()
     app.bot_data.update(store=store, tz=tz, allowed=ids)
     app.add_handler(CommandHandler(['start', 'help', 'info'], start))
+    app.add_handler(CommandHandler('ping', ping))
     app.add_handler(CommandHandler('month', month))
     app.add_handler(CommandHandler('balance', balance))
     app.add_handler(CommandHandler('chatid', chatid))
@@ -322,6 +351,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, payment_text))
     app.add_error_handler(on_error)
     app.job_queue.run_repeating(reports, interval=60, first=5)
+    app.job_queue.run_repeating(connectivity_watchdog, interval=60, first=60)
     try:
         app.run_polling(allowed_updates=['message', 'callback_query'])
     finally:
