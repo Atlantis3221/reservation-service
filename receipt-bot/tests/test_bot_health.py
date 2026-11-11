@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-from bot import connectivity_watchdog, payment_text, ping, start
+from bot import audit_message, connectivity_watchdog, payment_text, ping, start, status
 from core import Store
 
 
@@ -39,6 +39,46 @@ class BotHealthTests(unittest.IsolatedAsyncioTestCase):
         await start(update, context)
         self.assertEqual(reply.await_count, 2)
         self.assertIn('на связи', reply.await_args.args[0])
+
+    async def test_status_replies_in_private_and_group_without_counting_payment(self):
+        reply = AsyncMock()
+        message = SimpleNamespace(text='статус', reply_text=reply)
+        update = SimpleNamespace(update_id=123, effective_chat=SimpleNamespace(type='private'),
+                                 effective_user=SimpleNamespace(id=42), message=message)
+        await payment_text(update, SimpleNamespace(bot_data={'allowed': set()}))
+        self.assertIn('Бот на связи', reply.await_args.args[0])
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(str(Path(directory) / 'test.db'))
+            try:
+                store.group_enable(-1001, '2026-11')
+                store.group_add(-1001, 7, 'Катерина', '2026-11-10T10:18:42', 160000,
+                                'receipt', 'receipt-1', True)
+                update.effective_chat = SimpleNamespace(type='supergroup', id=-1001)
+                context = SimpleNamespace(bot_data={'store': store})
+                for text in ('статус', 'Брат, статус', '@bratbuhbot статус'):
+                    reply.reset_mock()
+                    message.text = text
+                    await payment_text(update, context)
+                    self.assertIn('Учёт группы включён', reply.await_args.args[0])
+                    self.assertIn('1 600,00 ₽', reply.await_args.args[0])
+                reply.reset_mock()
+                await status(update, context)
+                self.assertIn('Бот на связи', reply.await_args.args[0])
+                self.assertEqual(store.group_history_total(-1001), 160000)
+            finally:
+                store.db.close()
+
+    async def test_incoming_message_log_contains_metadata_only(self):
+        update = SimpleNamespace(update_id=987, effective_chat=SimpleNamespace(type='supergroup'),
+                                 effective_message=SimpleNamespace(text='секретный текст 800 ₽'))
+        with self.assertLogs('bot', level='INFO') as captured:
+            await audit_message(update, None)
+        line = captured.output[0]
+        self.assertIn('update_id=987', line)
+        self.assertIn('chat_type=supergroup', line)
+        self.assertIn('kind=text', line)
+        self.assertNotIn('секретный текст', line)
 
     async def test_named_balance_question_gets_answer_without_counting_payment(self):
         with tempfile.TemporaryDirectory() as directory:

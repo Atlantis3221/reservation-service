@@ -24,6 +24,7 @@ INFO_TEXT = (
     '/month 2026-11 — отчёт за выбранный месяц\n'
     '/balance — казна сейчас и сумма за всё время\n'
     '/ping — проверить связь с ботом\n'
+    '/status — связь с ботом и состояние учёта группы; также можно написать «статус»\n'
     '/enable — включить учёт в группе\n'
     '/chatid — ID группы для импорта истории\n'
     '/reset — обнулить казну с сохранением истории; только администратор группы\n'
@@ -42,6 +43,7 @@ BOT_COMMANDS = [
     BotCommand('month', 'Отчёт за месяц'),
     BotCommand('balance', 'Казна сейчас и за всё время'),
     BotCommand('ping', 'Проверить связь с ботом'),
+    BotCommand('status', 'Связь с ботом и учёт группы'),
     BotCommand('enable', 'Включить учёт в группе'),
     BotCommand('chatid', 'Показать ID группы'),
     BotCommand('reset', 'Обнулить казну, сохранив историю'),
@@ -98,6 +100,32 @@ async def ping(update, context):
     if group_chat(update) and not allowed(update, context):
         return
     await update.message.reply_text('Бот на связи. /info — справка, /balance — казна группы.')
+
+
+async def status(update, context):
+    if group_chat(update):
+        if allowed(update, context):
+            reply = 'Бот на связи. Учёт группы включён.\n' + context.bot_data['store'].group_balance(update.effective_chat.id)
+        else:
+            reply = 'Бот на связи. Учёт в этой группе не включён. Отправьте /enable.'
+    else:
+        reply = 'Бот на связи. Для проверки казны отправьте /balance в подключённой группе.'
+    await update.message.reply_text(reply)
+    log.info('Status replied: update_id=%s chat_type=%s', getattr(update, 'update_id', None), update.effective_chat.type)
+
+
+async def audit_message(update, context):
+    """Record delivery metadata without storing chat text, images or user data."""
+    message = update.effective_message
+    content = getattr(message, 'text', None)
+    if content:
+        kind = 'command' if content.startswith('/') else 'text'
+    elif getattr(message, 'photo', None) or getattr(message, 'document', None):
+        kind = 'image'
+    else:
+        kind = 'other'
+    log.info('Telegram message received: update_id=%s chat_type=%s kind=%s',
+             update.update_id, update.effective_chat.type, kind)
 
 
 async def month(update, context):
@@ -219,6 +247,10 @@ async def photo(update, context):
 
 
 async def payment_text(update, context):
+    if re.fullmatch(r'\s*(?:(?:брат(?:\s+бухгалтер)?|@bratbuhbot)[\s,!:—-]*)?статус(?:\s+бота)?[\s?.!]*',
+                    update.message.text, re.I):
+        await status(update, context)
+        return
     if not group_chat(update) or not allowed(update, context):
         return
     try:
@@ -322,6 +354,7 @@ async def on_started(app):
 
 def main():
     load_dotenv()
+    log.setLevel(logging.INFO)
     token = os.environ.get('BOT_TOKEN', '')
     ids = {int(x.strip()) for x in os.environ.get('ALLOWED_USER_IDS', '').split(',') if x.strip()}
     if not token or token.startswith('replace_'):
@@ -338,8 +371,10 @@ def main():
         builder = builder.proxy(proxy).get_updates_proxy(proxy)
     app = builder.post_init(on_started).build()
     app.bot_data.update(store=store, tz=tz, allowed=ids)
+    app.add_handler(MessageHandler(filters.ALL, audit_message), group=-1)
     app.add_handler(CommandHandler(['start', 'help', 'info'], start))
     app.add_handler(CommandHandler('ping', ping))
+    app.add_handler(CommandHandler('status', status))
     app.add_handler(CommandHandler('month', month))
     app.add_handler(CommandHandler('balance', balance))
     app.add_handler(CommandHandler('chatid', chatid))
