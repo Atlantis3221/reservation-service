@@ -103,6 +103,8 @@ async def ping(update, context):
 
 
 async def status(update, context):
+    log.info('Запрос «статус»: update_id=%s chat_type=%s',
+             getattr(update, 'update_id', None), update.effective_chat.type)
     if group_chat(update):
         if allowed(update, context):
             reply = 'Бот на связи. Учёт группы включён.\n' + context.bot_data['store'].group_balance(update.effective_chat.id)
@@ -111,7 +113,8 @@ async def status(update, context):
     else:
         reply = 'Бот на связи. Для проверки казны отправьте /balance в подключённой группе.'
     await update.message.reply_text(reply)
-    log.info('Status replied: update_id=%s chat_type=%s', getattr(update, 'update_id', None), update.effective_chat.type)
+    log.info('Ответ на «статус» отправлен: update_id=%s chat_type=%s',
+             getattr(update, 'update_id', None), update.effective_chat.type)
 
 
 async def audit_message(update, context):

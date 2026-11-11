@@ -45,8 +45,11 @@ class BotHealthTests(unittest.IsolatedAsyncioTestCase):
         message = SimpleNamespace(text='статус', reply_text=reply)
         update = SimpleNamespace(update_id=123, effective_chat=SimpleNamespace(type='private'),
                                  effective_user=SimpleNamespace(id=42), message=message)
-        await payment_text(update, SimpleNamespace(bot_data={'allowed': set()}))
+        with self.assertLogs('bot', level='INFO') as captured:
+            await payment_text(update, SimpleNamespace(bot_data={'allowed': set()}))
         self.assertIn('Бот на связи', reply.await_args.args[0])
+        self.assertIn('Запрос «статус»', captured.output[0])
+        self.assertIn('Ответ на «статус» отправлен', captured.output[1])
 
         with tempfile.TemporaryDirectory() as directory:
             store = Store(str(Path(directory) / 'test.db'))
