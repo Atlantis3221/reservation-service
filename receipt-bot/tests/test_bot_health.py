@@ -73,15 +73,37 @@ class BotHealthTests(unittest.IsolatedAsyncioTestCase):
                 store.db.close()
 
     async def test_incoming_message_log_contains_metadata_only(self):
-        update = SimpleNamespace(update_id=987, effective_chat=SimpleNamespace(type='supergroup'),
-                                 effective_message=SimpleNamespace(text='секретный текст 800 ₽'))
+        update = SimpleNamespace(update_id=987, effective_chat=SimpleNamespace(type='supergroup', id=-1001),
+                                 effective_message=SimpleNamespace(text='секретный текст 800 ₽', message_id=42))
         with self.assertLogs('bot', level='INFO') as captured:
             await audit_message(update, None)
         line = captured.output[0]
         self.assertIn('update_id=987', line)
+        self.assertIn('chat_id=-1001', line)
+        self.assertIn('message_id=42', line)
         self.assertIn('chat_type=supergroup', line)
         self.assertIn('kind=text', line)
         self.assertNotIn('секретный текст', line)
+
+    async def test_unrecognized_text_logs_parser_reason_without_message_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(str(Path(directory) / 'test.db'))
+            try:
+                store.group_enable(-1001, '2026-11')
+                message = SimpleNamespace(text='секретный текст 800 ₽', message_id=42,
+                                          reply_text=AsyncMock())
+                update = SimpleNamespace(update_id=987,
+                                         effective_chat=SimpleNamespace(type='supergroup', id=-1001),
+                                         effective_user=SimpleNamespace(id=7, first_name='Катерина', last_name=''),
+                                         effective_message=message, message=message)
+                with self.assertLogs('bot', level='INFO') as captured:
+                    await payment_text(update, SimpleNamespace(bot_data={'store': store}))
+                self.assertIn('update_id=987 chat_id=-1001 message_id=42', captured.output[0])
+                self.assertIn('Формат платежа', captured.output[0])
+                self.assertNotIn('секретный текст', captured.output[0])
+                message.reply_text.assert_not_awaited()
+            finally:
+                store.db.close()
 
     async def test_named_balance_question_gets_answer_without_counting_payment(self):
         with tempfile.TemporaryDirectory() as directory:

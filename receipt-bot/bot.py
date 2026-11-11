@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import re
+import traceback
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -57,6 +58,10 @@ def allowed(update, context):
     return context.bot_data['store'].group_enabled(update.effective_chat.id)
 
 
+def access_rejection_reason(update):
+    return 'group_not_enabled' if group_chat(update) else 'user_not_allowed'
+
+
 def group_chat(update):
     return update.effective_chat.type in ('group', 'supergroup')
 
@@ -72,6 +77,14 @@ def month_now(context):
 def register(update, context):
     if not group_chat(update):
         context.bot_data['store'].register(update.effective_user.id, month_now(context))
+
+
+def message_ref(update):
+    message = getattr(update, 'effective_message', None) or getattr(update, 'message', None)
+    chat = update.effective_chat
+    return (f'update_id={getattr(update, "update_id", None)} '
+            f'chat_id={getattr(chat, "id", None)} '
+            f'message_id={getattr(message, "message_id", None)}')
 
 
 async def enable(update, context):
@@ -118,17 +131,26 @@ async def status(update, context):
 
 
 async def audit_message(update, context):
-    """Record delivery metadata without storing chat text, images or user data."""
+    """Record delivery metadata without storing message or receipt contents."""
     message = update.effective_message
     content = getattr(message, 'text', None)
     if content:
         kind = 'command' if content.startswith('/') else 'text'
-    elif getattr(message, 'photo', None) or getattr(message, 'document', None):
-        kind = 'image'
+    elif getattr(message, 'photo', None):
+        kind = 'photo'
+    elif getattr(message, 'document', None):
+        kind = 'document'
     else:
         kind = 'other'
-    log.info('Telegram message received: update_id=%s chat_type=%s kind=%s',
-             update.update_id, update.effective_chat.type, kind)
+    attachment = (message.photo[-1] if getattr(message, 'photo', None)
+                  else getattr(message, 'document', None))
+    log.info('Telegram message received: %s chat_type=%s kind=%s file_size=%s mime_type=%s',
+             message_ref(update), update.effective_chat.type, kind,
+             getattr(attachment, 'file_size', None), getattr(attachment, 'mime_type', None))
+
+
+async def unhandled_message(update, context):
+    log.info('Telegram message ignored: %s reason=no_matching_handler', message_ref(update))
 
 
 async def month(update, context):
@@ -202,26 +224,36 @@ async def backfill(update, context):
 
 async def photo(update, context):
     if not allowed(update, context):
+        log.info('Image ignored: %s reason=%s', message_ref(update), access_rejection_reason(update))
         return
     register(update, context)
     attachment = update.message.photo[-1] if update.message.photo else update.message.document
     if attachment.file_size is None or attachment.file_size > MAX_BYTES:
+        log.info('Image rejected: %s reason=missing_or_excessive_file_size file_size=%s',
+                 message_ref(update), attachment.file_size)
         await update.message.reply_text('Максимальный размер изображения — 10 МБ.')
         return
+    stage = 'download'
     try:
         file = await attachment.get_file()
         data = bytes(await file.download_as_bytearray())
         if len(data) > MAX_BYTES:
             raise ValueError('Максимальный размер изображения — 10 МБ.')
-        receipt = await asyncio.to_thread(recognize, data)
+        log.info('Image downloaded: %s bytes=%s', message_ref(update), len(data))
+        stage = 'ocr'
+        receipt = await asyncio.to_thread(recognize, data, update.update_id)
+        log.info('Image recognized: %s', message_ref(update))
+        stage = 'validation'
         if datetime.fromisoformat(receipt.occurred_at).date() > datetime.now(context.bot_data['tz']).date():
             raise ValueError('Дата квитанции находится в будущем. Проверьте скриншот.')
+        stage = 'storage'
         store = context.bot_data['store']
         if group_chat(update):
             payer = receipt.payer or sender_name(update.effective_user)
             rid = store.group_add(update.effective_chat.id, update.effective_user.id, payer,
                 receipt.occurred_at, receipt.kopecks, 'receipt', receipt.number, True)
             if rid is None:
+                log.info('Image ignored: %s reason=duplicate_receipt', message_ref(update))
                 await update.message.reply_text('Эта квитанция уже загружена в группу.')
                 return
         else:
@@ -229,13 +261,17 @@ async def photo(update, context):
             if not new and not row['confirmed']:
                 new = store.confirm(update.effective_user.id, row['id'])
     except ValueError as error:
+        log.info('Image rejected: %s stage=%s reason=%s', message_ref(update), stage, error)
         await update.message.reply_text(str(error))
         return
     except Exception as error:
-        log.warning('Image processing failed: %s', type(error).__name__)
+        log.error('Image processing failed: %s stage=%s error_type=%s traceback=%s',
+                  message_ref(update), stage, type(error).__name__,
+                  ''.join(traceback.format_tb(error.__traceback__)))
         await update.message.reply_text('Не удалось обработать изображение. Попробуйте файл PNG/JPEG или повторите позже.')
         return
     if not group_chat(update) and not new:
+        log.info('Image ignored: %s reason=duplicate_receipt', message_ref(update))
         await update.message.reply_text('Эта квитанция уже учтена. Повторно не добавлена.')
         return
     prefix = 'g:' if group_chat(update) else ''
@@ -247,6 +283,7 @@ async def photo(update, context):
         f'Статус: {receipt.status}\nКвитанция № {receipt.number}\n'
         f'Денег в казне: {money(treasury)}\n'
         'Если распознано неверно, нажмите «Отменить».', reply_markup=keyboard)
+    log.info('Image payment recorded: %s record_id=%s', message_ref(update), key)
 
 
 async def payment_text(update, context):
@@ -255,13 +292,18 @@ async def payment_text(update, context):
         await status(update, context)
         return
     if not group_chat(update) or not allowed(update, context):
+        reason = 'private_text_not_supported' if not group_chat(update) else access_rejection_reason(update)
+        log.info('Text ignored: %s reason=%s', message_ref(update), reason)
         return
     try:
         payer, amount = parse_payment_text(update.message.text, sender_name(update.effective_user))
-    except ValueError:
+    except ValueError as error:
         if re.search(r'(?:брат\s+бухгалтер|@bratbuhbot)', update.message.text, re.I) and \
                 re.search(r'(?:период|за\s+вс[её]|баланс|казн)', update.message.text, re.I):
             await update.message.reply_text(context.bot_data['store'].group_balance(update.effective_chat.id))
+            log.info('Text answered as balance question: %s', message_ref(update))
+        else:
+            log.info('Text ignored: %s reason=%s', message_ref(update), error)
         return
     occurred = update.message.date.astimezone(context.bot_data['tz']).replace(tzinfo=None).isoformat()
     key = f'{update.effective_chat.id}:{update.message.message_id}'
@@ -271,6 +313,9 @@ async def payment_text(update, context):
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Отменить', callback_data=f'g:no:{rid}')]])
         treasury = context.bot_data['store'].group_total(update.effective_chat.id)
         await update.message.reply_text(f'Записано: {payer} — {money(amount)}.\nДенег в казне: {money(treasury)}\n/month — отчёт.', reply_markup=keyboard)
+        log.info('Text payment recorded: %s record_id=%s', message_ref(update), rid)
+    else:
+        log.info('Text ignored: %s reason=duplicate_payment', message_ref(update))
 
 
 async def confirm(update, context):
@@ -329,9 +374,12 @@ async def reports(context):
 
 async def on_error(update, context):
     # Do not log tokens, message contents or receipt details.
-    cause = context.error.__cause__
-    log.error('Update failed: %s (cause: %s)', type(context.error).__name__,
-              type(cause).__name__ if cause else 'unknown')
+    error = context.error
+    cause = error.__cause__
+    log.error('Update failed: update_id=%s error_type=%s cause_type=%s traceback=%s',
+              getattr(update, 'update_id', None), type(error).__name__,
+              type(cause).__name__ if cause else 'unknown',
+              ''.join(traceback.format_tb(error.__traceback__)))
 
 
 async def connectivity_watchdog(context):
@@ -387,6 +435,7 @@ def main():
     app.add_handler(CallbackQueryHandler(confirm, pattern=r'^(?:g:)?(?:yes|no):\d+$'))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, payment_text))
+    app.add_handler(MessageHandler(filters.ALL, unhandled_message))
     app.add_error_handler(on_error)
     app.job_queue.run_repeating(reports, interval=60, first=5)
     app.job_queue.run_repeating(connectivity_watchdog, interval=60, first=60)
@@ -398,4 +447,5 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.WARNING)
+    logging.getLogger('ocr').setLevel(logging.INFO)
     main()

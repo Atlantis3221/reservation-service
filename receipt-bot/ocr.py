@@ -1,10 +1,13 @@
 from io import BytesIO
+import logging
 import warnings
 
 import pytesseract
 from PIL import Image, ImageOps
 
 from core import parse_receipt
+
+log = logging.getLogger(__name__)
 
 
 def light_document_region(image):
@@ -41,7 +44,7 @@ def light_document_region(image):
     return image.crop((left, top, right, bottom))
 
 
-def recognize(data):
+def recognize(data, update_id=None):
     # Bounds apply before decoding and upscaling, including compressed image bombs.
     Image.MAX_IMAGE_PIXELS = 12_000_000
     with warnings.catch_warnings():
@@ -49,6 +52,8 @@ def recognize(data):
         with Image.open(BytesIO(data)) as source:
             if source.format not in ('PNG', 'JPEG', 'WEBP'):
                 raise ValueError('Пришлите PNG, JPEG или WebP.')
+            log.info('OCR image opened: update_id=%s format=%s width=%s height=%s',
+                     update_id, source.format, source.width, source.height)
             source.load()
             original = ImageOps.grayscale(ImageOps.exif_transpose(source))
     image = original
@@ -56,29 +61,37 @@ def recognize(data):
     image = image.resize((int(image.width * scale), int(image.height * scale)))
     image = ImageOps.autocontrast(image)
     candidates = set()
-    def read_variant(variant, mode):
+    def read_variant(variant, mode, name):
         text = pytesseract.image_to_string(variant, lang='rus+eng', config=f'--psm {mode}', timeout=30)
         try:
             candidates.add(parse_receipt(text))
-        except ValueError:
-            pass
+        except ValueError as error:
+            log.info('OCR variant rejected: update_id=%s variant=%s psm=%s reason=%s',
+                     update_id, name, mode, error)
+        else:
+            log.info('OCR variant accepted: update_id=%s variant=%s psm=%s', update_id, name, mode)
 
     for mode in (6, 3):
-        read_variant(image, mode)
+        read_variant(image, mode, 'full')
     if not candidates:
         # Pale grey date lines can disappear during Tesseract's own binarization.
         # Try two contrast thresholds; disagreement still rejects the receipt.
         for threshold in (180, 210):
-            read_variant(image.point(lambda pixel: 255 if pixel > threshold else 0), 6)
+            read_variant(image.point(lambda pixel: 255 if pixel > threshold else 0), 6,
+                         f'threshold_{threshold}')
     if not candidates:
         # A receipt forwarded as a narrow phone screenshot needs more pixels per
         # character. Crop the light document before enlarging to keep OCR bounded.
         panel = ImageOps.autocontrast(light_document_region(original))
+        log.info('OCR cropped region: update_id=%s width=%s height=%s',
+                 update_id, panel.width, panel.height)
         scale = min(4, 4000 / max(panel.size))
         if scale > 1:
             panel = panel.resize((int(panel.width * scale), int(panel.height * scale)))
         for mode in (6, 3):
-            read_variant(panel, mode)
+            read_variant(panel, mode, 'cropped')
     if len(candidates) != 1:
+        log.info('OCR result rejected: update_id=%s candidate_count=%s', update_id, len(candidates))
         raise ValueError('Не удалось уверенно прочитать квитанцию. Пришлите полный чёткий скриншот без обрезки.')
+    log.info('OCR result accepted: update_id=%s', update_id)
     return candidates.pop()
