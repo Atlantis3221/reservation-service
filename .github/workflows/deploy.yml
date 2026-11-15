@@ -70,7 +70,7 @@ jobs:
           rsync -avz --delete \
             --exclude='node_modules' \
             --exclude='.env' \
-            --exclude='receipt-bot/.env' \
+            --exclude='/receipt-bot/' \
             --exclude='data/' \
             --exclude='certbot/' \
             --exclude='frontend-dist/' \

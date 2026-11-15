@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
+from telegram.request import HTTPXRequest
 
 from core import Store, money, parse_backfill, parse_payment_text
 from ocr import recognize
@@ -412,15 +413,11 @@ def main():
         raise SystemExit('Заполните BOT_TOKEN в .env')
     tz = ZoneInfo(os.environ.get('TZ', 'Asia/Tomsk'))
     store = Store(os.environ.get('DB_PATH', 'data/receipts.sqlite3'))
-    # Telegram requests can take longer than the library's five-second read
-    # timeout over the Xray route, even when the proxy itself is reachable.
-    builder = (Application.builder().token(token)
-               .connect_timeout(30).read_timeout(30)
-               .get_updates_connect_timeout(30).get_updates_read_timeout(30))
-    proxy = os.environ.get('TELEGRAM_PROXY_URL')
-    if proxy:
-        builder = builder.proxy(proxy).get_updates_proxy(proxy)
-    app = builder.post_init(on_started).build()
+    request_options = dict(connect_timeout=30, read_timeout=30, httpx_kwargs={'trust_env': False})
+    app = (Application.builder().token(token)
+           .request(HTTPXRequest(**request_options))
+           .get_updates_request(HTTPXRequest(connection_pool_size=1, **request_options))
+           .post_init(on_started).build())
     app.bot_data.update(store=store, tz=tz, allowed=ids)
     app.add_handler(MessageHandler(filters.ALL, audit_message), group=-1)
     app.add_handler(CommandHandler(['start', 'help', 'info'], start))
