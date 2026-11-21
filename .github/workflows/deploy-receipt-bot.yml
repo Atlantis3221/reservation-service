@@ -36,7 +36,7 @@ jobs:
           pip install -r requirements.txt
           python -m unittest discover -s tests -q
 
-      - name: Deploy and verify on Germany-4
+      - name: Deploy and verify on Nexus NX-75
         env:
           RECEIPT_DEPLOY_SSH_KEY: ${{ secrets.RECEIPT_DEPLOY_SSH_KEY }}
         run: |
@@ -47,11 +47,11 @@ jobs:
           printf '%s\n' "${RECEIPT_DEPLOY_SSH_KEY:?Missing receipt bot deploy key}" > "$ssh_dir/key"
           unset RECEIPT_DEPLOY_SSH_KEY
           cat > "$ssh_dir/known_hosts" <<'KNOWN_HOSTS'
-          13.143.168.34 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOzdSeEtuGgjKM2Y+HR2dG20YDet1JL5Gzw9iCUNq3LD
+          31.76.127.75 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH0XugXs6erakPfjJKOXBk7drqZyjJe3rWdGx1NsaR1p
           KNOWN_HOSTS
           cat > "$ssh_dir/config" <<SSH_CONFIG
-          Host receipt-germany4
-            HostName 13.143.168.34
+          Host receipt-nx75
+            HostName 31.76.127.75
             User root
             IdentityFile $ssh_dir/key
             UserKnownHostsFile $ssh_dir/known_hosts
@@ -63,8 +63,8 @@ jobs:
             ServerAliveCountMax 4
           SSH_CONFIG
 
-          ssh -F "$ssh_dir/config" receipt-germany4 '
-            test "$(hostname -s)" = s354509 &&
+          ssh -F "$ssh_dir/config" receipt-nx75 '
+            test "$(hostname -s)" = s280916 &&
             test -s /opt/reservation-service/receipt-bot/.env &&
             test -s /opt/reservation-service/data/receipt-bot/receipts.sqlite3
           '
@@ -72,12 +72,12 @@ jobs:
             --exclude='/.env' --exclude='/.venv/' --exclude='__pycache__/' \
             --exclude='/data/' --exclude='/receipt-examples/' \
             -e "ssh -F $ssh_dir/config" receipt-bot/ \
-            receipt-germany4:/opt/reservation-service/receipt-bot/
+            receipt-nx75:/opt/reservation-service/receipt-bot/
 
-          ssh -F "$ssh_dir/config" receipt-germany4 bash -s -- "$GITHUB_SHA" <<'DEPLOY'
+          ssh -F "$ssh_dir/config" receipt-nx75 bash -s -- "$GITHUB_SHA" <<'DEPLOY'
           set -euo pipefail
           umask 077
-          test "$(hostname -s)" = s354509
+          test "$(hostname -s)" = s280916
           cd /opt/reservation-service
           export RECEIPT_BOT_REVISION="$1"
 
@@ -109,7 +109,7 @@ jobs:
             if [[ "$(docker inspect -f '{{.State.Running}} {{.RestartCount}}' "$container")" == 'true 0' ]] &&
                grep -Fq 'Бот @bratbuhbot подключён к Telegram' <<< "$(docker logs "$container" 2>&1)"; then
               test "$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container")" = "$RECEIPT_BOT_REVISION"
-              printf 'Germany-4 (%s): @bratbuhbot connected, revision %s\n' "$(hostname -s)" "$RECEIPT_BOT_REVISION"
+              printf 'Nexus NX-75 (%s): @bratbuhbot connected, revision %s\n' "$(hostname -s)" "$RECEIPT_BOT_REVISION"
               exit 0
             fi
             sleep 2
@@ -119,4 +119,4 @@ jobs:
           exit 1
           DEPLOY
 
-          printf 'Deployed `%s` to **Germany-4** (`s354509`).\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Deployed `%s` to **Nexus NX-75** (`s280916`).\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
